@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saham Indonesia Backtest · Lot + Fee</title>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1115;
+      color: #e0e0e0;
+      padding: 12px;
+      font-size: 13px;
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 12px; color: #fff; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+    .tab-btn {
+      padding: 8px 16px; border: none; border-radius: 6px 6px 0 0;
+      background: #1a1d24; color: #aaa; cursor: pointer; font-weight: 600; font-size: 0.88rem;
+    }
+    .tab-btn.active { background: #2962ff; color: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+      background: #1a1d24; padding: 12px; border-radius: 8px; align-items: flex-end;
+    }
+    .controls label { font-size: 0.78rem; display: flex; flex-direction: column; gap: 3px; }
+    input, select, button {
+      padding: 6px 10px; border-radius: 5px; border: 1px solid #333;
+      background: #252830; color: #fff; font-size: 0.82rem;
+    }
+    button { cursor: pointer; background: #2962ff; border: none; font-weight: 600; }
+    button:hover { background: #1e4fd6; }
+    button.secondary { background: #2e7d32; }
+    button.secondary:hover { background: #1b5e20; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    button.small { padding: 4px 10px; font-size: 0.75rem; }
+    #chart { width: 100%; height: 310px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 6px; }
+    #macdChart { width: 100%; height: 105px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 14px; }
+    .analysis-box { background: #1a1d24; padding: 14px; border-radius: 8px; }
+    .analysis-box h2 { font-size: 1.05rem; margin-bottom: 10px; color: #90caf9; }
+    #status, #statusMulti, #statusCons, .progress {
+      font-size: 0.8rem; margin: 6px 0; color: #aaa;
+    }
+    .table-wrapper {
+      overflow: auto; max-height: 52vh; border: 1px solid #333;
+      border-radius: 6px; margin-bottom: 14px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.72rem; min-width: 1200px; }
+    th, td {
+      padding: 6px 8px; text-align: left; border-bottom: 1px solid #2a2e38; white-space: nowrap;
+    }
+    th {
+      background: #252830; position: sticky; top: 0; z-index: 10;
+      color: #90caf9; font-weight: 600; cursor: pointer; user-select: none;
+    }
+    th:hover { background: #2e3340; }
+    th.sorted-asc::after { content: " ▲"; font-size: 0.7rem; }
+    th.sorted-desc::after { content: " ▼"; font-size: 0.7rem; }
+    tr:hover { background: #1e222d; }
+    .green { color: #26a69a; font-weight: 600; }
+    .red { color: #ef5350; font-weight: 600; }
+    .yellow { color: #ffca28; }
+    .blue { color: #42a5f5; }
+    .gray { color: #888; }
+    .note { font-size: 0.74rem; color: #777; margin-top: 8px; line-height: 1.45; }
+    .summary-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px; margin-bottom: 12px;
+    }
+    .summary-card {
+      background: #252830; padding: 11px; border-radius: 8px; text-align: center;
+    }
+    .summary-card .label { font-size: 0.72rem; color: #aaa; margin-bottom: 4px; }
+    .summary-card .value { font-size: 1.05rem; font-weight: 700; }
+    .summary-card .sub { font-size: 0.69rem; color: #888; margin-top: 3px; }
+    .progress-bar {
+      height: 6px; background: #252830; border-radius: 4px; overflow: hidden; margin-bottom: 14px;
+    }
+    .progress-fill { height: 100%; background: #2962ff; width: 0%; transition: width 0.25s; }
+    .table-tools { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; }
+    .table-tools input { width: 220px; }
+    .upload-box {
+      background: #1a1d24; border: 2px dashed #444; border-radius: 8px;
+      padding: 20px; text-align: center; margin-bottom: 16px;
+    }
+    .upload-box.dragover { border-color: #2962ff; background: #1a2333; }
+  </style>
+</head>
+<body>
+
+  <h1>Saham Indonesia Backtest · Lot 100 + Fee</h1>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('single')">Single Symbol</button>
+    <button class="tab-btn" onclick="switchTab('multi')">Multi Symbol</button>
+    <button class="tab-btn" onclick="switchTab('cons')">Consistency Check</button>
+  </div>
+
+  <!-- ==================== TAB 1: SINGLE ==================== -->
+  <div id="tab-single" class="tab-content active">
+    <div class="upload-box" id="uploadBox">
+      <p style="margin-bottom:10px">Upload file <strong>GetStockSummary_YYYY-MM-DD.json</strong> (bisa banyak sekaligus)</p>
+      <input type="file" id="fileInput" multiple accept=".json" style="margin-bottom:8px">
+      <div id="uploadStatus" style="font-size:0.8rem;color:#aaa">Belum ada data di-upload</div>
+    </div>
+
+    <div class="controls">
+      <label>Saham
+        <select id="stockSelect" style="min-width:180px">
+          <option value="">-- Pilih saham --</option>
+        </select>
+      </label>
+      <label>Modal (Rp)
+        <input type="number" id="modalRp" value="10000000" min="100000" step="100000" style="width:130px">
+      </label>
+      <label>Fee Buy (%)
+        <input type="text" id="feeBuy" value="0.1513" style="width:80px">
+      </label>
+      <label>Fee Sell (%)
+        <input type="text" id="feeSell" value="0.2513" style="width:80px">
+      </label>
+      <button onclick="loadSelectedStock()">Load Chart</button>
+      <button class="secondary" onclick="generateFullTable()">Generate Full Table</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="chart"></div>
+    <div id="macdChart"></div>
+
+    <div class="analysis-box">
+      <h2>Ringkasan Hasil Backtest</h2>
+      <div class="summary-grid" id="summaryGrid">
+        <div class="summary-card"><div class="label">Belum di-generate</div></div>
+      </div>
+      <h2 style="margin-top:16px">Detail Semua Tanggal</h2>
+      <div class="progress" id="progress"></div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Tanggal</th><th>Close</th><th>Price Action</th><th>Fase</th><th>Sinyal</th>
+              <th>Buy</th><th>CL</th><th>TP1</th><th>Lot</th><th>Close Date</th>
+              <th>Hasil</th><th>Profit (Rp)</th><th>Catatan</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="13" style="text-align:center;color:#888;padding:20px">Upload data & pilih saham terlebih dahulu</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">
+        • Minimal transaksi 1 lot (100 lembar).<br>
+        • Fee Buy 0.1513% | Fee Sell 0.2513% (bisa diubah).<br>
+        • Modal akan dibulatkan ke bawah sesuai jumlah lot yang bisa dibeli.
+      </p>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 2: MULTI ==================== -->
+  <div id="tab-multi" class="tab-content">
+    <div class="controls">
+      <label>Modal (Rp)
+        <input type="number" id="modalRpMulti" value="10000000" min="100000" step="100000" style="width:130px">
+      </label>
+      <label>Fee Buy (%)
+        <input type="text" id="feeBuyMulti" value="0.1513" style="width:80px">
+      </label>
+      <label>Fee Sell (%)
+        <input type="text" id="feeSellMulti" value="0.2513" style="width:80px">
+      </label>
+      <button id="btnMulti" onclick="runMultiBacktest()">Generate All Stocks</button>
+    </div>
+
+    <div id="statusMulti">Upload data terlebih dahulu di Tab Single Symbol.</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFillMulti"></div></div>
+
+    <div class="table-tools">
+      <input type="text" id="searchMulti" placeholder="Cari kode saham..." oninput="filterMultiTable()">
+      <span id="resultCountMulti" style="color:#888;font-size:0.8rem"></span>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="tableMulti">
+        <thead>
+          <tr>
+            <th data-key="symbol">Kode</th>
+            <th data-key="totalSignal">Total Sinyal</th>
+            <th data-key="benar">Menang</th>
+            <th data-key="salah">Kalah</th>
+            <th data-key="belum">Belum Close</th>
+            <th data-key="winrate">Winrate</th>
+            <th data-key="totalModal">Total Modal</th>
+            <th data-key="totalProfit">Total Profit</th>
+            <th data-key="totalPct">% Modal</th>
+          </tr>
+        </thead>
+        <tbody id="tableBodyMulti">
+          <tr><td colspan="9" style="text-align:center;color:#888;padding:30px">Belum ada data</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 3: CONSISTENCY ==================== -->
+  <div id="tab-cons" class="tab-content">
+    <div class="controls">
+      <label>Modal (Rp)
+        <input type="number" id="modalRpCons" value="10000000" min="100000" step="100000" style="width:130px">
+      </label>
+      <label>Fee Buy (%)
+        <input type="text" id="feeBuyCons" value="0.1513" style="width:80px">
+      </label>
+      <label>Fee Sell (%)
+        <input type="text" id="feeSellCons" value="0.2513" style="width:80px">
+      </label>
+      <button id="btnCons" onclick="runConsistency()">Jalankan Consistency Check</button>
+    </div>
+
+    <div id="statusCons">Upload data terlebih dahulu di Tab Single Symbol.</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFillCons"></div></div>
+
+    <div class="table-tools">
+      <input type="text" id="searchCons" placeholder="Cari kode saham..." oninput="filterConsTable()">
+      <span id="resultCountCons" style="color:#888;font-size:0.8rem"></span>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="tableCons">
+        <thead>
+          <tr>
+            <th data-key="symbol">Kode</th>
+            <th data-key="periode">Periode</th>
+            <th data-key="dari">Dari</th>
+            <th data-key="sampai">Sampai</th>
+            <th data-key="totalSignal">Total Sinyal</th>
+            <th data-key="winrate">Winrate</th>
+            <th data-key="profitFactor">Profit Factor</th>
+            <th data-key="totalPct">Total Profit %</th>
+            <th data-key="status">Status</th>
+            <th data-key="rekomendasi">Rekomendasi</th>
+          </tr>
+        </thead>
+        <tbody id="tableBodyCons">
+          <tr><td colspan="10" style="text-align:center;color:#888;padding:30px">Belum dijalankan</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      • Periode dihitung dari data yang berhasil di-upload.<br>
+      • Status "Konsisten" = Winrate ≥ 50% dan Profit Factor ≥ 1.3
+    </p>
+  </div>
+
+  <script>
+    // ==================== GLOBAL DATA ====================
+    let stockData = {};          // { "BBCA": [ {time, open, high, low, close, volume}, ... ] }
+    let stockList = [];          // daftar kode saham
+    let currentData = [];        // data saham yang sedang dipilih (Single)
+    let multiResults = [];
+    let consResults = [];
+
+    // ==================== TAB SWITCH ====================
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    // ==================== FILE UPLOAD ====================
+    const fileInput = document.getElementById('fileInput');
+    const uploadBox = document.getElementById('uploadBox');
+
+    fileInput.addEventListener('change', handleFiles);
+    uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.classList.add('dragover'); });
+    uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
+    uploadBox.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadBox.classList.remove('dragover');
+      handleFiles({ target: { files: e.dataTransfer.files } });
+    });
+
+    async function handleFiles(e) {
+      const files = Array.from(e.target.files).filter(f => f.name.endsWith('.json'));
+      if (files.length === 0) return alert('Pilih file JSON');
+
+      document.getElementById('uploadStatus').textContent = `Memproses ${files.length} file...`;
+      stockData = {};
+      let totalRecords = 0;
+
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const json = JSON.parse(text);
+          if (!json.data || !Array.isArray(json.data)) continue;
+
+          json.data.forEach(row => {
+            const code = row.StockCode;
+            if (!code) return;
+
+            // Ambil tanggal
+            let dateStr = row.Date ? row.Date.substring(0, 10) : null;
+            if (!dateStr) {
+              // coba dari nama file
+              const match = file.name.match(/(\d{4}-\d{2}-\d{2})/);
+              if (match) dateStr = match[1];
+            }
+            if (!dateStr) return;
+
+            const time = Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 1000);
+            const open = +row.OpenPrice || +row.Previous || 0;
+            const high = +row.High || open;
+            const low = +row.Low || open;
+            const close = +row.Close || open;
+            const volume = +row.Volume || 0;
+
+            if (!stockData[code]) stockData[code] = [];
+            stockData[code].push({ time, open, high, low, close, volume });
+            totalRecords++;
+          });
+        } catch (err) {
+          console.warn('Gagal baca file', file.name, err);
+        }
+      }
+
+      // Sort & unique per stock
+      stockList = Object.keys(stockData).sort();
+      stockList.forEach(code => {
+        const map = new Map();
+        stockData[code].forEach(d => map.set(d.time, d));
+        stockData[code] = Array.from(map.values()).sort((a, b) => a.time - b.time);
+      });
+
+      // Isi dropdown
+      const select = document.getElementById('stockSelect');
+      select.innerHTML = '<option value="">-- Pilih saham --</option>';
+      stockList.forEach(code => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = code;
+        select.appendChild(opt);
+      });
+
+      const dateRange = getOverallDateRange();
+      document.getElementById('uploadStatus').innerHTML = `
+        <span class="green">Berhasil load ${stockList.length} saham</span> · 
+        ${totalRecords} baris data · 
+        Periode: ${dateRange.from} → ${dateRange.to}
+      `;
+      document.getElementById('statusMulti').textContent = `Data siap. ${stockList.length} saham tersedia.`;
+      document.getElementById('statusCons').textContent = `Data siap. ${stockList.length} saham tersedia.`;
+    }
+
+    function getOverallDateRange() {
+      let minT = Infinity, maxT = -Infinity;
+      Object.values(stockData).forEach(arr => {
+        if (arr.length) {
+          minT = Math.min(minT, arr[0].time);
+          maxT = Math.max(maxT, arr[arr.length - 1].time);
+        }
+      });
+      return {
+        from: minT < Infinity ? new Date(minT * 1000).toISOString().slice(0, 10) : '-',
+        to: maxT > -Infinity ? new Date(maxT * 1000).toISOString().slice(0, 10) : '-'
+      };
+    }
+
+    // ==================== CHART ====================
+    let chart, candleSeries, volumeSeries, maSeries, emaSeries;
+    let macdChart, macdLineSeries, macdSignalSeries, macdHistSeries;
+
+    function initChart() {
+      const container = document.getElementById('chart');
+      chart = LightweightCharts.createChart(container, {
+        layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
+        grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        rightPriceScale: { borderColor: '#2B2B43' },
+        timeScale: { borderColor: '#2B2B43', timeVisible: true, secondsVisible: false },
+      });
+      candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a', downColor: '#ef5350',
+        borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+        wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+      });
+      volumeSeries = chart.addHistogramSeries({
+        color: '#26a69a', priceFormat: { type: 'volume' }, priceScaleId: '',
+        scaleMargins: { top: 0.75, bottom: 0 },
+      });
+      maSeries = chart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, title: 'MA' });
+      emaSeries = chart.addLineSeries({ color: '#2196f3', lineWidth: 1.5, title: 'EMA' });
+
+      const macdContainer = document.getElementById('macdChart');
+      macdChart = LightweightCharts.createChart(macdContainer, {
+        layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
+        grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+        rightPriceScale: { borderColor: '#2B2B43' },
+        timeScale: { borderColor: '#2B2B43', visible: false },
+      });
+      macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: 'price', precision: 0 } });
+      macdLineSeries = macdChart.addLineSeries({ color: '#2962ff', lineWidth: 1.5 });
+      macdSignalSeries = macdChart.addLineSeries({ color: '#ff6d00', lineWidth: 1.5 });
+
+      chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        if (range) macdChart.timeScale().setVisibleLogicalRange(range);
+      });
+      new ResizeObserver(() => {
+        chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+        macdChart.applyOptions({ width: macdContainer.clientWidth, height: macdContainer.clientHeight });
+      }).observe(container);
+    }
+
+    function calcSMA(data, period) {
+      const result = [];
+      for (let i = period - 1; i < data.length; i++) {
+        let sum = 0;
+        for (let j = 0; j < period; j++) sum += data[i - j].close;
+        result.push({ time: data[i].time, value: sum / period });
+      }
+      return result;
+    }
+    function calcEMA(data, period) {
+      const result = [];
+      const k = 2 / (period + 1);
+      let ema = data[0].close;
+      for (let i = 0; i < data.length; i++) {
+        ema = i === 0 ? data[0].close : data[i].close * k + ema * (1 - k);
+        result.push({ time: data[i].time, value: ema });
+      }
+      return result;
+    }
+    function calcMACD(data) {
+      const emaFast = calcEMA(data, 12);
+      const emaSlow = calcEMA(data, 26);
+      const macdLine = data.map((d, i) => ({ time: d.time, value: emaFast[i].value - emaSlow[i].value }));
+      const signalLine = [];
+      const k = 2 / 10;
+      let sig = macdLine[0].value;
+      for (let i = 0; i < macdLine.length; i++) {
+        sig = i === 0 ? macdLine[0].value : macdLine[i].value * k + sig * (1 - k);
+        signalLine.push({ time: macdLine[i].time, value: sig });
+      }
+      const hist = macdLine.map((d, i) => ({
+        time: d.time,
+        value: d.value - signalLine[i].value,
+        color: (d.value - signalLine[i].value) >= 0 ? 'rgba(38,166,154,0.55)' : 'rgba(239,83,80,0.55)'
+      }));
+      return { macdLine, signalLine, hist };
+    }
+
+    function loadSelectedStock() {
+      const code = document.getElementById('stockSelect').value;
+      if (!code || !stockData[code]) return alert('Pilih saham terlebih dahulu');
+
+      currentData = stockData[code];
+      if (currentData.length < 30) return alert('Data terlalu sedikit untuk saham ini');
+
+      candleSeries.setData(currentData.map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })));
+      volumeSeries.setData(currentData.map(d => ({
+        time: d.time, value: d.volume,
+        color: d.close >= d.open ? 'rgba(38,166,154,0.45)' : 'rgba(239,83,80,0.45)'
+      })));
+      maSeries.setData(calcSMA(currentData, 20));
+      emaSeries.setData(calcEMA(currentData, 50));
+      const { macdLine, signalLine, hist } = calcMACD(currentData);
+      macdLineSeries.setData(macdLine);
+      macdSignalSeries.setData(signalLine);
+      macdHistSeries.setData(hist);
+      chart.timeScale().fitContent();
+      macdChart.timeScale().fitContent();
+
+      document.getElementById('status').textContent = `Loaded ${currentData.length} hari data · ${code}`;
+      document.getElementById('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;color:#888;padding:16px">Data siap. Klik Generate Full Table</td></tr>';
+    }
+
+    // ==================== LOT & FEE CALCULATION ====================
+    function calculateLotAndProfit(entryPrice, exitPrice, modalRp, feeBuyPct, feeSellPct) {
+      // Hitung jumlah lot yang bisa dibeli
+      const maxShares = Math.floor(modalRp / entryPrice);
+      const lots = Math.floor(maxShares / 100);
+      if (lots < 1) return { lots: 0, profit: 0, usedModal: 0 };
+
+      const shares = lots * 100;
+      const usedModal = shares * entryPrice;
+
+      // Fee
+      const feeBuy = feeBuyPct / 100;
+      const feeSell = feeSellPct / 100;
+
+      const buyCost = usedModal * (1 + feeBuy);
+      const sellProceeds = (shares * exitPrice) * (1 - feeSell);
+      const profit = sellProceeds - buyCost;
+
+      return { lots, shares, usedModal, profit, buyCost };
+    }
+
+    // ==================== SIGNAL LOGIC (sama seperti crypto) ====================
+    function analyzeAtIndex(dataArr, idx) {
+      const data = dataArr.slice(0, idx + 1);
+      if (data.length < 25) return null;
+      const last = data[data.length - 1];
+      const lookback = Math.min(20, data.length - 1);
+      const recent = data.slice(-lookback - 1, -1);
+
+      let swingHigh = -Infinity, swingLow = Infinity;
+      recent.forEach(d => {
+        if (d.high > swingHigh) swingHigh = d.high;
+        if (d.low < swingLow) swingLow = d.low;
+      });
+
+      let priceAction = 'Range';
+      if (last.close > swingHigh) priceAction = 'Breakout High';
+      else if (last.close < swingLow) priceAction = 'Breakout Low';
+      else if (last.high > swingHigh) priceAction = 'Try Break High';
+      else if (last.low < swingLow) priceAction = 'Try Break Low';
+
+      const avgVol = recent.reduce((s, d) => s + d.volume, 0) / (recent.length || 1);
+      const volRatio = last.volume / (avgVol || 1);
+      const firstClose = recent[0]?.close || last.close;
+      const trendPct = ((last.close - firstClose) / firstClose) * 100;
+      const rangePct = ((swingHigh - swingLow) / swingLow) * 100;
+
+      let phase = 'Netral';
+      if (rangePct < 8 && volRatio < 0.85) phase = 'Akumulasi';
+      else if (rangePct < 8 && volRatio > 1.4) phase = 'Distribusi';
+      else if (trendPct > 5 && volRatio > 1.0) phase = 'Markup';
+      else if (trendPct < -5 && volRatio > 1.0) phase = 'Markdown';
+      else if (trendPct > 3) phase = 'Markup lemah';
+      else if (trendPct < -3) phase = 'Markdown lemah';
+
+      let buy = null, cl = null, tp1 = null, note = '', hasSignal = false;
+      if (priceAction === 'Breakout High' || phase.includes('Markup')) {
+        buy = last.close;
+        cl = swingLow * 0.995;
+        const riskDist = buy - cl;
+        if (riskDist > 0) {
+          tp1 = buy + riskDist * 1.5;
+          note = 'Long bias';
+          hasSignal = true;
+        }
+      } else if (phase === 'Akumulasi') {
+        buy = (swingLow + last.close) / 2;
+        cl = swingLow * 0.99;
+        const riskDist = buy - cl;
+        if (riskDist > 0) {
+          tp1 = buy + riskDist * 2;
+          note = 'Akumulasi → long';
+          hasSignal = true;
+        }
+      } else if (priceAction === 'Breakout Low' || phase.includes('Markdown')) {
+        note = 'Bearish / no long';
+      } else {
+        note = 'Wait / range';
+      }
+
+      return {
+        date: new Date(last.time * 1000).toISOString().slice(0, 10),
+        close: last.close,
+        priceAction, phase, buy, cl, tp1, note, hasSignal, idx
+      };
+    }
+
+    function runBacktestOnData(dataArr, modalRp, feeBuyPct, feeSellPct) {
+      let totalSignal = 0, benar = 0, salah = 0, belum = 0;
+      let totalModal = 0, totalProfit = 0, grossProfit = 0, grossLoss = 0;
+
+      for (let i = 24; i < dataArr.length; i++) {
+        const analysis = analyzeAtIndex(dataArr, i);
+        if (!analysis || !analysis.hasSignal) continue;
+
+        // Cek bisa beli minimal 1 lot
+        const lotCheck = calculateLotAndProfit(analysis.buy, analysis.buy, modalRp, feeBuyPct, feeSellPct);
+        if (lotCheck.lots < 1) continue;
+
+        const future = dataArr.slice(i + 1);
+        let exitPrice = null;
+        for (const d of future) {
+          if (d.high >= analysis.tp1) { exitPrice = analysis.tp1; break; }
+          if (d.low <= analysis.cl) { exitPrice = analysis.cl; break; }
+        }
+
+        totalSignal++;
+        const usedModal = lotCheck.usedModal;
+        totalModal += usedModal;
+
+        if (exitPrice !== null) {
+          const res = calculateLotAndProfit(analysis.buy, exitPrice, modalRp, feeBuyPct, feeSellPct);
+          totalProfit += res.profit;
+          if (res.profit > 0) { benar++; grossProfit += res.profit; }
+          else { salah++; grossLoss += Math.abs(res.profit); }
+        } else {
+          belum++;
+        }
+      }
+
+      const winrate = totalSignal > 0 ? (benar / totalSignal) * 100 : 0;
+      const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
+      const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 99 : 0);
+
+      return { totalSignal, benar, salah, belum, winrate, totalModal, totalProfit, totalPct, profitFactor };
+    }
+
+    // ==================== SINGLE GENERATE ====================
+    function generateFullTable() {
+      if (currentData.length < 30) return alert('Load saham terlebih dahulu');
+
+      const modalRp = Number(document.getElementById('modalRp').value) || 10000000;
+      const feeBuyPct = parseFloat(document.getElementById('feeBuy').value) || 0.1513;
+      const feeSellPct = parseFloat(document.getElementById('feeSell').value) || 0.2513;
+
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      let totalSignal = 0, benar = 0, salah = 0, belum = 0, totalModal = 0, totalProfit = 0;
+
+      for (let i = 24; i < currentData.length; i++) {
+        const analysis = analyzeAtIndex(currentData, i);
+        if (!analysis) continue;
+
+        let lotInfo = { lots: 0, profit: 0 };
+        let hasil = '-', closeDate = '-', profit = 0;
+
+        if (analysis.hasSignal) {
+          lotInfo = calculateLotAndProfit(analysis.buy, analysis.buy, modalRp, feeBuyPct, feeSellPct);
+          if (lotInfo.lots >= 1) {
+            totalSignal++;
+            const future = currentData.slice(i + 1);
+            let exitPrice = null, hitTP = false;
+            for (const d of future) {
+              if (d.high >= analysis.tp1) { exitPrice = analysis.tp1; closeDate = new Date(d.time*1000).toISOString().slice(0,10); hitTP = true; break; }
+              if (d.low <= analysis.cl) { exitPrice = analysis.cl; closeDate = new Date(d.time*1000).toISOString().slice(0,10); break; }
+            }
+            if (exitPrice !== null) {
+              const res = calculateLotAndProfit(analysis.buy, exitPrice, modalRp, feeBuyPct, feeSellPct);
+              profit = res.profit;
+              totalProfit += profit;
+              totalModal += res.usedModal;
+              if (profit > 0) benar++;
+              else salah++;
+              hasil = hitTP ? `TP1 (${(profit/res.usedModal*100).toFixed(2)}%)` : `CL (${(profit/res.usedModal*100).toFixed(2)}%)`;
+            } else {
+              belum++;
+              totalModal += lotInfo.usedModal;
+              hasil = 'Belum close';
+            }
+          }
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${analysis.date}</td>
+          <td>${Math.round(analysis.close).toLocaleString('id-ID')}</td>
+          <td class="${analysis.priceAction.includes('High') ? 'green' : analysis.priceAction.includes('Low') ? 'red' : ''}">${analysis.priceAction}</td>
+          <td>${analysis.phase}</td>
+          <td class="${analysis.hasSignal && lotInfo.lots >= 1 ? 'green' : 'gray'}">${analysis.hasSignal && lotInfo.lots >= 1 ? 'LONG' : '-'}</td>
+          <td class="green">${analysis.hasSignal ? Math.round(analysis.buy).toLocaleString('id-ID') : '-'}</td>
+          <td class="red">${analysis.hasSignal ? Math.round(analysis.cl).toLocaleString('id-ID') : '-'}</td>
+          <td class="blue">${analysis.hasSignal ? Math.round(analysis.tp1).toLocaleString('id-ID') : '-'}</td>
+          <td>${lotInfo.lots > 0 ? lotInfo.lots : '-'}</td>
+          <td>${closeDate}</td>
+          <td class="${profit > 0 ? 'green' : profit < 0 ? 'red' : ''}">${hasil}</td>
+          <td class="${profit > 0 ? 'green' : profit < 0 ? 'red' : ''}">${profit !== 0 ? (profit > 0 ? '+' : '') + Math.round(profit).toLocaleString('id-ID') : '-'}</td>
+          <td>${analysis.note}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      const winrate = totalSignal > 0 ? ((benar / totalSignal) * 100).toFixed(1) : 0;
+      const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
+
+	document.getElementById('summaryGrid').innerHTML = `
+	  <div class="summary-card">
+		<div class="label">Total Sinyal</div>
+		<div class="value blue">${totalSignal}</div>
+	  </div>
+	  <div class="summary-card">
+		<div class="label">✅ Menang</div>
+		<div class="value green">${benar}</div>
+	  </div>
+	  <div class="summary-card">
+		<div class="label">❌ Kalah</div>
+		<div class="value red">${salah}</div>
+	  </div>
+	  <div class="summary-card">
+		<div class="label">Belum Close</div>
+		<div class="value yellow">${belum}</div>
+	  </div>
+	  <div class="summary-card">
+		<div class="label">Winrate</div>
+		<div class="value ${winrate >= 50 ? 'green' : 'red'}">${winrate}%</div>
+	  </div>
+	  <div class="summary-card">
+		<div class="label">Total Modal</div>
+		<div class="value">Rp ${Math.round(totalModal).toLocaleString('id-ID')}</div>
+	  </div>
+	  <div class="summary-card">
+		<div class="label">Total Profit</div>
+		<div class="value ${totalProfit >= 0 ? 'green' : 'red'}">
+		  ${totalProfit >= 0 ? '+' : ''}${Math.round(totalProfit).toLocaleString('id-ID')}
+		</div>
+		<div class="sub">${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(2)}%</div>
+	  </div>
+	`;
+      document.getElementById('progress').textContent = `Selesai! ${totalSignal} sinyal.`;
+    }
+
+    // ==================== MULTI ====================
+    async function runMultiBacktest() {
+      if (stockList.length === 0) return alert('Upload data terlebih dahulu');
+
+      const modalRp = Number(document.getElementById('modalRpMulti').value) || 10000000;
+      const feeBuyPct = parseFloat(document.getElementById('feeBuyMulti').value) || 0.1513;
+      const feeSellPct = parseFloat(document.getElementById('feeSellMulti').value) || 0.2513;
+
+      const btn = document.getElementById('btnMulti');
+      const status = document.getElementById('statusMulti');
+      const progressFill = document.getElementById('progressFillMulti');
+      btn.disabled = true;
+      multiResults = [];
+      progressFill.style.width = '0%';
+
+      for (let i = 0; i < stockList.length; i++) {
+        const code = stockList[i];
+        const data = stockData[code];
+        if (data.length < 40) continue;
+
+        const res = runBacktestOnData(data, modalRp, feeBuyPct, feeSellPct);
+        if (res.totalSignal > 0) {
+          multiResults.push({ symbol: code, ...res });
+        }
+
+        progressFill.style.width = ((i + 1) / stockList.length * 100).toFixed(1) + '%';
+        status.textContent = `Memproses ${i + 1}/${stockList.length} → ${code}`;
+        // biar UI tidak freeze
+        if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+
+      multiResults.sort((a, b) => b.totalProfit - a.totalProfit);
+      renderMultiTable(multiResults);
+      progressFill.style.width = '100%';
+      status.textContent = `Selesai! ${multiResults.length} saham memiliki sinyal.`;
+      btn.disabled = false;
+    }
+
+    function renderMultiTable(data) {
+      const tbody = document.getElementById('tableBodyMulti');
+      const search = document.getElementById('searchMulti').value.toLowerCase().trim();
+      let filtered = search ? data.filter(r => r.symbol.toLowerCase().includes(search)) : data;
+      document.getElementById('resultCountMulti').textContent = filtered.length + ' saham';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#888;padding:30px">Tidak ada data</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(r => `
+        <tr>
+          <td><strong>${r.symbol}</strong></td>
+          <td class="blue">${r.totalSignal}</td>
+          <td class="green">${r.benar}</td>
+          <td class="red">${r.salah}</td>
+          <td class="yellow">${r.belum}</td>
+          <td class="${r.winrate >= 50 ? 'green' : 'red'}">${r.winrate.toFixed(1)}%</td>
+          <td>Rp ${Math.round(r.totalModal).toLocaleString('id-ID')}</td>
+          <td class="${r.totalProfit >= 0 ? 'green' : 'red'}">${r.totalProfit >= 0 ? '+' : ''}${Math.round(r.totalProfit).toLocaleString('id-ID')}</td>
+          <td class="${r.totalPct >= 0 ? 'green' : 'red'}">${r.totalPct >= 0 ? '+' : ''}${r.totalPct.toFixed(2)}%</td>
+        </tr>
+      `).join('');
+    }
+
+    function filterMultiTable() { renderMultiTable(multiResults); }
+
+    // Sorting Multi
+    let multiSort = { key: 'totalProfit', dir: 'desc' };
+    document.querySelectorAll('#tableMulti th[data-key]').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (multiSort.key === key) multiSort.dir = multiSort.dir === 'asc' ? 'desc' : 'asc';
+        else { multiSort.key = key; multiSort.dir = key === 'symbol' ? 'asc' : 'desc'; }
+        document.querySelectorAll('#tableMulti th').forEach(t => t.classList.remove('sorted-asc','sorted-desc'));
+        th.classList.add(multiSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+        multiResults.sort((a, b) => {
+          let va = a[key], vb = b[key];
+          if (typeof va === 'string') return multiSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+          return multiSort.dir === 'asc' ? va - vb : vb - va;
+        });
+        renderMultiTable(multiResults);
+      });
+    });
+
+    // ==================== CONSISTENCY ====================
+    async function runConsistency() {
+      if (stockList.length === 0) return alert('Upload data terlebih dahulu');
+
+      const modalRp = Number(document.getElementById('modalRpCons').value) || 10000000;
+      const feeBuyPct = parseFloat(document.getElementById('feeBuyCons').value) || 0.1513;
+      const feeSellPct = parseFloat(document.getElementById('feeSellCons').value) || 0.2513;
+
+      const btn = document.getElementById('btnCons');
+      const status = document.getElementById('statusCons');
+      const progressFill = document.getElementById('progressFillCons');
+      btn.disabled = true;
+      consResults = [];
+      progressFill.style.width = '0%';
+
+      // Hitung periode berdasarkan data yang ada
+      const overall = getOverallDateRange();
+      const periods = [
+        { label: '6 Bulan', days: 180 },
+        { label: '12 Bulan', days: 365 },
+        { label: '18 Bulan', days: 547 },
+        { label: '24 Bulan', days: 730 }
+      ];
+
+      for (let i = 0; i < stockList.length; i++) {
+        const code = stockList[i];
+        const fullData = stockData[code];
+        if (fullData.length < 40) continue;
+
+        const lastTime = fullData[fullData.length - 1].time;
+
+        for (const p of periods) {
+          const fromTime = lastTime - (p.days * 86400);
+          const periodData = fullData.filter(d => d.time >= fromTime);
+          if (periodData.length < 40) continue;
+
+          const res = runBacktestOnData(periodData, modalRp, feeBuyPct, feeSellPct);
+          if (res.totalSignal === 0) continue;
+
+          let statusText = 'Kurang Stabil', rekomendasi = 'Kurang Stabil', statusClass = 'red';
+          if (res.winrate >= 50 && res.profitFactor >= 1.3) {
+            statusText = 'Konsisten'; rekomendasi = 'Baik'; statusClass = 'green';
+          } else if (res.winrate >= 45 && res.profitFactor >= 1.1) {
+            statusText = 'Mendekati'; rekomendasi = 'Cukup'; statusClass = 'yellow';
+          }
+
+          consResults.push({
+            symbol: code,
+            periode: p.label,
+            dari: new Date(fromTime * 1000).toISOString().slice(0, 10),
+            sampai: new Date(lastTime * 1000).toISOString().slice(0, 10),
+            totalSignal: res.totalSignal,
+            winrate: res.winrate,
+            profitFactor: res.profitFactor,
+            totalPct: res.totalPct,
+            status: statusText,
+            statusClass,
+            rekomendasi
+          });
+        }
+
+        progressFill.style.width = ((i + 1) / stockList.length * 100).toFixed(1) + '%';
+        status.textContent = `Memproses ${i + 1}/${stockList.length} → ${code}`;
+        if (i % 3 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+
+      consResults.sort((a, b) => b.profitFactor - a.profitFactor);
+      renderConsTable(consResults);
+      progressFill.style.width = '100%';
+      status.textContent = `Selesai! ${consResults.length} baris hasil.`;
+      btn.disabled = false;
+    }
+
+    function renderConsTable(data) {
+      const tbody = document.getElementById('tableBodyCons');
+      const search = document.getElementById('searchCons').value.toLowerCase().trim();
+      let filtered = search ? data.filter(r => r.symbol.toLowerCase().includes(search)) : data;
+      document.getElementById('resultCountCons').textContent = filtered.length + ' baris';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:#888;padding:30px">Tidak ada data</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(r => `
+        <tr>
+          <td><strong>${r.symbol}</strong></td>
+          <td>${r.periode}</td>
+          <td>${r.dari}</td>
+          <td>${r.sampai}</td>
+          <td class="blue">${r.totalSignal}</td>
+          <td class="${r.winrate >= 50 ? 'green' : 'red'}">${r.winrate.toFixed(1)}%</td>
+          <td class="${r.profitFactor >= 1.3 ? 'green' : 'red'}">${r.profitFactor.toFixed(2)}</td>
+          <td class="${r.totalPct >= 0 ? 'green' : 'red'}">${r.totalPct >= 0 ? '+' : ''}${r.totalPct.toFixed(2)}%</td>
+          <td class="${r.statusClass}">${r.status}</td>
+          <td class="${r.statusClass}">${r.rekomendasi}</td>
+        </tr>
+      `).join('');
+    }
+
+    function filterConsTable() { renderConsTable(consResults); }
+
+    // Sorting Consistency
+    let consSort = { key: 'profitFactor', dir: 'desc' };
+    document.querySelectorAll('#tableCons th[data-key]').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (consSort.key === key) consSort.dir = consSort.dir === 'asc' ? 'desc' : 'asc';
+        else { consSort.key = key; consSort.dir = ['symbol','periode','status','rekomendasi'].includes(key) ? 'asc' : 'desc'; }
+        document.querySelectorAll('#tableCons th').forEach(t => t.classList.remove('sorted-asc','sorted-desc'));
+        th.classList.add(consSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+        consResults.sort((a, b) => {
+          let va = a[key], vb = b[key];
+          if (typeof va === 'string') return consSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+          return consSort.dir === 'asc' ? va - vb : vb - va;
+        });
+        renderConsTable(consResults);
+      });
+    });
+
+    // ==================== INIT ====================
+    initChart();
+  </script>
+</body>
+</html>
