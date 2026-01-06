@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>IDX Stock Summary (DataTables)</title>
+
+  <!-- DataTables CSS -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h3 { margin: 20px 0 10px; }
+    label { font-weight: bold; }
+    input[type="date"] { padding: 4px; margin-left: 8px; }
+    table.dataTable td { font-size: 13px; }
+    td.dt-right { text-align: right; }
+    td.dt-left { text-align: left; }
+  </style>
+</head>
+<body>
+
+<h3>IDX Stock Summary</h3>
+
+<label>
+  Pilih Tanggal:
+  <input type="date" id="datePicker">
+</label>
+
+<br><br>
+
+<table id="stockTable" class="display" style="width:100%">
+  <thead>
+    <tr>
+      <th>Kode</th>
+      <th>Nama Saham</th>
+      <th>Konglomerat</th>
+      <th>Close</th>
+      <th>Volume</th>
+      <th>Weight For Index</th>
+      <th>Market Cap</th>
+      <th>Free Float Market Cap</th>
+      <th>Change</th>
+      <th>Change %</th>
+    </tr>
+  </thead>
+</table>
+
+<h3>Rata-rata Persentase Perubahan Harga per Konglomerat</h3>
+
+<table id="summaryTable" class="display" style="width:60%">
+  <thead>
+    <tr>
+      <th>Konglomerat</th>
+      <th>Rata-rata %Change</th>
+    </tr>
+  </thead>
+</table>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<script>
+// ================= KONFIG =================
+const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/";
+
+// ================= KONGLOMERAT MAP =================
+const konglomeratMap = {
+  BREN:"Grup Prajogo Pangestu",TPIA:"Grup Prajogo Pangestu",BRPT:"Grup Prajogo Pangestu",
+  CDIA:"Grup Prajogo Pangestu",CUAN:"Grup Prajogo Pangestu",PTRO:"Grup Prajogo Pangestu",
+  BRMS:"Grup Bakrie",BUMI:"Grup Bakrie",ENRG:"Grup Bakrie",DEWA:"Grup Bakrie",
+  VKTR:"Grup Bakrie",BNBR:"Grup Bakrie",
+  MBMA:"Grup Boy Thohir",AADI:"Grup Boy Thohir",EMAS:"Grup Boy Thohir",
+  MDKA:"Grup Boy Thohir",ADRO:"Grup Boy Thohir",
+  DCII:"Grup Salim",DNET:"Grup Salim",ICBP:"Grup Salim",INDF:"Grup Salim",LSIP:"Grup Salim",
+  DSSA:"Grup Sinarmas",SMMA:"Grup Sinarmas",GEMS:"Grup Sinarmas",EXCL:"Grup Sinarmas",SMAR:"Grup Sinarmas",
+  PGUN:"Grup Haji Isam",JARR:"Grup Haji Isam",TEBE:"Grup Haji Isam",FAST:"Grup Haji Isam",
+  RATU:"Grup Happy Hapsoro",RAJA:"Grup Happy Hapsoro",BUVA:"Grup Happy Hapsoro",
+  MINA:"Grup Happy Hapsoro",SINI:"Grup Happy Hapsoro",
+  EMTK:"Grup EMTEK",BBHI:"Grup EMTEK",SCMA:"Grup EMTEK",
+  BUKA:"Grup EMTEK",SAME:"Grup EMTEK",SUPA:"Grup EMTEK",
+  TAPG:"Grup Triputra",DSNG:"Grup Triputra",ESSA:"Grup Triputra",
+  DRMA:"Grup Triputra",ASSA:"Grup Triputra",
+  MLPT:"Grup Lippo",SILO:"Grup Lippo",LPKR:"Grup Lippo",MLPL:"Grup Lippo",LPPF:"Grup Lippo",
+  PANI:"Grup Agung Sedayu (Aguan)",CBDK:"Grup Agung Sedayu (Aguan)",
+  ERA:"Grup Agung Sedayu (Aguan)",INPC:"Grup Agung Sedayu (Aguan)",JIHD:"Grup Agung Sedayu (Aguan)",
+  HUMI:"Grup Humpuss/Tommy Soeharto",GTSI:"Grup Humpuss/Tommy Soeharto",GOLF:"Grup Humpuss/Tommy Soeharto",
+  WIFI:"Hashim Djojohadikusumo",COIN:"Hashim Djojohadikusumo",TRIN:"Hashim Djojohadikusumo",
+  IRSX:"Hashim Djojohadikusumo",PADA:"Hashim Djojohadikusumo",INET:"Hashim Djojohadikusumo",
+  TRUE:"Hashim Djojohadikusumo",KETR:"Hashim Djojohadikusumo",DOOH:"Hashim Djojohadikusumo",
+  CLEO:"Hermanto Tanoko",RISE:"Hermanto Tanoko",CAKK:"Hermanto Tanoko",ZONE:"Hermanto Tanoko",
+  DEPO:"Hermanto Tanoko",AVIA:"Hermanto Tanoko",PEVE:"Hermanto Tanoko",BLES:"Hermanto Tanoko",MERI:"Hermanto Tanoko",
+};
+
+let stockTable, summaryTable;
+
+// ================= UTIL =================
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function apiByDate(date) {
+  return `${BASE_URL}GetStockSummary_${date}.json`;
+}
+
+// ================= LOAD DATA =================
+async function loadData(date) {
+  try {
+    const res = await fetch(apiByDate(date));
+    if (!res.ok) throw new Error("JSON tidak ditemukan");
+    const json = await res.json();
+
+    const data = json.data.map(r => {
+      const marketCap = r.Close * r.ListedShares;
+      const freeFloatCap = r.Close * r.TradebleShares;
+      const changePct = r.Previous
+        ? ((r.Close - r.Previous) / r.Previous) * 100
+        : 0;
+
+      return {
+        code: r.StockCode,
+        name: r.StockName,
+        kong: konglomeratMap[r.StockCode] || "-",
+        close: r.Close,
+        volume: r.Volume,
+        weight: r.WeightForIndex,
+        marketCap,
+        freeFloatCap,
+        change: r.Change,
+        changePct
+      };
+    });
+
+    renderTables(data);
+  } catch (e) {
+    alert("Data untuk tanggal ini tidak tersedia");
+    console.error(e);
+  }
+}
+
+// ================= RENDER TABLE =================
+function renderTables(data) {
+
+  if (stockTable) stockTable.destroy();
+  if (summaryTable) summaryTable.destroy();
+
+  stockTable = $('#stockTable').DataTable({
+    data,
+    paging: false,
+    order: [[9, 'desc']],
+    columns: [
+      { data: 'code' },
+      { data: 'name' },
+      { data: 'kong' },
+      { data: 'close', className:'dt-right', render: $.fn.dataTable.render.number('.', ',', 0) },
+      { data: 'volume', className:'dt-right', render: $.fn.dataTable.render.number('.', ',', 0) },
+      { data: 'weight', className:'dt-right' },
+      { data: 'marketCap', className:'dt-right', render: $.fn.dataTable.render.number('.', ',', 0) },
+      { data: 'freeFloatCap', className:'dt-right', render: $.fn.dataTable.render.number('.', ',', 0) },
+      { data: 'change', className:'dt-right' },
+      { data: 'changePct', className:'dt-right', render: d => d.toFixed(2) + '%' }
+    ]
+  });
+
+  const summary = {};
+  data.forEach(r => {
+    if (r.kong !== "-") {
+      if (!summary[r.kong]) summary[r.kong] = { total: 0, count: 0 };
+      summary[r.kong].total += r.changePct;
+      summary[r.kong].count++;
+    }
+  });
+
+  summaryTable = $('#summaryTable').DataTable({
+    data: Object.keys(summary).map(k => ({
+      kong: k,
+      avg: summary[k].total / summary[k].count
+    })),
+    paging: false,
+    searching: false,
+    order: [[1, 'desc']],
+    columns: [
+      { data: 'kong' },
+      { data: 'avg', className:'dt-right', render: d => d.toFixed(2) + '%' }
+    ]
+  });
+}
+
+// ================= INIT =================
+const datePicker = document.getElementById("datePicker");
+datePicker.value = todayStr();
+datePicker.addEventListener("change", () => loadData(datePicker.value));
+loadData(datePicker.value);
+</script>
+
+</body>
+</html>
