@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>IDX Stock Summary (DataTables)</title>
+  <title>IDX Stock Summary + Sector (DataTables)</title>
 
   <!-- DataTables CSS -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
@@ -14,12 +14,11 @@
     input[type="date"] { padding: 4px; margin-left: 8px; }
     table.dataTable td { font-size: 13px; }
     td.dt-right { text-align: right; }
-    td.dt-left { text-align: left; }
   </style>
 </head>
 <body>
 
-<h3>IDX Stock Summary</h3>
+<h3>IDX Stock Summary by Sector</h3>
 
 <label>
   Pilih Tanggal:
@@ -34,37 +33,47 @@
       <th>Kode</th>
       <th>Nama Saham</th>
       <th>Konglomerat</th>
+      <th>Sektor</th>
       <th>Close</th>
       <th>Volume</th>
+      <th>Value (in Rupiah)</th>
       <th>Weight For Index</th>
       <th>Market Cap</th>
-      <th>Free Float Market Cap</th>
       <th>Change</th>
       <th>Change %</th>
     </tr>
   </thead>
 </table>
 
-<h3>Rata-rata Persentase Perubahan Harga per Konglomerat</h3>
-
-<table id="summaryTable" class="display" style="width:60%">
+<h3>Summary Per Konglomerat</h3>
+<table id="summaryKonglomeratTable" class="display" style="width:75%">
   <thead>
     <tr>
       <th>Konglomerat</th>
       <th>Rata-rata %Change</th>
+      <th>Total Value (Rp)</th>
     </tr>
   </thead>
 </table>
 
-<!-- jQuery -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<h3>Summary Per Sektor</h3>
+<table id="summarySectorTable" class="display" style="width:75%">
+  <thead>
+    <tr>
+      <th>Sektor</th>
+      <th>Rata-rata %Change</th>
+      <th>Total Value (Rp)</th>
+    </tr>
+  </thead>
+</table>
 
-<!-- DataTables JS -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
 <script>
 // ================= KONFIG =================
-const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/";
+const BASE_STOCKSUMMARY = "https://raw.githubusercontent.com/username/sind/main/stocksummary/";
+const BASE_SECTOR = "https://raw.githubusercontent.com/username/sind/main/sector/";
 
 // ================= KONGLOMERAT MAP =================
 const konglomeratMap = {
@@ -94,96 +103,144 @@ const konglomeratMap = {
   DEPO:"Hermanto Tanoko",AVIA:"Hermanto Tanoko",PEVE:"Hermanto Tanoko",BLES:"Hermanto Tanoko",MERI:"Hermanto Tanoko",
 };
 
-let stockTable, summaryTable;
+// ================= SECTOR FILES =================
+const sectorFiles = [
+  "Healthcare.json",
+  "Basic_Material.json",
+  "Financials.json",
+  "Transportation_&_Logistic.json",
+  "Technology.json",
+  "Consumer_Non-Cyclicals.json",
+  "Industrials.json",
+  "Energy.json",
+  "Consumer_Cyclicals.json",
+  "Infrastructures.json",
+  "Properties_&_Real_Estate.json"
+];
 
 // ================= UTIL =================
-function todayStr() {
-  return new Date().toISOString().split("T")[0];
-}
+function todayStr(){ return new Date().toISOString().split("T")[0]; }
+function apiByDate(date){ return `${BASE_STOCKSUMMARY}GetStockSummary_${date}.json`; }
 
-function apiByDate(date) {
-  return `${BASE_URL}GetStockSummary_${date}.json`;
-}
+// ================= TABLES =================
+let stockTable, summaryKonglomeratTable, summarySectorTable;
 
 // ================= LOAD DATA =================
-async function loadData(date) {
-  try {
+async function loadData(date){
+  try{
+    // fetch stock summary
     const res = await fetch(apiByDate(date));
-    if (!res.ok) throw new Error("JSON tidak ditemukan");
-    const json = await res.json();
+    if(!res.ok) throw new Error("Stock summary untuk tanggal ini tidak tersedia");
+    const stockJson = await res.json();
 
-    const data = json.data.map(r => {
-      const marketCap = r.Close * r.ListedShares;
-      const freeFloatCap = r.Close * r.TradebleShares;
-      const changePct = r.Previous
-        ? ((r.Close - r.Previous) / r.Previous) * 100
-        : 0;
+    // fetch sektor
+    const sectorMap = {};
+    for(const file of sectorFiles){
+      try{
+        const r = await fetch(BASE_SECTOR + file);
+        if(!r.ok) continue;
+        const j = await r.json();
+        j.data.forEach(x=>sectorMap[x.Code] = file.replace(".json",""));
+      }catch(e){ console.warn("Gagal load sector", file);}
+    }
 
+    // gabungkan data
+    const data = stockJson.data.map(r=>{
+      const marketCap = r.Close*r.ListedShares;
+      const changePct = r.Previous ? ((r.Close - r.Previous)/r.Previous)*100 : 0;
       return {
-        code: r.StockCode,
-        name: r.StockName,
-        kong: konglomeratMap[r.StockCode] || "-",
-        close: r.Close,
-        volume: r.Volume,
-        weight: r.WeightForIndex,
+        code:r.StockCode,
+        name:r.StockName,
+        kong:konglomeratMap[r.StockCode] || "-",
+        sector:sectorMap[r.StockCode] || "-",
+        close:r.Close,
+        volume:r.Volume,
+        valueRupiah:r.Value,
+        weight:r.WeightForIndex,
         marketCap,
-        freeFloatCap,
-        change: r.Change,
+        change:r.Change,
         changePct
       };
     });
 
     renderTables(data);
-  } catch (e) {
-    alert("Data untuk tanggal ini tidak tersedia");
-    console.error(e);
-  }
+  }catch(e){ alert(e); console.error(e);}
 }
 
 // ================= RENDER TABLE =================
-function renderTables(data) {
+function renderTables(data){
+  if(stockTable) stockTable.destroy();
+  if(summaryKonglomeratTable) summaryKonglomeratTable.destroy();
+  if(summarySectorTable) summarySectorTable.destroy();
 
-  if (stockTable) stockTable.destroy();
-  if (summaryTable) summaryTable.destroy();
-
+  // Stock Table
   stockTable = $('#stockTable').DataTable({
     data,
-    paging: false,
-    order: [[9, 'desc']],
-    columns: [
-      { data: 'code' },
-      { data: 'name' },
-      { data: 'kong' },
-      { data: 'close', className:'dt-right', render: $.fn.dataTable.render.number('.', ',', 0) },
-      { data: 'volume', className:'dt-right', render: $.fn.dataTable.render.number('.', ',', 0) },
-      { data: 'weight', className:'dt-right' },
-      { data: 'marketCap', className:'dt-right', render: $.fn.dataTable.render.number('.', ',', 0) },
-      { data: 'freeFloatCap', className:'dt-right', render: $.fn.dataTable.render.number('.', ',', 0) },
-      { data: 'change', className:'dt-right' },
-      { data: 'changePct', className:'dt-right', render: d => d.toFixed(2) + '%' }
+    paging:false,
+    order:[[10,'desc']],
+    columns:[
+      {data:'code'},
+      {data:'name'},
+      {data:'kong'},
+      {data:'sector'},
+      {data:'close', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+      {data:'volume', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+      {data:'valueRupiah', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+      {data:'weight', className:'dt-right'},
+      {data:'marketCap', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+      {data:'change', className:'dt-right'},
+      {data:'changePct', className:'dt-right', render:d=>d.toFixed(2)+'%'}
     ]
   });
 
-  const summary = {};
-  data.forEach(r => {
-    if (r.kong !== "-") {
-      if (!summary[r.kong]) summary[r.kong] = { total: 0, count: 0 };
-      summary[r.kong].total += r.changePct;
-      summary[r.kong].count++;
+  // Summary Konglomerat
+  const sumK = {};
+  data.forEach(r=>{
+    if(r.kong!=="-"){
+      if(!sumK[r.kong]) sumK[r.kong]={totalChange:0,totalValue:0,count:0};
+      sumK[r.kong].totalChange += r.changePct;
+      sumK[r.kong].totalValue += r.valueRupiah;
+      sumK[r.kong].count++;
     }
   });
-
-  summaryTable = $('#summaryTable').DataTable({
-    data: Object.keys(summary).map(k => ({
-      kong: k,
-      avg: summary[k].total / summary[k].count
+  summaryKonglomeratTable = $('#summaryKonglomeratTable').DataTable({
+    data:Object.keys(sumK).map(k=>({
+      kong:k,
+      avgChange:sumK[k].totalChange/sumK[k].count,
+      totalValue:sumK[k].totalValue
     })),
-    paging: false,
-    searching: false,
-    order: [[1, 'desc']],
-    columns: [
-      { data: 'kong' },
-      { data: 'avg', className:'dt-right', render: d => d.toFixed(2) + '%' }
+    paging:false,
+    searching:false,
+    order:[[1,'desc']],
+    columns:[
+      {data:'kong'},
+      {data:'avgChange', className:'dt-right', render:d=>d.toFixed(2)+'%'},
+      {data:'totalValue', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)}
+    ]
+  });
+
+  // Summary Sektor
+  const sumS = {};
+  data.forEach(r=>{
+    const s = r.sector;
+    if(!sumS[s]) sumS[s]={totalChange:0,totalValue:0,count:0};
+    sumS[s].totalChange += r.changePct;
+    sumS[s].totalValue += r.valueRupiah;
+    sumS[s].count++;
+  });
+  summarySectorTable = $('#summarySectorTable').DataTable({
+    data:Object.keys(sumS).map(s=>({
+      sector:s,
+      avgChange:sumS[s].totalChange/sumS[s].count,
+      totalValue:sumS[s].totalValue
+    })),
+    paging:false,
+    searching:false,
+    order:[[1,'desc']],
+    columns:[
+      {data:'sector'},
+      {data:'avgChange', className:'dt-right', render:d=>d.toFixed(2)+'%'},
+      {data:'totalValue', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)}
     ]
   });
 }
@@ -191,7 +248,7 @@ function renderTables(data) {
 // ================= INIT =================
 const datePicker = document.getElementById("datePicker");
 datePicker.value = todayStr();
-datePicker.addEventListener("change", () => loadData(datePicker.value));
+datePicker.addEventListener("change", ()=>loadData(datePicker.value));
 loadData(datePicker.value);
 </script>
 
