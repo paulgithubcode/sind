@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>IDX Stock Summary + Sector (DataTables)</title>
 
-  <!-- DataTables CSS -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
   <style>
@@ -37,6 +36,7 @@
       <th>Close</th>
       <th>Volume</th>
       <th>Value (in Rupiah)</th>
+      <th>Δ Value</th>
       <th>Weight For Index</th>
       <th>Market Cap</th>
       <th>Change</th>
@@ -52,6 +52,7 @@
       <th>Konglomerat</th>
       <th>Rata-rata %Change</th>
       <th>Total Value (Rp)</th>
+      <th>Total Δ Value (Rp)</th>
     </tr>
   </thead>
 </table>
@@ -63,6 +64,7 @@
       <th>Sektor</th>
       <th>Rata-rata %Change</th>
       <th>Total Value (Rp)</th>
+      <th>Total Δ Value (Rp)</th>
     </tr>
   </thead>
 </table>
@@ -103,23 +105,9 @@ const konglomeratMap = {
   DEPO:"Hermanto Tanoko",AVIA:"Hermanto Tanoko",PEVE:"Hermanto Tanoko",BLES:"Hermanto Tanoko",MERI:"Hermanto Tanoko",
 };
 
-// ================= SECTOR FILES =================
-const sectorFiles = [
-  "Healthcare.json",
-  "Basic_Material.json",
-  "Financials.json",
-  "Transportation_&_Logistic.json",
-  "Technology.json",
-  "Consumer_Non-Cyclicals.json",
-  "Industrials.json",
-  "Energy.json",
-  "Consumer_Cyclicals.json",
-  "Infrastructures.json",
-  "Properties_&_Real_Estate.json"
-];
-
 // ================= UTIL =================
 function todayStr(){ return new Date().toISOString().split("T")[0]; }
+function prevDateStr(date){ const d=new Date(date); d.setDate(d.getDate()-1); return d.toISOString().split("T")[0]; }
 function apiByDate(date){ return `${BASE_STOCKSUMMARY}GetStockSummary_${date}.json`; }
 
 // ================= TABLES =================
@@ -128,26 +116,40 @@ let stockTable, summaryKonglomeratTable, summarySectorTable;
 // ================= LOAD DATA =================
 async function loadData(date){
   try{
-    // fetch stock summary
+    // Hari ini
     const res = await fetch(apiByDate(date));
-    if(!res.ok) throw new Error("Stock summary untuk tanggal ini tidak tersedia");
-    const stockJson = await res.json();
+    if(!res.ok) throw new Error("Data hari ini tidak tersedia");
+    const todayJson = await res.json();
 
-    // fetch sektor
+    // Hari -1
+    let prevValueMap = {};
+    try{
+      const resPrev = await fetch(apiByDate(prevDateStr(date)));
+      if(resPrev.ok){
+        const prevJson = await resPrev.json();
+        prevJson.data.forEach(r=>{ prevValueMap[r.StockCode] = r.Value; });
+      }
+    }catch(e){}
+
+    // Sektor
     const sectorMap = {};
-    for(const file of sectorFiles){
-      try{
-        const r = await fetch(BASE_SECTOR + file);
-        if(!r.ok) continue;
-        const j = await r.json();
-        j.data.forEach(x=>sectorMap[x.Code] = file.replace(".json",""));
-      }catch(e){ console.warn("Gagal load sector", file);}
+    const sectorFiles = [
+      "Healthcare.json","Basic_Material.json","Financials.json",
+      "Transportation_&_Logistic.json","Technology.json",
+      "Consumer_Non-Cyclicals.json","Industrials.json","Energy.json",
+      "Consumer_Cyclicals.json","Infrastructures.json",
+      "Properties_&_Real_Estate.json"
+    ];
+    for(const f of sectorFiles){
+      const r = await fetch(BASE_SECTOR + f);
+      if(!r.ok) continue;
+      const j = await r.json();
+      j.data.forEach(x=>sectorMap[x.Code]=f.replace(".json",""));
     }
 
-    // gabungkan data
-    const data = stockJson.data.map(r=>{
-      const marketCap = r.Close*r.ListedShares;
-      const changePct = r.Previous ? ((r.Close - r.Previous)/r.Previous)*100 : 0;
+    // Merge data
+    const data = todayJson.data.map(r=>{
+      const prevVal = prevValueMap[r.StockCode] || 0;
       return {
         code:r.StockCode,
         name:r.StockName,
@@ -156,18 +158,20 @@ async function loadData(date){
         close:r.Close,
         volume:r.Volume,
         valueRupiah:r.Value,
+        deltaValue:r.Value-prevVal,
         weight:r.WeightForIndex,
-        marketCap,
+        marketCap:r.Close*r.ListedShares,
         change:r.Change,
-        changePct
+        changePct:r.Previous?((r.Close-r.Previous)/r.Previous)*100:0
       };
     });
 
     renderTables(data);
-  }catch(e){ alert(e); console.error(e);}
+
+  }catch(e){ alert(e.message); console.error(e);}
 }
 
-// ================= RENDER TABLE =================
+// ================= RENDER =================
 function renderTables(data){
   if(stockTable) stockTable.destroy();
   if(summaryKonglomeratTable) summaryKonglomeratTable.destroy();
@@ -177,70 +181,74 @@ function renderTables(data){
   stockTable = $('#stockTable').DataTable({
     data,
     paging:false,
-    order:[[10,'desc']],
+    order:[[11,'desc']],
     columns:[
       {data:'code'},
       {data:'name'},
       {data:'kong'},
       {data:'sector'},
-      {data:'close', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
-      {data:'volume', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
-      {data:'valueRupiah', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
-      {data:'weight', className:'dt-right'},
-      {data:'marketCap', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
-      {data:'change', className:'dt-right'},
-      {data:'changePct', className:'dt-right', render:d=>d.toFixed(2)+'%'}
+      {data:'close',className:'dt-right',render:$.fn.dataTable.render.number('.',',',0)},
+      {data:'volume',className:'dt-right',render:$.fn.dataTable.render.number('.',',',0)},
+      {data:'valueRupiah',className:'dt-right',render:$.fn.dataTable.render.number('.',',',0)},
+      {data:'deltaValue',className:'dt-right',render:d=>`<span style="color:${d>=0?'green':'red'}">${$.fn.dataTable.render.number('.',',',0).display(d)}</span>`},
+      {data:'weight',className:'dt-right'},
+      {data:'marketCap',className:'dt-right',render:$.fn.dataTable.render.number('.',',',0)},
+      {data:'change',className:'dt-right'},
+      {data:'changePct',className:'dt-right',render:d=>d.toFixed(2)+'%'}
     ]
   });
 
   // Summary Konglomerat
   const sumK = {};
   data.forEach(r=>{
-    if(r.kong!=="-"){
-      if(!sumK[r.kong]) sumK[r.kong]={totalChange:0,totalValue:0,count:0};
-      sumK[r.kong].totalChange += r.changePct;
-      sumK[r.kong].totalValue += r.valueRupiah;
-      sumK[r.kong].count++;
-    }
+    if(!sumK[r.kong]) sumK[r.kong]={chg:0,val:0,delta:0,c:0};
+    sumK[r.kong].chg+=r.changePct;
+    sumK[r.kong].val+=r.valueRupiah;
+    sumK[r.kong].delta+=r.deltaValue;
+    sumK[r.kong].c++;
   });
   summaryKonglomeratTable = $('#summaryKonglomeratTable').DataTable({
     data:Object.keys(sumK).map(k=>({
       kong:k,
-      avgChange:sumK[k].totalChange/sumK[k].count,
-      totalValue:sumK[k].totalValue
+      avgChange:sumK[k].chg/sumK[k].c,
+      totalValue:sumK[k].val,
+      totalDelta:sumK[k].delta
     })),
     paging:false,
     searching:false,
     order:[[1,'desc']],
     columns:[
       {data:'kong'},
-      {data:'avgChange', className:'dt-right', render:d=>d.toFixed(2)+'%'},
-      {data:'totalValue', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)}
+      {data:'avgChange',className:'dt-right',render:d=>d.toFixed(2)+'%'},
+      {data:'totalValue',className:'dt-right',render:$.fn.dataTable.render.number('.',',',0)},
+      {data:'totalDelta',className:'dt-right',render:d=>`<span style="color:${d>=0?'green':'red'}">${$.fn.dataTable.render.number('.',',',0).display(d)}</span>`}
     ]
   });
 
   // Summary Sektor
   const sumS = {};
   data.forEach(r=>{
-    const s = r.sector;
-    if(!sumS[s]) sumS[s]={totalChange:0,totalValue:0,count:0};
-    sumS[s].totalChange += r.changePct;
-    sumS[s].totalValue += r.valueRupiah;
-    sumS[s].count++;
+    if(!sumS[r.sector]) sumS[r.sector]={chg:0,val:0,delta:0,c:0};
+    sumS[r.sector].chg+=r.changePct;
+    sumS[r.sector].val+=r.valueRupiah;
+    sumS[r.sector].delta+=r.deltaValue;
+    sumS[r.sector].c++;
   });
   summarySectorTable = $('#summarySectorTable').DataTable({
     data:Object.keys(sumS).map(s=>({
       sector:s,
-      avgChange:sumS[s].totalChange/sumS[s].count,
-      totalValue:sumS[s].totalValue
+      avgChange:sumS[s].chg/sumS[s].c,
+      totalValue:sumS[s].val,
+      totalDelta:sumS[s].delta
     })),
     paging:false,
     searching:false,
     order:[[1,'desc']],
     columns:[
       {data:'sector'},
-      {data:'avgChange', className:'dt-right', render:d=>d.toFixed(2)+'%'},
-      {data:'totalValue', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)}
+      {data:'avgChange',className:'dt-right',render:d=>d.toFixed(2)+'%'},
+      {data:'totalValue',className:'dt-right',render:$.fn.dataTable.render.number('.',',',0)},
+      {data:'totalDelta',className:'dt-right',render:d=>`<span style="color:${d>=0?'green':'red'}">${$.fn.dataTable.render.number('.',',',0).display(d)}</span>`}
     ]
   });
 }
@@ -248,7 +256,7 @@ function renderTables(data){
 // ================= INIT =================
 const datePicker = document.getElementById("datePicker");
 datePicker.value = todayStr();
-datePicker.addEventListener("change", ()=>loadData(datePicker.value));
+datePicker.addEventListener("change",()=>loadData(datePicker.value));
 loadData(datePicker.value);
 </script>
 
