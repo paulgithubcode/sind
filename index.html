@@ -135,6 +135,24 @@ function prevDateStr(dateStr){
   d.setDate(d.getDate()-1);
   return d.toISOString().split("T")[0];
 }
+async function getPrevTradingData(date){
+  let prevDate = prevDateStr(date);
+
+  for(let i = 0; i < 30; i++){ // aman untuk Lebaran panjang
+    try{
+      const r = await fetch(apiByDate(prevDate));
+      if(r.ok){
+        console.log("Prev trading date dipakai:", prevDate);
+        return await r.json();
+      }
+    }catch(e){}
+    prevDate = prevDateStr(prevDate);
+  }
+
+  console.warn("Prev trading day tidak ditemukan");
+  return { data: [] };
+}
+
 
 // ================= TABLES =================
 let stockTable, summaryKonglomeratTable, summarySectorTable;
@@ -147,13 +165,8 @@ async function loadData(date){
     if(!res.ok) throw new Error("Stock summary untuk tanggal ini tidak tersedia");
     const stockJson = await res.json();
 
-    // Fetch stock summary hari sebelumnya (cek sampai ketemu)
-    let prevDataJson = {data:[]};
-    let prevDate = prevDateStr(date);
-    try{
-      const resPrev = await fetch(apiByDate(prevDate));
-      if(resPrev.ok) prevDataJson = await resPrev.json();
-    }catch(e){}
+	// Fetch stock summary previous trading day (skip libur)
+	const prevDataJson = await getPrevTradingData(date);
 
     // Fetch sektor
     const sectorMap = {};
