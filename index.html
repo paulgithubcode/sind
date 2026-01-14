@@ -31,49 +31,52 @@
 <br><br>
 
 <table id="stockTable" class="display" style="width:100%">
-  <thead>
-    <tr>
-      <th>Kode</th>
-      <th>Nama Saham</th>
-      <th>Konglomerat</th>
-      <th>Sektor</th>
-      <th>Close</th>
-      <th>Volume</th>
-      <th>Value (Rp)</th>
-      <th>Δ Value (Rp)</th>
-      <th>Δ % Value</th>
-      <th>Weight For Index</th>
-      <th>Market Cap</th>
-      <th>Change</th>
-      <th>Change %</th>
-    </tr>
-  </thead>
+<thead>
+  <tr>
+    <th>No</th>
+    <th>Kode</th>
+    <th>Nama Saham</th>
+    <th>Konglomerat</th>
+    <th>Sektor</th>
+    <th>Close</th>
+    <th>Volume</th>
+    <th>Value (Rp)</th>
+    <th>Δ Value (Rp)</th>
+    <th>Δ % Value</th>
+    <th>Weight For Index</th>
+    <th>Market Cap</th>
+    <th>Change</th>
+    <th>Change %</th>
+  </tr>
+</thead>
 </table>
 
 <h3>Summary Per Konglomerat</h3>
 <table id="summaryKonglomeratTable" class="display" style="width:75%">
-  <thead>
-    <tr>
-      <th>Konglomerat</th>
-      <th>Rata-rata %Change</th>
-      <th>Total Value (Rp)</th>
-      <th>Total Δ Value (Rp)</th>
-      <th>Total Δ % Value</th>
-    </tr>
-  </thead>
+<thead>
+  <tr>
+    <th>No</th>
+    <th>Konglomerat</th>
+    <th>Rata-rata %Change</th>
+    <th>Total Value (Rp)</th>
+    <th>Total Δ Value (Rp)</th>
+    <th>Total Δ % Value</th>
+  </tr>
+</thead>
 </table>
 
 <h3>Summary Per Sektor</h3>
 <table id="summarySectorTable" class="display" style="width:75%">
-  <thead>
-    <tr>
-      <th>Sektor</th>
-      <th>Rata-rata %Change</th>
-      <th>Total Value (Rp)</th>
-      <th>Total Δ Value (Rp)</th>
-      <th>Total Δ % Value</th>
-    </tr>
-  </thead>
+<thead>
+  <tr>
+    <th>No</th>
+    <th>Sektor</th>
+    <th>Rata-rata %Change</th>
+    <th>Total Value (Rp)</th>
+    <th>Total Δ Value (Rp)</th>
+    <th>Total Δ % Value</th>
+  </tr>
+</thead>
 </table>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -218,47 +221,55 @@ function renderTables(data){
   if(summarySectorTable) summarySectorTable.destroy();
 
   // ===== Stock Table =====
-  stockTable = $('#stockTable').DataTable({
-    data,
-    paging:false,
-    order:[[12,'desc']],
-    columns:[
-      {data:'code'},
-      {data:'name'},
-      {data:'kong'},
-      {data:'sector'},
-      {data:'close', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
-      {data:'volume', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
-      {data:'valueRupiah', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
-{
-  data:'deltaValue',
-  className:'dt-right',
-  render:{
-    _: function(d,type){
-      if(type === 'sort' || type === 'filter') return d;
-      const cls = d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
-      return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
-    }
-  }
-},
-{
-  data:'deltaPct',
-  className:'dt-right',
-  render:{
-    _: function(d,type){
-      if(type === 'sort' || type === 'filter') return d ?? -999999;
-      if(d === null) return '<span class="delta-zero">-</span>';
-      const cls = d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
-      return `<span class="${cls}">${d.toFixed(2)}%</span>`;
-    }
-  }
-},
-      {data:'weight', className:'dt-right'},
-      {data:'marketCap', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
-      {data:'change', className:'dt-right'},
-      {data:'changePct', className:'dt-right', render:d=>d.toFixed(2)+'%'}
-    ]
-  });
+	stockTable = $('#stockTable').DataTable({
+	  data,
+	  paging:false,
+	  order:[[13,'desc']], // Change % (index geser karena No)
+	  columnDefs:[{
+		targets:0,
+		orderable:false,
+		searchable:false
+	  }],
+	  columns:[
+		{data:null}, // No
+		{data:'code'},
+		{data:'name'},
+		{data:'kong'},
+		{data:'sector'},
+		{data:'close', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+		{data:'volume', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+		{data:'valueRupiah', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+		{
+		  data:'deltaValue',
+		  className:'dt-right',
+		  render:(d,t)=>{
+			if(t==='sort'||t==='filter') return d;
+			const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
+			return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
+		  }
+		},
+		{
+		  data:'deltaPct',
+		  className:'dt-right',
+		  render:(d,t)=>{
+			if(t==='sort'||t==='filter') return d ?? -999999;
+			if(d===null) return '<span class="delta-zero">-</span>';
+			const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
+			return `<span class="${cls}">${d.toFixed(2)}%</span>`;
+		  }
+		},
+		{data:'weight', className:'dt-right'},
+		{data:'marketCap', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+		{data:'change', className:'dt-right'},
+		{data:'changePct', className:'dt-right', render:d=>d.toFixed(2)+'%'}
+	  ],
+	  drawCallback:function(){
+		const api=this.api();
+		api.column(0,{order:'applied'}).nodes().each((cell,i)=>{
+		  cell.innerHTML=i+1;
+		});
+	  }
+	});
 
 	// ===== Summary Konglomerat =====
 	const sumK = {};
@@ -274,28 +285,45 @@ function renderTables(data){
 	});
 	summaryKonglomeratTable = $('#summaryKonglomeratTable').DataTable({
 	  data:Object.keys(sumK).map(k=>{
-		const avgChange = sumK[k].totalChange / sumK[k].count;
-		const totalValue = sumK[k].totalValue;
-		const totalDelta = sumK[k].totalDelta;
-		const totalDeltaPct = sumK[k].prevTotalValue ? (totalDelta / sumK[k].prevTotalValue) * 100 : 0;
-		return {kong:k, avgChange, totalValue, totalDelta, totalDeltaPct};
+		const totalDeltaPct = sumK[k].prevTotalValue
+		  ? (sumK[k].totalDelta / sumK[k].prevTotalValue) * 100
+		  : 0;
+		return {
+		  kong:k,
+		  avgChange:sumK[k].totalChange/sumK[k].count,
+		  totalValue:sumK[k].totalValue,
+		  totalDelta:sumK[k].totalDelta,
+		  totalDeltaPct
+		};
 	  }),
 	  paging:false,
 	  searching:false,
-	  order:[[1,'desc']],
+	  order:[[2,'desc']],
+	  columnDefs:[{
+		targets:0,
+		orderable:false,
+		searchable:false
+	  }],
 	  columns:[
+		{data:null},
 		{data:'kong'},
 		{data:'avgChange', className:'dt-right', render:d=>d.toFixed(2)+'%'},
 		{data:'totalValue', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
 		{data:'totalDelta', className:'dt-right', render:d=>{
-		  const cls = d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
+		  const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
 		  return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
 		}},
 		{data:'totalDeltaPct', className:'dt-right', render:d=>{
-		  const cls = d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
+		  const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
 		  return `<span class="${cls}">${d.toFixed(2)}%</span>`;
 		}}
-	  ]
+	  ],
+	  drawCallback:function(){
+		const api=this.api();
+		api.column(0,{order:'applied'}).nodes().each((cell,i)=>{
+		  cell.innerHTML=i+1;
+		});
+	  }
 	});
 
 	// ===== Summary Sektor =====
@@ -311,28 +339,45 @@ function renderTables(data){
 	});
 	summarySectorTable = $('#summarySectorTable').DataTable({
 	  data:Object.keys(sumS).map(s=>{
-		const avgChange = sumS[s].totalChange / sumS[s].count;
-		const totalValue = sumS[s].totalValue;
-		const totalDelta = sumS[s].totalDelta;
-		const totalDeltaPct = sumS[s].prevTotalValue ? (totalDelta / sumS[s].prevTotalValue) * 100 : 0;
-		return {sector:s, avgChange, totalValue, totalDelta, totalDeltaPct};
+		const totalDeltaPct = sumS[s].prevTotalValue
+		  ? (sumS[s].totalDelta / sumS[s].prevTotalValue) * 100
+		  : 0;
+		return {
+		  sector:s,
+		  avgChange:sumS[s].totalChange/sumS[s].count,
+		  totalValue:sumS[s].totalValue,
+		  totalDelta:sumS[s].totalDelta,
+		  totalDeltaPct
+		};
 	  }),
 	  paging:false,
 	  searching:false,
-	  order:[[1,'desc']],
+	  order:[[2,'desc']],
+	  columnDefs:[{
+		targets:0,
+		orderable:false,
+		searchable:false
+	  }],
 	  columns:[
+		{data:null},
 		{data:'sector'},
 		{data:'avgChange', className:'dt-right', render:d=>d.toFixed(2)+'%'},
 		{data:'totalValue', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
 		{data:'totalDelta', className:'dt-right', render:d=>{
-		  const cls = d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
+		  const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
 		  return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
 		}},
 		{data:'totalDeltaPct', className:'dt-right', render:d=>{
-		  const cls = d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
+		  const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
 		  return `<span class="${cls}">${d.toFixed(2)}%</span>`;
 		}}
-	  ]
+	  ],
+	  drawCallback:function(){
+		const api=this.api();
+		api.column(0,{order:'applied'}).nodes().each((cell,i)=>{
+		  cell.innerHTML=i+1;
+		});
+	  }
 	});
 
 }
