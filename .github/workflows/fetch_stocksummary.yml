@@ -3,7 +3,7 @@ name: Fetch IDX Stock Summary Daily (Weekdays)
 on:
   schedule:
     # 09:40 WIB = 02:40 UTC | Senin - Jumat
-    - cron: '15 22 * * 1-5'
+    - cron: '17 15 * * 1-5'
   workflow_dispatch:
 
 jobs:
