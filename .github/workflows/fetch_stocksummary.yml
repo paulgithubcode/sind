@@ -1,0 +1,41 @@
+name: Fetch IDX Stock Summary Daily (Weekdays)
+
+on:
+  schedule:
+    # 21:45 WIB = 14:45 UTC | Senin - Jumat
+    - cron: '47 14 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  fetch-stock-summary:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set date
+        run: echo "TODAY=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
+
+      - name: Fetch IDX Stock Summary
+        run: |
+          mkdir -p stocksummary
+          curl -s \
+            "https://www.idx.co.id/primary/TradingSummary/GetStockSummary?length=9999&start=0" \
+            -H "User-Agent: Mozilla/5.0" \
+            -H "Accept: application/json" \
+            -o stocksummary/GetStockSummary_${TODAY}.json
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add stocksummary/GetStockSummary_${TODAY}.json
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "add stock summary ${TODAY}"
+            git push
+          fi
