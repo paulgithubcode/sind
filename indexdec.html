@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>IDX Bandar Analyzer</title>
+<style>
+  body { font-family: Arial; padding:20px; }
+  table { border-collapse: collapse; width:100%; font-size:13px; }
+  th, td { border:1px solid #ccc; padding:6px; text-align:right; }
+  th { background:#eee; }
+  td.left { text-align:left; }
+  .ACC { background:#c8f7c5; }
+  .DIST { background:#f7c5c5; }
+  .FAKE { background:#ffe8a1; }
+  .PANIC { background:#ffb3b3; }
+  .UP { background:#b5e7ff; }
+</style>
+</head>
+<body>
+
+<h3>IDX Bandar Analyzer</h3>
+<table id="tbl">
+<thead>
+<tr>
+  <th>Saham</th>
+  <th>Close</th>
+  <th>RelVol</th>
+  <th>RelFreq</th>
+  <th>RelValue</th>
+  <th>RelAvgTrade</th>
+  <th>Broker Net (Lot)</th>
+  <th>Kesimpulan</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+const START_DATE = new Date("2026-01-06");
+const DAYS_AVG = 20;
+
+function fmt(n){ return Number(n).toLocaleString("id-ID"); }
+
+async function loadJSON(url){
+  const r = await fetch(url);
+  return r.json();
+}
+
+function dateStr(d){
+  return d.toISOString().slice(0,10);
+}
+
+async function run(){
+  const today = new Date();
+  const dates = [];
+  for(let d=new Date(START_DATE); d<=today; d.setDate(d.getDate()+1)){
+    dates.push(dateStr(new Date(d)));
+  }
+
+  const stockData = {};
+  for(const dt of dates){
+    try{
+      const js = await loadJSON(`/stocksummary/GetStockSummary_${dt}.json`);
+      js.data.forEach(s=>{
+        if(!stockData[s.StockCode]) stockData[s.StockCode]=[];
+        stockData[s.StockCode].push({
+          date:dt,
+          close:s.Close,
+          volume:s.Volume,
+          value:s.Value,
+          freq:s.Frequency
+        });
+      });
+    }catch(e){}
+  }
+
+  const brokerToday = await loadJSON(`/broksum/BrokSum_${dateStr(today)}.json`);
+  const tbody = document.querySelector("#tbl tbody");
+
+  Object.keys(stockData).forEach(code=>{
+    const rows = stockData[code];
+    if(rows.length < DAYS_AVG) return;
+
+    const cur = rows[rows.length-1];
+    const avg = rows.slice(-DAYS_AVG);
+
+    const avgVol = avg.reduce((a,b)=>a+b.volume,0)/DAYS_AVG;
+    const avgFreq = avg.reduce((a,b)=>a+b.freq,0)/DAYS_AVG;
+    const avgVal = avg.reduce((a,b)=>a+b.value,0)/DAYS_AVG;
+    const avgAT = avg.reduce((a,b)=>a+(b.volume/b.freq),0)/DAYS_AVG;
+
+    const relVol = cur.volume/avgVol;
+    const relFreq = cur.freq/avgFreq;
+    const relVal = cur.value/avgVal;
+    const relAT = (cur.volume/cur.freq)/avgAT;
+
+    let brokerNet = 0;
+    if(brokerToday.tickers?.[code]){
+      brokerToday.tickers[code].netbuy.forEach(b=>{
+        brokerNet += parseFloat(b.nlot.replace(/,/g,""));
+      });
+      brokerToday.tickers[code].netsell.forEach(b=>{
+        brokerNet -= parseFloat(b.nlot.replace(/,/g,""));
+      });
+    }
+
+    let label="Netral", cls="";
+
+    // 🟢 Bandar Serap
+    if(relVol>1.3 && relAT>1.5 && relFreq<=1.2 && relVal>relVol && brokerNet>0){
+      label="Bandar Serap";
+      cls="ACC";
+    }
+    // 🔴 Bandar Keluar
+    else if(relVol>1.3 && relFreq>1.5 && relAT<0.8 && brokerNet<0){
+      label="Bandar Keluar";
+      cls="DIST";
+    }
+    // 🟡 Naik Palsu
+    else if(relVol>1.2 && relFreq>1.5 && relAT<0.7 && relVal<=relVol){
+      label="Naik Palsu";
+      cls="FAKE";
+    }
+    // 🔥 Panic Sell
+    else if(relVol>2 && relFreq>2 && brokerNet<0){
+      label="Panic Sell";
+      cls="PANIC";
+    }
+    // 🚀 Uptrend Valid
+    else if(relVol>1.1 && relVal>1.2 && relFreq<=1.2){
+      label="Uptrend Valid";
+      cls="UP";
+    }
+
+    const tr = document.createElement("tr");
+    tr.className = cls;
+    tr.innerHTML = `
+      <td class="left">${code}</td>
+      <td>${fmt(cur.close)}</td>
+      <td>${relVol.toFixed(2)}</td>
+      <td>${relFreq.toFixed(2)}</td>
+      <td>${relVal.toFixed(2)}</td>
+      <td>${relAT.toFixed(2)}</td>
+      <td>${fmt(brokerNet)}</td>
+      <td class="left"><b>${label}</b></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+run();
+</script>
+</body>
+</html>
