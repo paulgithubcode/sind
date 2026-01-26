@@ -33,20 +33,25 @@
 <table id="stockTable" class="display" style="width:100%">
 <thead>
   <tr>
-    <th>No</th>
-    <th>Kode</th>
-    <th>Nama Saham</th>
-    <th>Konglomerat</th>
-    <th>Sektor</th>
-    <th>Close</th>
-    <th>Volume</th>
-    <th>Value (Rp)</th>
-    <th>Δ Value (Rp)</th>
-    <th>Δ % Value</th>
-    <th>Weight For Index</th>
-    <th>Market Cap</th>
-    <th>Change</th>
-    <th>Change %</th>
+	  <th>No</th>
+	  <th>Kode</th>
+	  <th>Nama</th>
+	  <th>Konglomerat</th>
+	  <th>Sektor</th>
+	  <th>Close</th>
+	  <th>Volume</th>
+	  <th>Δ Volume</th>
+	  <th>Δ % Volume</th>
+	  <th>Frekuensi</th>
+	  <th>Δ Frek</th>
+	  <th>Δ % Frek</th>
+	  <th>Value</th>
+	  <th>Δ Value</th>
+	  <th>Δ % Value</th>
+	  <th>Weight For Index</th>
+	  <th>Market Cap</th>
+	  <th>Change</th>
+	  <th>Change %</th>
   </tr>
 </thead>
 </table>
@@ -184,15 +189,37 @@ async function loadData(date){
 
     // buat map prev value per code
     const prevValueMap = {};
-    prevDataJson.data.forEach(r=>{ prevValueMap[r.StockCode] = r.Value || 0; });
+	const prevVolumeMap = {};
+	const prevFreqMap = {};
+	
+	prevDataJson.data.forEach(r=>{
+	  prevValueMap[r.StockCode] = r.Value || 0; 
+	  prevVolumeMap[r.StockCode] = r.Volume || 0;
+	  prevFreqMap[r.StockCode] = r.Frequency || 0;
+	});
 
     // gabungkan data
     const data = stockJson.data.map(r=>{
       const prevValue = prevValueMap[r.StockCode] || 0;
+	  const prevVolume = prevVolumeMap[r.StockCode] || 0;
+	  const prevFreq = prevFreqMap[r.StockCode] || 0;
+	  
       const deltaValue = r.Value - prevValue;
-      const deltaPct = prevValue > 0 ? (deltaValue / prevValue) * 100 : null;
+      const deltaValuePct = prevValue > 0 ? (deltaValue / prevValue) * 100 : null;
+	  
+	  const deltaVolume = r.Volume - prevVolume;
+	  const deltaVolumePct = prevVolume > 0
+	    ? (deltaVolume / prevVolume) * 100
+	    : null;
+		
+	  const deltaFreq = r.Frequency - prevFreq;
+	  const deltaFreqPct = prevFreq > 0
+	    ? (deltaFreq / prevFreq) * 100
+	    : null;
+	  
       const marketCap = r.Close*r.ListedShares;
       const changePct = r.Previous ? ((r.Close - r.Previous)/r.Previous)*100 : 0;
+
       return {
         code:r.StockCode,
         name:r.StockName,
@@ -200,9 +227,14 @@ async function loadData(date){
         sector:sectorMap[r.StockCode] || "-",
         close:r.Close,
         volume:r.Volume,
+		deltaVolume,
+		deltaVolumePct,
+		frequency: r.Frequency,
+		deltaFreq,
+		deltaFreqPct,
         valueRupiah:r.Value,
         deltaValue,
-        deltaPct,
+        deltaValuePct,
         weight:r.WeightForIndex,
         marketCap,
         change:r.Change,
@@ -224,7 +256,7 @@ function renderTables(data){
 	stockTable = $('#stockTable').DataTable({
 	  data,
 	  paging:false,
-	  order:[[13,'desc']], // Change % (index geser karena No)
+	  order:[[18,'desc']], // Change % (index geser karena No)
 	  columnDefs:[{
 		targets:0,
 		orderable:false,
@@ -238,26 +270,68 @@ function renderTables(data){
 		{data:'sector'},
 		{data:'close', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
 		{data:'volume', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+		{
+		  data:'deltaVolume',
+		  className:'dt-right',
+		  render:(d,t)=>{
+			if(t==='sort'||t==='filter') return d;
+			const cls = d > 0 ? 'delta-positive' : d < 0 ? 'delta-negative' : 'delta-zero';
+			return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
+		  }
+		},
+		{
+		  data:'deltaVolumePct',
+		  className:'dt-right',
+		  render:(d,t)=>{
+			if(t==='sort'||t==='filter') return d ?? -999999;
+			if(d===null) return '<span class="delta-zero">-</span>';
+			const cls = d > 0 ? 'delta-positive' : d < 0 ? 'delta-negative' : 'delta-zero';
+			return `<span class="${cls}">${d.toFixed(2)}%</span>`;
+		  }
+		},
+
+		{data:'frequency', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
+		{
+		  data:'deltaFreq',
+		  className:'dt-right',
+		  render:(d,t)=>{
+			if(t==='sort'||t==='filter') return d;
+			const cls = d > 0 ? 'delta-positive' : d < 0 ? 'delta-negative' : 'delta-zero';
+			return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
+		  }
+		},
+		{
+		  data:'deltaFreqPct',
+		  className:'dt-right',
+		  render:(d,t)=>{
+			if(t==='sort'||t==='filter') return d ?? -999999;
+			if(d===null) return '<span class="delta-zero">-</span>';
+			const cls = d > 0 ? 'delta-positive' : d < 0 ? 'delta-negative' : 'delta-zero';
+			return `<span class="${cls}">${d.toFixed(2)}%</span>`;
+		  }
+		},
+		
 		{data:'valueRupiah', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
 		{
 		  data:'deltaValue',
 		  className:'dt-right',
 		  render:(d,t)=>{
 			if(t==='sort'||t==='filter') return d;
-			const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
+			const cls = d > 0 ? 'delta-positive' : d < 0 ? 'delta-negative' : 'delta-zero';
 			return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
 		  }
 		},
 		{
-		  data:'deltaPct',
+		  data:'deltaValuePct',
 		  className:'dt-right',
 		  render:(d,t)=>{
 			if(t==='sort'||t==='filter') return d ?? -999999;
 			if(d===null) return '<span class="delta-zero">-</span>';
-			const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
+			const cls = d > 0 ? 'delta-positive' : d < 0 ? 'delta-negative' : 'delta-zero';
 			return `<span class="${cls}">${d.toFixed(2)}%</span>`;
 		  }
 		},
+		
 		{data:'weight', className:'dt-right'},
 		{data:'marketCap', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
 		{data:'change', className:'dt-right'},
@@ -275,8 +349,13 @@ function renderTables(data){
 	const sumK = {};
 	data.forEach(r=>{
 	  if(r.kong!=="-"){
-		if(!sumK[r.kong]) sumK[r.kong]={totalChange:0,totalValue:0,totalDelta:0,prevTotalValue:0,count:0};
-		sumK[r.kong].totalChange += r.changePct;
+		if(!sumK[r.kong]) sumK[r.kong]={
+		weightedChange:0,
+		totalValue:0,
+		totalDelta:0,
+		prevTotalValue:0,
+		count:0};
+		sumK[r.kong].weightedChange += r.changePct * r.valueRupiah;
 		sumK[r.kong].totalValue += r.valueRupiah;
 		sumK[r.kong].totalDelta += r.deltaValue;
 		sumK[r.kong].prevTotalValue += r.valueRupiah - r.deltaValue; // nilai hari sebelumnya
@@ -285,15 +364,17 @@ function renderTables(data){
 	});
 	summaryKonglomeratTable = $('#summaryKonglomeratTable').DataTable({
 	  data:Object.keys(sumK).map(k=>{
-		const totalDeltaPct = sumK[k].prevTotalValue
+		const totaldeltaValuePct = sumK[k].prevTotalValue
 		  ? (sumK[k].totalDelta / sumK[k].prevTotalValue) * 100
 		  : 0;
 		return {
 		  kong:k,
-		  avgChange:sumK[k].totalChange/sumK[k].count,
+		avgChange: sumK[k].totalValue
+		  ? sumK[k].weightedChange / sumK[k].totalValue
+		  : 0,
 		  totalValue:sumK[k].totalValue,
 		  totalDelta:sumK[k].totalDelta,
-		  totalDeltaPct
+		  totaldeltaValuePct
 		};
 	  }),
 	  paging:false,
@@ -313,7 +394,7 @@ function renderTables(data){
 		  const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
 		  return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
 		}},
-		{data:'totalDeltaPct', className:'dt-right', render:d=>{
+		{data:'totaldeltaValuePct', className:'dt-right', render:d=>{
 		  const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
 		  return `<span class="${cls}">${d.toFixed(2)}%</span>`;
 		}}
@@ -330,24 +411,32 @@ function renderTables(data){
 	const sumS = {};
 	data.forEach(r=>{
 	  const s = r.sector;
-	  if(!sumS[s]) sumS[s]={totalChange:0,totalValue:0,totalDelta:0,prevTotalValue:0,count:0};
-	  sumS[s].totalChange += r.changePct;
+	  if(!sumS[s]) sumS[s]={
+		weightedChange:0,
+		totalValue:0,
+		totalDelta:0,
+		prevTotalValue:0
+	  };
+
+	  sumS[s].weightedChange += r.changePct * r.valueRupiah;
 	  sumS[s].totalValue += r.valueRupiah;
 	  sumS[s].totalDelta += r.deltaValue;
 	  sumS[s].prevTotalValue += r.valueRupiah - r.deltaValue;
-	  sumS[s].count++;
-	});
+	});	
+	
 	summarySectorTable = $('#summarySectorTable').DataTable({
 	  data:Object.keys(sumS).map(s=>{
-		const totalDeltaPct = sumS[s].prevTotalValue
+		const totaldeltaValuePct = sumS[s].prevTotalValue
 		  ? (sumS[s].totalDelta / sumS[s].prevTotalValue) * 100
 		  : 0;
 		return {
 		  sector:s,
-		  avgChange:sumS[s].totalChange/sumS[s].count,
+			avgChange: sumS[s].totalValue
+			  ? sumS[s].weightedChange / sumS[s].totalValue
+			  : 0,
 		  totalValue:sumS[s].totalValue,
 		  totalDelta:sumS[s].totalDelta,
-		  totalDeltaPct
+		  totaldeltaValuePct
 		};
 	  }),
 	  paging:false,
@@ -367,7 +456,7 @@ function renderTables(data){
 		  const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
 		  return `<span class="${cls}">${d.toLocaleString('id-ID')}</span>`;
 		}},
-		{data:'totalDeltaPct', className:'dt-right', render:d=>{
+		{data:'totaldeltaValuePct', className:'dt-right', render:d=>{
 		  const cls=d>0?'delta-positive':d<0?'delta-negative':'delta-zero';
 		  return `<span class="${cls}">${d.toFixed(2)}%</span>`;
 		}}
