@@ -52,6 +52,7 @@
 	  <th>Market Cap</th>
 	  <th>Change</th>
 	  <th>Change %</th>
+	  <th>Keputusan</th>
   </tr>
 </thead>
 </table>
@@ -220,6 +221,19 @@ async function loadData(date){
       const marketCap = r.Close*r.ListedShares;
       const changePct = r.Previous ? ((r.Close - r.Previous)/r.Previous)*100 : 0;
 
+		// ===== LOGIC KEPUTUSAN =====
+		let keputusan = "-";
+
+		if (
+		  deltaVolume > 0 &&
+		  deltaFreq < 0 &&
+		  deltaValue > 0 &&
+		  changePct > 0
+		) {
+		  keputusan = "Bagus";
+		}
+
+
       return {
         code:r.StockCode,
         name:r.StockName,
@@ -238,7 +252,8 @@ async function loadData(date){
         weight:r.WeightForIndex,
         marketCap,
         change:r.Change,
-        changePct
+        changePct,
+		keputusan
       };
     });
 
@@ -335,7 +350,16 @@ function renderTables(data){
 		{data:'weight', className:'dt-right'},
 		{data:'marketCap', className:'dt-right', render: $.fn.dataTable.render.number('.',',',0)},
 		{data:'change', className:'dt-right'},
-		{data:'changePct', className:'dt-right', render:d=>d.toFixed(2)+'%'}
+		{data:'changePct', className:'dt-right', render:d=>d.toFixed(2)+'%'},
+		{
+		  data:'keputusan',
+		  render:(d)=>{
+			if(d === "Bagus"){
+			  return `<span style="color:green;font-weight:bold">Bagus</span>`;
+			}
+			return `<span style="color:#999">-</span>`;
+		  }
+		}		
 	  ],
 	  drawCallback:function(){
 		const api=this.api();
