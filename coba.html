@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Download IDX Stock Summary</title>
+</head>
+
+<body>
+
+<h3>Download IDX Stock Summary (2023 → sekarang)</h3>
+
+<button onclick="downloadAll()">Download Semua</button>
+
+<script>
+
+function formatDate(date){
+  const y = date.getFullYear()
+  const m = String(date.getMonth()+1).padStart(2,"0")
+  const d = String(date.getDate()).padStart(2,"0")
+  return `${y}-${m}-${d}`
+}
+
+async function downloadDate(date){
+
+  const url =
+  "https://www.idx.co.id/primary/TradingSummary/GetStockSummary?length=9999&start=0&date=" + date
+
+  try{
+
+    const response = await fetch(url,{
+      credentials:"include"
+    })
+
+    if(!response.ok){
+      console.log("skip",date)
+      return
+    }
+
+    const data = await response.json()
+
+    const blob = new Blob(
+      [JSON.stringify(data,null,2)],
+      {type:"application/json"}
+    )
+
+    const link = document.createElement("a")
+
+    link.href = URL.createObjectURL(blob)
+    link.download = "GetStockSummary_" + date + ".json"
+
+    document.body.appendChild(link)
+
+    link.click()
+
+    document.body.removeChild(link)
+
+    console.log("download",date)
+
+  }
+  catch(err){
+    console.log("error",date)
+  }
+
+}
+
+async function downloadAll(){
+
+  let start = new Date("2023-01-01")
+  let today = new Date()
+
+  while(start <= today){
+
+    const date = formatDate(start)
+
+    await downloadDate(date)
+
+    start.setDate(start.getDate()+1)
+
+    await new Promise(r=>setTimeout(r,1500))
+
+  }
+
+}
+
+</script>
+
+</body>
+</html>
