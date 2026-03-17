@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>IDX Downloader IndexedDB</title>
+
+<style>
+body{
+  font-family:Arial;
+  padding:20px;
+}
+
+button{
+  padding:8px 14px;
+  margin-right:10px;
+}
+
+#log{
+  margin-top:20px;
+  background:#111;
+  color:#0f0;
+  padding:10px;
+  height:300px;
+  overflow:auto;
+  font-family:monospace;
+}
+</style>
+</head>
+
+<body>
+
+<h3>IDX StockSummary → IndexedDB</h3>
+
+<label>
+End Date
+<input type="date" id="endDate">
+</label>
+
+<br><br>
+
+<button onclick="startDownload()">Download Missing Data</button>
+<button onclick="showDBSize()">Show DB Stats</button>
+<button onclick="resetDB()">Reset Database</button>
+
+<div id="log"></div>
+
+<script>
+
+/* ================= CONFIG ================= */
+
+const BASE =
+"https://raw.githubusercontent.com/paulgithubcode/sind/main/stocksummary/";
+
+function api(date){
+ return BASE+"GetStockSummary_"+date+".json";
+}
+
+/* ================= LOGGER ================= */
+
+function log(msg){
+
+const el=document.getElementById("log");
+
+el.innerHTML+=msg+"<br>";
+
+el.scrollTop=el.scrollHeight;
+
+}
+
+/* ================= DATABASE ================= */
+
+let db;
+
+function openDB(){
+
+return new Promise((resolve,reject)=>{
+
+const req=indexedDB.open("idxDB",1);
+
+req.onupgradeneeded=function(e){
+
+const db=e.target.result;
+
+if(!db.objectStoreNames.contains("daily")){
+
+const store=db.createObjectStore("daily",{keyPath:"id"});
+
+store.createIndex("code","code",{unique:false});
+store.createIndex("date","date",{unique:false});
+
+}
+
+if(!db.objectStoreNames.contains("meta")){
+
+db.createObjectStore("meta",{keyPath:"key"});
+
+}
+
+};
+
+req.onsuccess=function(e){
+
+db=e.target.result;
+resolve();
+
+};
+
+req.onerror=reject;
+
+});
+
+}
+
+/* ================= META ================= */
+
+function getMeta(key){
+
+return new Promise(resolve=>{
+
+const tx=db.transaction("meta","readonly");
+const store=tx.objectStore("meta");
+
+const req=store.get(key);
+
+req.onsuccess=()=>resolve(req.result?.value);
+
+});
+
+}
+
+function setMeta(key,value){
+
+const tx=db.transaction("meta","readwrite");
+
+const store=tx.objectStore("meta");
+
+store.put({key:key,value:value});
+
+}
+
+/* ================= SAVE DAILY DATA ================= */
+
+function saveDaily(records){
+
+return new Promise(resolve=>{
+
+const tx=db.transaction("daily","readwrite");
+
+const store=tx.objectStore("daily");
+
+records.forEach(r=>store.put(r));
+
+tx.oncomplete=resolve;
+
+});
+
+}
+
+/* ================= DOWNLOAD PROCESS ================= */
+
+async function startDownload(){
+
+await openDB();
+
+const endDate=
+document.getElementById("endDate").value;
+
+if(!endDate){
+
+alert("pilih tanggal");
+
+return;
+
+}
+
+let lastDate=
+await getMeta("lastDate");
+
+let start;
+
+if(!lastDate){
+
+start=new Date("2023-01-01");
+
+}else{
+
+start=new Date(lastDate);
+
+start.setDate(start.getDate()+1);
+
+}
+
+let end=new Date(endDate);
+
+while(start<=end){
+
+const d=start.toISOString().split("T")[0];
+
+log("fetch "+d);
+
+try{
+
+const r=await fetch(api(d));
+
+if(r.ok){
+
+const j=await r.json();
+
+const rows=[];
+
+j.data.forEach(s=>{
+
+rows.push({
+
+id:s.StockCode+"_"+d,
+
+code:s.StockCode,
+
+date:d,
+
+o:s.OpenPrice,
+
+h:s.High,
+
+l:s.Low,
+
+c:s.Close,
+
+v:s.Volume
+
+});
+
+});
+
+await saveDaily(rows);
+
+log("saved "+rows.length+" records");
+
+}
+
+}catch(e){
+
+log("error "+d);
+
+}
+
+start.setDate(start.getDate()+1);
+
+}
+
+setMeta("lastDate",endDate);
+
+log("DOWNLOAD FINISHED");
+
+}
+
+/* ================= DATABASE STATS ================= */
+
+function showDBSize(){
+
+const tx=db.transaction("daily","readonly");
+
+const store=tx.objectStore("daily");
+
+const req=store.count();
+
+req.onsuccess=function(){
+
+log("total records : "+req.result);
+
+};
+
+}
+
+/* ================= RESET DATABASE ================= */
+
+function resetDB(){
+
+indexedDB.deleteDatabase("idxDB");
+
+log("database deleted");
+
+}
+
+/* ================= INIT ================= */
+
+document.getElementById("endDate").value=
+new Date().toISOString().split("T")[0];
+
+openDB().then(()=>log("database ready"));
+
+</script>
+
+</body>
+</html>
