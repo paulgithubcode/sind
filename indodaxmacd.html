@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>MACD Indodax → Binance (DataTables)</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- DataTables -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<style>
+body { font-family: Arial; padding:20px; }
+table { width:100%; }
+.left { text-align:left; }
+canvas { width: 200px !important; height: 90px !important; }
+.missing { margin-top:20px; color:red; }
+</style>
+</head>
+
+<body>
+
+<h2>MACD (12,26,9) - Indodax → Binance</h2>
+
+<table id="tbl" class="display">
+<thead>
+<tr>
+<th>Kode</th>
+<th>Open</th>
+<th>High</th>
+<th>Low</th>
+<th>Close</th>
+<th>Volume</th>
+<th>Trades</th>
+<th>MACD</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<div id="missing" class="missing"></div>
+
+<script>
+
+// EMA
+function ema(period, prices){
+    const k = 2/(period+1);
+    let sma = prices.slice(0, period).reduce((a,b)=>a+b,0)/period;
+    let emaArr = [sma];
+    for(let i=period;i<prices.length;i++){
+        let prev = emaArr[emaArr.length-1];
+        emaArr.push(prices[i]*k + prev*(1-k));
+    }
+    while(emaArr.length < prices.length) emaArr.unshift(null);
+    return emaArr;
+}
+
+// Warna histogram
+function getColor(curr, prev){
+    if(curr > 0 && curr > prev) return "limegreen";
+    if(curr > 0 && curr <= prev) return "green";
+    if(curr < 0 && curr < prev) return "red";
+    if(curr < 0 && curr >= prev) return "deeppink";
+    return "gray";
+}
+
+// Ambil simbol
+async function getSymbols() {
+    const indo = await fetch("https://indodax.com/tradingview/search_v2").then(r=>r.json());
+    const bin = await fetch("https://api.binance.com/api/v3/exchangeInfo").then(r=>r.json());
+
+    const binSymbols = bin.symbols.map(s=>s.symbol);
+
+    let available=[], missing=[];
+
+    indo.filter(d=>d.symbol.endsWith("IDR")).forEach(d=>{
+        let usdt = d.symbol.replace("IDR","USDT");
+        if(binSymbols.includes(usdt)) available.push(usdt);
+        else missing.push(d.symbol);
+    });
+
+    return {available, missing};
+}
+
+// Fetch data
+async function fetchData(symbol){
+    const data = await fetch(
+        `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=300`
+    ).then(r=>r.json());
+
+    const closes = data.map(d=>parseFloat(d[4]));
+
+    const ema12 = ema(12, closes);
+    const ema26 = ema(26, closes);
+
+    const macd = ema12.map((v,i)=> v && ema26[i] ? v-ema26[i] : null);
+
+    const signalRaw = ema(9, macd.filter(v=>v!==null));
+    let signal = [...signalRaw];
+    while(signal.length < macd.length) signal.unshift(null);
+
+    const hist = macd.map((v,i)=> v && signal[i] ? v-signal[i] : null);
+
+    return {data, macd, signal, hist};
+}
+
+// Load
+async function load(){
+
+    const tbody = $("#tbl tbody");
+    const {available, missing} = await getSymbols();
+
+    for(const symbol of available){
+
+        try{
+            const {data, macd, signal, hist} = await fetchData(symbol);
+
+            let last = data.length-1;
+            let d = data[last];
+            let canvasId = "chart_"+symbol;
+
+            tbody.append(`
+            <tr>
+                <td class="left">${symbol}</td>
+                <td>${parseFloat(d[1]).toFixed(2)}</td>
+                <td>${parseFloat(d[2]).toFixed(2)}</td>
+                <td>${parseFloat(d[3]).toFixed(2)}</td>
+                <td>${parseFloat(d[4]).toFixed(2)}</td>
+                <td>${parseFloat(d[5]).toFixed(0)}</td>
+                <td>${d[8]}</td>
+                <td><canvas id="${canvasId}"></canvas></td>
+            </tr>
+            `);
+
+            let histSlice = hist.slice(-10);
+            let macdSlice = macd.slice(-10);
+            let signalSlice = signal.slice(-10);
+
+            let colors = histSlice.map((h,i)=>{
+                let prev = histSlice[i-1] || 0;
+                return h ? getColor(h,prev) : "gray";
+            });
+
+            new Chart(document.getElementById(canvasId), {
+                data:{
+                    labels:Array(10).fill(""),
+                    datasets:[
+                        {type:"bar", data:histSlice, backgroundColor:colors},
+                        {type:"line", data:macdSlice, borderColor:"blue", pointRadius:0},
+                        {type:"line", data:signalSlice, borderColor:"orange", pointRadius:0}
+                    ]
+                },
+                options:{
+                    responsive:false,
+                    plugins:{legend:{display:false}},
+                    scales:{x:{display:false}, y:{display:false}}
+                }
+            });
+
+        }catch(e){
+            console.log(symbol, e);
+        }
+    }
+
+    // Init DataTable
+    $('#tbl').DataTable({
+        paging: false,
+        info: false,
+        order: [[4, "desc"]], // default sort by Close
+        columnDefs: [
+            { targets: 7, orderable: false } // disable sort MACD chart
+        ]
+    });
+
+    // Missing
+    if(missing.length){
+        $("#missing").html(
+            "<b>Tidak ada di Binance:</b><br>"+missing.join(", ")
+        );
+    }
+}
+
+load();
+
+</script>
+
+</body>
+</html>

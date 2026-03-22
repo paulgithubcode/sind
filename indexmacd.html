@@ -66,6 +66,7 @@ body{font-family:Arial;padding:20px}
 <th>%Δ 1→0</th>
 
 <th>Status</th>
+<th>Pink</th>
 
 </tr>
 </thead>
@@ -163,6 +164,12 @@ function isAllPositive(pct){
 return pct.every(v => v > 0 && isFinite(v));
 }
 
+function isPink(h1,h0,p10){
+
+return (h1 < 0 && h0 > h1 && p10 > 0);
+
+}
+
 /* ================= FIND DATE ================= */
 
 function findIndex(rows,date){
@@ -229,6 +236,8 @@ const bagus=isAllPositive(stats.pct);
 const last=data[idx];
 const h=macd.hist;
 
+const pink = isPink(h[8],h[9],stats.pct[8]);
+
 result.push({
 
 code:code,
@@ -265,7 +274,8 @@ p32:stats.pct[6],
 p21:stats.pct[7],
 p10:stats.pct[8],
 
-status: bagus ? "BAGUS" : "-"
+status: bagus ? "BAGUS" : "-",
+pink: pink ? "PINK" : "-"
 
 });
 
@@ -331,6 +341,19 @@ data:"status",
 render:d=> d==="BAGUS"
 ? '<span class="pos">BAGUS</span>'
 : "-"
+},
+
+{
+data:"pink",
+render:function(d){
+
+if(d==="PINK"){
+return 'PINK';
+}
+
+return "-";
+
+}
 }
 
 ],
