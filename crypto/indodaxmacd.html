@@ -69,7 +69,7 @@ function getColor(curr, prev){
 
 // Ambil simbol
 async function getSymbols() {
-    const indo = await fetch("https://raw.githubusercontent.com/paulgithubcode/sind/search_v2.json").then(r=>r.json());
+    const indo = await fetch("https://raw.githubusercontent.com/paulgithubcode/sind/crypto/datacrypto/search_v2.json").then(r=>r.json());
     const bin = await fetch("https://api.binance.com/api/v3/exchangeInfo").then(r=>r.json());
 
     const binSymbols = bin.symbols.map(s=>s.symbol);
