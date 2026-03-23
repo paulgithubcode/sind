@@ -2,12 +2,10 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>MACD Indodax → Binance (DataTables)</title>
+<title>MACD + EMA (10 Candle)</title>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- DataTables -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
@@ -23,7 +21,7 @@ canvas { width: 200px !important; height: 90px !important; }
 
 <body>
 
-<h2>MACD (12,26,9) - Indodax → Binance</h2>
+<h2>MACD + EMA50/200 (10 Candle)</h2>
 
 <table id="tbl" class="display">
 <thead>
@@ -35,6 +33,7 @@ canvas { width: 200px !important; height: 90px !important; }
 <th>Close</th>
 <th>Volume</th>
 <th>Trades</th>
+<th>EMA50 / EMA200</th>
 <th>MACD</th>
 </tr>
 </thead>
@@ -95,16 +94,23 @@ async function fetchData(symbol){
 
     const ema12 = ema(12, closes);
     const ema26 = ema(26, closes);
+    const ema50 = ema(50, closes);
+    const ema200 = ema(200, closes);
 
-    const macd = ema12.map((v,i)=> v && ema26[i] ? v-ema26[i] : null);
+    const macd = ema12.map((v,i)=> 
+        v !== null && ema26[i] !== null ? v - ema26[i] : null
+    );
 
     const signalRaw = ema(9, macd.filter(v=>v!==null));
+
     let signal = [...signalRaw];
     while(signal.length < macd.length) signal.unshift(null);
 
-    const hist = macd.map((v,i)=> v && signal[i] ? v-signal[i] : null);
+    const hist = macd.map((v,i)=> 
+        v !== null && signal[i] !== null ? v - signal[i] : null
+    );
 
-    return {data, macd, signal, hist};
+    return {data, macd, signal, hist, ema50, ema200};
 }
 
 // Load
@@ -116,11 +122,13 @@ async function load(){
     for(const symbol of available){
 
         try{
-            const {data, macd, signal, hist} = await fetchData(symbol);
+            const {data, macd, signal, hist, ema50, ema200} = await fetchData(symbol);
 
             let last = data.length-1;
             let d = data[last];
-            let canvasId = "chart_"+symbol;
+
+            let canvasMacd = "macd_"+symbol+"_"+Date.now();
+            let canvasEma  = "ema_"+symbol+"_"+Date.now();
 
             tbody.append(`
             <tr>
@@ -131,20 +139,42 @@ async function load(){
                 <td>${parseFloat(d[4]).toFixed(2)}</td>
                 <td>${parseFloat(d[5]).toFixed(0)}</td>
                 <td>${d[8]}</td>
-                <td><canvas id="${canvasId}"></canvas></td>
+                <td><canvas id="${canvasEma}"></canvas></td>
+                <td><canvas id="${canvasMacd}"></canvas></td>
             </tr>
             `);
 
+            // ===== EMA (10 CANDLE) =====
+            let ema50Slice = ema50.slice(-10);
+            let ema200Slice = ema200.slice(-10);
+
+            new Chart(document.getElementById(canvasEma), {
+                type: "line",
+                data: {
+                    labels: Array(10).fill(""),
+                    datasets: [
+                        {data: ema50Slice, borderColor: "blue", pointRadius: 0},
+                        {data: ema200Slice, borderColor: "red", pointRadius: 0}
+                    ]
+                },
+                options: {
+                    responsive:false,
+                    plugins:{legend:{display:false}},
+                    scales:{x:{display:false}, y:{display:false}}
+                }
+            });
+
+            // ===== MACD =====
             let histSlice = hist.slice(-10);
             let macdSlice = macd.slice(-10);
             let signalSlice = signal.slice(-10);
 
             let colors = histSlice.map((h,i)=>{
                 let prev = histSlice[i-1] || 0;
-                return h ? getColor(h,prev) : "gray";
+                return h !== null ? getColor(h,prev) : "gray";
             });
 
-            new Chart(document.getElementById(canvasId), {
+            new Chart(document.getElementById(canvasMacd), {
                 data:{
                     labels:Array(10).fill(""),
                     datasets:[
@@ -165,17 +195,15 @@ async function load(){
         }
     }
 
-    // Init DataTable
     $('#tbl').DataTable({
         paging: false,
         info: false,
-        order: [[4, "desc"]], // default sort by Close
+        order: [[4, "desc"]],
         columnDefs: [
-            { targets: 7, orderable: false } // disable sort MACD chart
+            { targets: [7,8], orderable: false }
         ]
     });
 
-    // Missing
     if(missing.length){
         $("#missing").html(
             "<b>Tidak ada di Binance:</b><br>"+missing.join(", ")
