@@ -2,10 +2,12 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>MACD + EMA (10 Candle)</title>
+<title>1 H MACD + EMA (Accurate)</title>
 
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+<!-- DataTables -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
@@ -21,7 +23,7 @@ canvas { width: 200px !important; height: 90px !important; }
 
 <body>
 
-<h2>MACD + EMA50/200 (10 Candle)</h2>
+<h2>1 H MACD + EMA50/200 (TradingView Style)</h2>
 
 <table id="tbl" class="display">
 <thead>
@@ -44,29 +46,48 @@ canvas { width: 200px !important; height: 90px !important; }
 
 <script>
 
-// EMA
-function ema(period, prices){
+// ================= EMA ala TradingView =================
+function ema_tv(period, prices){
     const k = 2/(period+1);
-    let sma = prices.slice(0, period).reduce((a,b)=>a+b,0)/period;
-    let emaArr = [sma];
-    for(let i=period;i<prices.length;i++){
-        let prev = emaArr[emaArr.length-1];
-        emaArr.push(prices[i]*k + prev*(1-k));
+    let emaArr = [];
+
+    emaArr[0] = prices[0];
+
+    for(let i=1;i<prices.length;i++){
+        emaArr[i] = prices[i]*k + emaArr[i-1]*(1-k);
     }
-    while(emaArr.length < prices.length) emaArr.unshift(null);
+
     return emaArr;
 }
 
-// Warna histogram
-function getColor(curr, prev){
-    if(curr > 0 && curr > prev) return "limegreen";
-    if(curr > 0 && curr <= prev) return "green";
-    if(curr < 0 && curr < prev) return "red";
-    if(curr < 0 && curr >= prev) return "deeppink";
+// ================= WARNA HISTOGRAM =================
+function getColor(curr, prev, index){
+
+    // === HANDLE CANDLE PERTAMA ===
+    if(index === 0 || prev === null){
+        if(curr > 0) return "#006400";   // hijau tua
+        if(curr < 0) return "#8b0000";   // merah tua
+        return "gray";                   // nol
+    }
+
+    let diff = curr - prev;
+
+    // === DI ATAS 0 ===
+    if(curr >= 0){
+        if(diff > 0) return "#006400";  // hijau tua (naik)
+        else return "#00ff00";          // hijau muda (turun)
+    }
+
+    // === DI BAWAH 0 ===
+    if(curr < 0){
+        if(diff < 0) return "#8b0000";  // merah tua (turun)
+        else return "#ff7f7f";          // merah muda (naik)
+    }
+
     return "gray";
 }
 
-// Ambil simbol
+// ================= AMBIL SYMBOL =================
 async function getSymbols() {
     const indo = await fetch("https://raw.githubusercontent.com/paulgithubcode/sind/main/datacrypto/search_v2.json").then(r=>r.json());
     const bin = await fetch("https://api.binance.com/api/v3/exchangeInfo").then(r=>r.json());
@@ -84,36 +105,28 @@ async function getSymbols() {
     return {available, missing};
 }
 
-// Fetch data
+// ================= FETCH DATA =================
 async function fetchData(symbol){
     const data = await fetch(
-        `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=300`
+        `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=1000`
     ).then(r=>r.json());
 
     const closes = data.map(d=>parseFloat(d[4]));
 
-    const ema12 = ema(12, closes);
-    const ema26 = ema(26, closes);
-    const ema50 = ema(50, closes);
-    const ema200 = ema(200, closes);
+    const ema12 = ema_tv(12, closes);
+    const ema26 = ema_tv(26, closes);
+    const ema50 = ema_tv(50, closes);
+    const ema200 = ema_tv(200, closes);
 
-    const macd = ema12.map((v,i)=> 
-        v !== null && ema26[i] !== null ? v - ema26[i] : null
-    );
-
-    const signalRaw = ema(9, macd.filter(v=>v!==null));
-
-    let signal = [...signalRaw];
-    while(signal.length < macd.length) signal.unshift(null);
-
-    const hist = macd.map((v,i)=> 
-        v !== null && signal[i] !== null ? v - signal[i] : null
-    );
+    // MACD
+    const macd = ema12.map((v,i)=> v - ema26[i]);
+    const signal = ema_tv(9, macd);
+    const hist = macd.map((v,i)=> v - signal[i]);
 
     return {data, macd, signal, hist, ema50, ema200};
 }
 
-// Load
+// ================= LOAD =================
 async function load(){
 
     const tbody = $("#tbl tbody");
@@ -144,7 +157,7 @@ async function load(){
             </tr>
             `);
 
-            // ===== EMA (10 CANDLE) =====
+            // ===== EMA (10 candle terakhir) =====
             let ema50Slice = ema50.slice(-10);
             let ema200Slice = ema200.slice(-10);
 
@@ -169,10 +182,11 @@ async function load(){
             let macdSlice = macd.slice(-10);
             let signalSlice = signal.slice(-10);
 
-            let colors = histSlice.map((h,i)=>{
-                let prev = histSlice[i-1] || 0;
-                return h !== null ? getColor(h,prev) : "gray";
-            });
+			let colors = histSlice.map((h,i)=>{
+				return getColor(h, histSlice[i-1], i);
+			});
+			
+            let maxAbs = Math.max(...histSlice.map(v => Math.abs(v)));
 
             new Chart(document.getElementById(canvasMacd), {
                 data:{
@@ -186,7 +200,14 @@ async function load(){
                 options:{
                     responsive:false,
                     plugins:{legend:{display:false}},
-                    scales:{x:{display:false}, y:{display:false}}
+                    scales:{
+                        x:{display:false},
+                        y:{
+                            display:false,
+                            min: -maxAbs,
+                            max: maxAbs
+                        }
+                    }
                 }
             });
 
