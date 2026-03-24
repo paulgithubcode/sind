@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>IDX MACD DAILY SCANNER (IndexedDB)</title>
+
+<link rel="stylesheet"
+href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<style>
+body{font-family:Arial;padding:20px}
+.dt-right{text-align:right}
+.pos{color:green;font-weight:bold}
+.neg{color:red;font-weight:bold}
+.controls{margin-bottom:10px}
+</style>
+</head>
+
+<body>
+
+<h3>IDX MACD DAILY SCANNER</h3>
+
+<div class="controls">
+<label>Pilih tanggal: </label>
+<input type="date" id="date">
+<button onclick="scan()">Scan</button>
+</div>
+
+<table id="table" class="display" style="width:100%">
+<thead>
+<tr>
+
+<th>No</th>
+<th>Kode</th>
+
+<th>Open</th>
+<th>High</th>
+<th>Low</th>
+<th>Close</th>
+<th>Volume</th>
+
+<th>MACD</th>
+<th>Signal</th>
+
+<th>Hist-9</th>
+<th>Hist-8</th>
+<th>Hist-7</th>
+<th>Hist-6</th>
+<th>Hist-5</th>
+<th>Hist-4</th>
+<th>Hist-3</th>
+<th>Hist-2</th>
+<th>Hist-1</th>
+<th>Hist0</th>
+
+<th>ΔHist</th>
+
+<th>%Δ 9→8</th>
+<th>%Δ 8→7</th>
+<th>%Δ 7→6</th>
+<th>%Δ 6→5</th>
+<th>%Δ 5→4</th>
+<th>%Δ 4→3</th>
+<th>%Δ 3→2</th>
+<th>%Δ 2→1</th>
+<th>%Δ 1→0</th>
+
+<th>Status</th>
+<th>Pink</th>
+
+</tr>
+</thead>
+</table>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<script>
+
+/* ================= DB ================= */
+
+let db;
+
+function openDB(){
+return new Promise((resolve,reject)=>{
+const req=indexedDB.open("idxDB",1);
+req.onsuccess=e=>{
+db=e.target.result;
+resolve();
+};
+req.onerror=reject;
+});
+}
+
+function getAllDaily(){
+return new Promise(resolve=>{
+const tx=db.transaction("daily","readonly");
+const store=tx.objectStore("daily");
+const req=store.getAll();
+req.onsuccess=()=>resolve(req.result);
+});
+}
+
+/* ================= EMA ================= */
+
+function EMA(values,period){
+const k=2/(period+1);
+let ema=[];
+let prev=values[0];
+
+values.forEach((v,i)=>{
+prev=i===0?v:v*k+prev*(1-k);
+ema.push(prev);
+});
+
+return ema;
+}
+
+/* ================= MACD ================= */
+
+function MACD(close){
+
+if(close.length<35) return null;
+
+const ema12=EMA(close,12);
+const ema26=EMA(close,26);
+
+let macd=close.map((v,i)=>ema12[i]-ema26[i]);
+const signal=EMA(macd,9);
+let hist=macd.map((v,i)=>v-signal[i]);
+
+let last=hist.length-1;
+
+return{
+macd:macd[last],
+signal:signal[last],
+hist:hist.slice(last-9,last+1)
+};
+
+}
+
+/* ================= HIST ================= */
+
+function histStats(hist){
+
+let deltaHist=hist[9]-hist[8];
+
+let pct=[];
+
+for(let i=0;i<9;i++){
+let a=hist[i];
+let b=hist[i+1];
+pct.push(((b-a)/Math.abs(a))*100);
+}
+
+return{
+deltaHist,
+pct
+};
+
+}
+
+function isAllPositive(pct){
+return pct.every(v => v > 0 && isFinite(v));
+}
+
+function isPink(h1,h0,p10){
+
+return (h1 < 0 && h0 > h1 && p10 > 0);
+
+}
+
+/* ================= FIND DATE ================= */
+
+function findIndex(rows,date){
+
+for(let i=0;i<rows.length;i++){
+if(rows[i].date===date) return i;
+}
+
+return -1;
+
+}
+
+/* ================= FORMAT ================= */
+
+function cell(v){
+if(v==null) return "-";
+const cls=v>0?"pos":"neg";
+return `<span class="${cls}">${v.toFixed(4)}</span>`;
+}
+
+function pctCell(v){
+if(!isFinite(v)) return "-";
+const cls=v>0?"pos":"neg";
+return `<span class="${cls}">${v.toFixed(2)}%</span>`;
+}
+
+/* ================= SCAN ================= */
+
+async function scan(){
+
+await openDB();
+const rows=await getAllDaily();
+
+let byCode={};
+
+rows.forEach(r=>{
+if(!byCode[r.code]) byCode[r.code]=[];
+byCode[r.code].push(r);
+});
+
+const selectedDate =
+document.getElementById("date").value;
+
+let result=[];
+
+Object.keys(byCode).forEach(code=>{
+
+let data=byCode[code]
+.sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+const idx=findIndex(data,selectedDate);
+
+if(idx<35) return;
+
+const close =
+data.slice(0,idx+1).map(x=>x.c);
+
+const macd=MACD(close);
+if(!macd) return;
+
+const stats=histStats(macd.hist);
+const bagus=isAllPositive(stats.pct);
+
+const last=data[idx];
+const h=macd.hist;
+
+const pink = isPink(h[8],h[9],stats.pct[8]);
+
+result.push({
+
+code:code,
+
+open:last.o,
+high:last.h,
+low:last.l,
+close:last.c,
+volume:last.v,
+
+macd:macd.macd,
+signal:macd.signal,
+
+h9:h[0],
+h8:h[1],
+h7:h[2],
+h6:h[3],
+h5:h[4],
+h4:h[5],
+h3:h[6],
+h2:h[7],
+h1:h[8],
+h0:h[9],
+
+deltaHist:stats.deltaHist,
+
+p98:stats.pct[0],
+p87:stats.pct[1],
+p76:stats.pct[2],
+p65:stats.pct[3],
+p54:stats.pct[4],
+p43:stats.pct[5],
+p32:stats.pct[6],
+p21:stats.pct[7],
+p10:stats.pct[8],
+
+status: bagus ? "BAGUS" : "-",
+pink: pink ? "PINK" : "-"
+
+});
+
+});
+
+render(result);
+
+}
+
+/* ================= TABLE ================= */
+
+let table;
+
+function render(data){
+
+if(table) table.destroy();
+
+table=$("#table").DataTable({
+
+data:data,
+paging:false,
+order:[[20,"desc"]],
+
+columns:[
+
+{data:null},
+{data:"code"},
+
+{data:"open"},
+{data:"high"},
+{data:"low"},
+{data:"close"},
+{data:"volume"},
+
+{data:"macd",render:d=>d?d.toFixed(4):"-"},
+{data:"signal",render:d=>d?d.toFixed(4):"-"},
+
+{data:"h9",render:cell},
+{data:"h8",render:cell},
+{data:"h7",render:cell},
+{data:"h6",render:cell},
+{data:"h5",render:cell},
+{data:"h4",render:cell},
+{data:"h3",render:cell},
+{data:"h2",render:cell},
+{data:"h1",render:cell},
+{data:"h0",render:cell},
+
+{data:"deltaHist",render:cell},
+
+{data:"p98",render:pctCell},
+{data:"p87",render:pctCell},
+{data:"p76",render:pctCell},
+{data:"p65",render:pctCell},
+{data:"p54",render:pctCell},
+{data:"p43",render:pctCell},
+{data:"p32",render:pctCell},
+{data:"p21",render:pctCell},
+{data:"p10",render:pctCell},
+
+{
+data:"status",
+render:d=> d==="BAGUS"
+? '<span class="pos">BAGUS</span>'
+: "-"
+},
+
+{
+data:"pink",
+render:function(d){
+
+if(d==="PINK"){
+return 'PINK';
+}
+
+return "-";
+
+}
+}
+
+],
+
+drawCallback:function(){
+this.api().column(0).nodes().each((cell,i)=>{
+cell.innerHTML=i+1;
+});
+}
+
+});
+
+}
+
+/* ================= INIT ================= */
+
+document.getElementById("date").value =
+new Date().toISOString().split("T")[0];
+
+</script>
+
+</body>
+</html>

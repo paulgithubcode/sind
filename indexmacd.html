@@ -8,11 +8,37 @@
 href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
 <style>
-body{font-family:Arial;padding:20px}
-.dt-right{text-align:right}
-.pos{color:green;font-weight:bold}
-.neg{color:red;font-weight:bold}
-.controls{margin-bottom:10px}
+body {
+    font-family: Arial;
+    padding: 20px;
+}
+
+.dt-right { text-align: right; }
+.pos { color: green; font-weight: bold; }
+.neg { color: red; font-weight: bold; }
+.controls { margin-bottom: 10px; }
+
+/* ===== FREEZE COLUMN ===== */
+#table th:nth-child(1),
+#table td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 3;
+}
+
+#table th:nth-child(2),
+#table td:nth-child(2) {
+    position: sticky;
+    left: 50px;
+    background: #fff;
+    z-index: 3;
+}
+
+/* biar header di atas */
+#table thead th {
+    z-index: 4;
+}
 </style>
 </head>
 
@@ -21,15 +47,14 @@ body{font-family:Arial;padding:20px}
 <h3>IDX MACD DAILY SCANNER</h3>
 
 <div class="controls">
-<label>Pilih tanggal: </label>
-<input type="date" id="date">
-<button onclick="scan()">Scan</button>
+    <label>Pilih tanggal: </label>
+    <input type="date" id="date">
+    <button onclick="scan()">Scan</button>
 </div>
 
 <table id="table" class="display" style="width:100%">
 <thead>
 <tr>
-
 <th>No</th>
 <th>Kode</th>
 
@@ -65,9 +90,7 @@ body{font-family:Arial;padding:20px}
 <th>%Δ 2→1</th>
 <th>%Δ 1→0</th>
 
-<th>Status</th>
-<th>Pink</th>
-
+<th>Chart MACD Histogram</th>
 </tr>
 </thead>
 </table>
@@ -82,207 +105,253 @@ body{font-family:Arial;padding:20px}
 let db;
 
 function openDB(){
-return new Promise((resolve,reject)=>{
-const req=indexedDB.open("idxDB",1);
-req.onsuccess=e=>{
-db=e.target.result;
-resolve();
-};
-req.onerror=reject;
-});
+    return new Promise((resolve,reject)=>{
+        const req = indexedDB.open("idxDB",1);
+
+        req.onsuccess = e=>{
+            db = e.target.result;
+            resolve();
+        };
+
+        req.onerror = reject;
+    });
 }
 
 function getAllDaily(){
-return new Promise(resolve=>{
-const tx=db.transaction("daily","readonly");
-const store=tx.objectStore("daily");
-const req=store.getAll();
-req.onsuccess=()=>resolve(req.result);
-});
+    return new Promise(resolve=>{
+        const tx = db.transaction("daily","readonly");
+        const store = tx.objectStore("daily");
+        const req = store.getAll();
+
+        req.onsuccess = ()=> resolve(req.result);
+    });
 }
 
 /* ================= EMA ================= */
 
 function EMA(values,period){
-const k=2/(period+1);
-let ema=[];
-let prev=values[0];
+    const k = 2/(period+1);
+    let ema = [];
+    let prev = values[0];
 
-values.forEach((v,i)=>{
-prev=i===0?v:v*k+prev*(1-k);
-ema.push(prev);
-});
+    values.forEach((v,i)=>{
+        prev = i===0 ? v : v*k + prev*(1-k);
+        ema.push(prev);
+    });
 
-return ema;
+    return ema;
 }
 
 /* ================= MACD ================= */
 
 function MACD(close){
 
-if(close.length<35) return null;
+    if(close.length < 35) return null;
 
-const ema12=EMA(close,12);
-const ema26=EMA(close,26);
+    const ema12 = EMA(close,12);
+    const ema26 = EMA(close,26);
 
-let macd=close.map((v,i)=>ema12[i]-ema26[i]);
-const signal=EMA(macd,9);
-let hist=macd.map((v,i)=>v-signal[i]);
+    let macd = close.map((v,i)=> ema12[i]-ema26[i]);
+    const signal = EMA(macd,9);
+    let hist = macd.map((v,i)=> v-signal[i]);
 
-let last=hist.length-1;
+    let last = hist.length-1;
 
-return{
-macd:macd[last],
-signal:signal[last],
-hist:hist.slice(last-9,last+1)
-};
-
+    return {
+        macd: macd[last],
+        signal: signal[last],
+        hist: hist.slice(last-9,last+1)
+    };
 }
 
 /* ================= HIST ================= */
 
 function histStats(hist){
 
-let deltaHist=hist[9]-hist[8];
+    let deltaHist = hist[9] - hist[8];
+    let pct = [];
 
-let pct=[];
+    for(let i=0;i<9;i++){
+        let a = hist[i];
+        let b = hist[i+1];
+        pct.push(((b-a)/Math.abs(a))*100);
+    }
 
-for(let i=0;i<9;i++){
-let a=hist[i];
-let b=hist[i+1];
-pct.push(((b-a)/Math.abs(a))*100);
-}
-
-return{
-deltaHist,
-pct
-};
-
-}
-
-function isAllPositive(pct){
-return pct.every(v => v > 0 && isFinite(v));
-}
-
-function isPink(h1,h0,p10){
-
-return (h1 < 0 && h0 > h1 && p10 > 0);
-
-}
-
-/* ================= FIND DATE ================= */
-
-function findIndex(rows,date){
-
-for(let i=0;i<rows.length;i++){
-if(rows[i].date===date) return i;
-}
-
-return -1;
-
+    return { deltaHist, pct };
 }
 
 /* ================= FORMAT ================= */
 
 function cell(v){
-if(v==null) return "-";
-const cls=v>0?"pos":"neg";
-return `<span class="${cls}">${v.toFixed(4)}</span>`;
+    if(v==null) return "-";
+    const cls = v>0 ? "pos" : "neg";
+    return `<span class="${cls}">${v.toFixed(4)}</span>`;
 }
 
 function pctCell(v){
-if(!isFinite(v)) return "-";
-const cls=v>0?"pos":"neg";
-return `<span class="${cls}">${v.toFixed(2)}%</span>`;
+    if(!isFinite(v)) return "-";
+    const cls = v>0 ? "pos" : "neg";
+    return `<span class="${cls}">${v.toFixed(2)}%</span>`;
+}
+
+/* ================= WARNA HIST ================= */
+
+function getHistColor(curr, prev, index){
+
+    if(index===0 || prev==null){
+        if(curr>0) return "#006400";
+        if(curr<0) return "#8b0000";
+        return "gray";
+    }
+
+    let diff = curr - prev;
+
+    if(curr>=0){
+        return diff>0 ? "#006400" : "#00ff00";
+    }
+
+    if(curr<0){
+        return diff<0 ? "#8b0000" : "#ff7f7f";
+    }
+
+    return "gray";
+}
+
+/* ================= MINI CHART ================= */
+
+function renderHistChart(row){
+
+    const raw = [
+        row.h9,row.h8,row.h7,row.h6,row.h5,
+        row.h4,row.h3,row.h2,row.h1,row.h0
+    ];
+
+    // 🔥 bersihkan null
+    const h = raw.map(v => v ?? 0);
+
+    let max = Math.max(...h.map(v=>Math.abs(v)));
+    if(max === 0) max = 1; // 🔥 anti hilang
+
+    let colors = h.map((v,i)=>getHistColor(v,h[i-1],i));
+
+    let bars = h.map((v,i)=>{
+
+        let height = (Math.abs(v)/max)*20 + 2; // 🔥 minimal kelihatan
+
+        if(v >= 0){
+            return `
+            <div style="width:6px;display:flex;flex-direction:column;margin-right:1px">
+                <div style="height:${20-height}px"></div>
+                <div style="height:${height}px;background:${colors[i]}"></div>
+                <div style="height:20px"></div>
+            </div>`;
+        }else{
+            return `
+            <div style="width:6px;display:flex;flex-direction:column;margin-right:1px">
+                <div style="height:20px"></div>
+                <div style="height:${height}px;background:${colors[i]}"></div>
+                <div style="height:${20-height}px"></div>
+            </div>`;
+        }
+
+    }).join("");
+
+	return `
+	<div style="
+		position:relative;
+		height:50px;
+		display:flex;
+		align-items:center;
+	">
+
+		<!-- GARIS 0 (CENTER) -->
+		<div style="
+			position:absolute;
+			top:50%;
+			left:0;
+			right:0;
+			height:1px;
+			background:#999;
+		"></div>
+
+		${bars}
+
+	</div>`;
+}
+
+/* ================= FIND DATE ================= */
+
+function findIndex(rows,date){
+    for(let i=0;i<rows.length;i++){
+        if(rows[i].date===date) return i;
+    }
+    return -1;
 }
 
 /* ================= SCAN ================= */
 
 async function scan(){
 
-await openDB();
-const rows=await getAllDaily();
+    await openDB();
+    const rows = await getAllDaily();
 
-let byCode={};
+    let byCode = {};
 
-rows.forEach(r=>{
-if(!byCode[r.code]) byCode[r.code]=[];
-byCode[r.code].push(r);
-});
+    rows.forEach(r=>{
+        if(!byCode[r.code]) byCode[r.code]=[];
+        byCode[r.code].push(r);
+    });
 
-const selectedDate =
-document.getElementById("date").value;
+    const selectedDate = document.getElementById("date").value;
+    let result = [];
 
-let result=[];
+    Object.keys(byCode).forEach(code=>{
 
-Object.keys(byCode).forEach(code=>{
+        let data = byCode[code]
+        .sort((a,b)=> new Date(a.date)-new Date(b.date));
 
-let data=byCode[code]
-.sort((a,b)=>new Date(a.date)-new Date(b.date));
+        const idx = findIndex(data,selectedDate);
+        if(idx<35) return;
 
-const idx=findIndex(data,selectedDate);
+        const close = data.slice(0,idx+1).map(x=>x.c);
 
-if(idx<35) return;
+        const macd = MACD(close);
+        if(!macd) return;
 
-const close =
-data.slice(0,idx+1).map(x=>x.c);
+        const stats = histStats(macd.hist);
+        const last = data[idx];
+        const h = macd.hist;
 
-const macd=MACD(close);
-if(!macd) return;
+        result.push({
+            code:code,
+            open:last.o,
+            high:last.h,
+            low:last.l,
+            close:last.c,
+            volume:last.v,
 
-const stats=histStats(macd.hist);
-const bagus=isAllPositive(stats.pct);
+            macd:macd.macd,
+            signal:macd.signal,
 
-const last=data[idx];
-const h=macd.hist;
+            h9:h[0], h8:h[1], h7:h[2], h6:h[3], h5:h[4],
+            h4:h[5], h3:h[6], h2:h[7], h1:h[8], h0:h[9],
 
-const pink = isPink(h[8],h[9],stats.pct[8]);
+            deltaHist:stats.deltaHist,
 
-result.push({
+            p98:stats.pct[0],
+            p87:stats.pct[1],
+            p76:stats.pct[2],
+            p65:stats.pct[3],
+            p54:stats.pct[4],
+            p43:stats.pct[5],
+            p32:stats.pct[6],
+            p21:stats.pct[7],
+            p10:stats.pct[8]
+        });
 
-code:code,
+    });
 
-open:last.o,
-high:last.h,
-low:last.l,
-close:last.c,
-volume:last.v,
-
-macd:macd.macd,
-signal:macd.signal,
-
-h9:h[0],
-h8:h[1],
-h7:h[2],
-h6:h[3],
-h5:h[4],
-h4:h[5],
-h3:h[6],
-h2:h[7],
-h1:h[8],
-h0:h[9],
-
-deltaHist:stats.deltaHist,
-
-p98:stats.pct[0],
-p87:stats.pct[1],
-p76:stats.pct[2],
-p65:stats.pct[3],
-p54:stats.pct[4],
-p43:stats.pct[5],
-p32:stats.pct[6],
-p21:stats.pct[7],
-p10:stats.pct[8],
-
-status: bagus ? "BAGUS" : "-",
-pink: pink ? "PINK" : "-"
-
-});
-
-});
-
-render(result);
-
+    render(result);
 }
 
 /* ================= TABLE ================= */
@@ -291,81 +360,62 @@ let table;
 
 function render(data){
 
-if(table) table.destroy();
+    if(table) table.destroy();
 
-table=$("#table").DataTable({
+    table = $("#table").DataTable({
+        data:data,
+        paging:false,
+        order:[[20,"desc"]],
 
-data:data,
-paging:false,
-order:[[20,"desc"]],
+        columns:[
+            {data:null},
+            {data:"code"},
 
-columns:[
+            {data:"open"},
+            {data:"high"},
+            {data:"low"},
+            {data:"close"},
+            {data:"volume"},
 
-{data:null},
-{data:"code"},
+            {data:"macd",render:d=>d?d.toFixed(4):"-"},
+            {data:"signal",render:d=>d?d.toFixed(4):"-"},
 
-{data:"open"},
-{data:"high"},
-{data:"low"},
-{data:"close"},
-{data:"volume"},
+            {data:"h9",render:cell},
+            {data:"h8",render:cell},
+            {data:"h7",render:cell},
+            {data:"h6",render:cell},
+            {data:"h5",render:cell},
+            {data:"h4",render:cell},
+            {data:"h3",render:cell},
+            {data:"h2",render:cell},
+            {data:"h1",render:cell},
+            {data:"h0",render:cell},
 
-{data:"macd",render:d=>d?d.toFixed(4):"-"},
-{data:"signal",render:d=>d?d.toFixed(4):"-"},
+            {data:"deltaHist",render:cell},
 
-{data:"h9",render:cell},
-{data:"h8",render:cell},
-{data:"h7",render:cell},
-{data:"h6",render:cell},
-{data:"h5",render:cell},
-{data:"h4",render:cell},
-{data:"h3",render:cell},
-{data:"h2",render:cell},
-{data:"h1",render:cell},
-{data:"h0",render:cell},
+            {data:"p98",render:pctCell},
+            {data:"p87",render:pctCell},
+            {data:"p76",render:pctCell},
+            {data:"p65",render:pctCell},
+            {data:"p54",render:pctCell},
+            {data:"p43",render:pctCell},
+            {data:"p32",render:pctCell},
+            {data:"p21",render:pctCell},
+            {data:"p10",render:pctCell},
 
-{data:"deltaHist",render:cell},
+            {
+                data:null,
+                orderable:false,
+                render:row=>renderHistChart(row)
+            }
+        ],
 
-{data:"p98",render:pctCell},
-{data:"p87",render:pctCell},
-{data:"p76",render:pctCell},
-{data:"p65",render:pctCell},
-{data:"p54",render:pctCell},
-{data:"p43",render:pctCell},
-{data:"p32",render:pctCell},
-{data:"p21",render:pctCell},
-{data:"p10",render:pctCell},
-
-{
-data:"status",
-render:d=> d==="BAGUS"
-? '<span class="pos">BAGUS</span>'
-: "-"
-},
-
-{
-data:"pink",
-render:function(d){
-
-if(d==="PINK"){
-return 'PINK';
-}
-
-return "-";
-
-}
-}
-
-],
-
-drawCallback:function(){
-this.api().column(0).nodes().each((cell,i)=>{
-cell.innerHTML=i+1;
-});
-}
-
-});
-
+        drawCallback:function(){
+            this.api().column(0).nodes().each((cell,i)=>{
+                cell.innerHTML = i+1;
+            });
+        }
+    });
 }
 
 /* ================= INIT ================= */
