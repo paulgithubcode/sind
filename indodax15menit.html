@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Indodax Scanner FINAL (NO SKIP)</title>
+
+<link rel="stylesheet"
+href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    background: #111;
+    color: #eee;
+    padding: 20px;
+}
+
+.pos { color: #00ff90; font-weight: bold; }
+.neg { color: #ff4d4d; font-weight: bold; }
+
+.live-col {
+    background: rgba(255,255,0,0.08);
+}
+
+.live-header {
+    color: yellow;
+    font-weight: bold;
+}
+
+.warn { color: orange; }
+.err { color: red; }
+
+button {
+    margin-bottom: 10px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<h2>🔥 Indodax Scanner (NO SKIP MODE)</h2>
+
+<button onclick="resetRange()">Reset Range</button>
+
+<table id="tbl" class="display nowrap" style="width:100%">
+<thead></thead>
+<tbody></tbody>
+</table>
+
+<script>
+
+let table;
+let GLOBAL_RANGE = null;
+
+// ===============================
+// GET SYMBOL
+// ===============================
+async function getSymbols() {
+    const res = await fetch("https://raw.githubusercontent.com/paulgithubcode/sind/main/datacrypto/search_v2.json");
+    const data = await res.json();
+    return data.map(d => d.id);
+}
+
+// ===============================
+// RANGE FIX
+// ===============================
+function getRange(count = 10) {
+
+    if (GLOBAL_RANGE) return GLOBAL_RANGE;
+
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - (15 * 60 * count);
+
+    GLOBAL_RANGE = { from, to };
+
+    console.log("FROM:", new Date(from * 1000));
+    console.log("TO  :", new Date(to * 1000));
+
+    return GLOBAL_RANGE;
+}
+
+function resetRange() {
+    GLOBAL_RANGE = null;
+    loadData();
+}
+
+// ===============================
+// FETCH HISTORY
+// ===============================
+async function getHistory(symbol) {
+
+    const { from, to } = getRange(10);
+
+    try {
+        const url = `https://indodax.com/tradingview/history_v2?from=${from}&to=${to}&symbol=${symbol}&tf=15`;
+
+        const res = await fetch(url);
+
+        if (!res.ok) {
+            console.log("FETCH ERROR:", symbol);
+            return null;
+        }
+
+        const json = await res.json();
+
+        console.log(symbol, json);
+
+        return json;
+
+    } catch (e) {
+        console.log("ERROR:", symbol, e);
+        return null;
+    }
+}
+
+// ===============================
+// SLEEP
+// ===============================
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
+
+// ===============================
+// SEQUENTIAL FETCH
+// ===============================
+async function fetchAll(symbols) {
+
+    let results = [];
+
+    for (let i = 0; i < symbols.length; i++) {
+
+        const sym = symbols[i];
+
+        const data = await getHistory(sym);
+        results.push(data);
+
+        await sleep(300);
+    }
+
+    return results;
+}
+
+// ===============================
+// MAIN
+// ===============================
+async function loadData() {
+
+    const symbols = await getSymbols();
+    const datas = await fetchAll(symbols);
+
+    let headerTimes = [];
+    const rows = [];
+
+    datas.forEach((data, idx) => {
+
+        const symbol = symbols[idx].toUpperCase();
+
+        // ================= HEADER =================
+        if (headerTimes.length === 0 && data && data.length > 0) {
+
+            for (let i = 0; i < data.length; i++) {
+
+                const t = new Date(data[i].Time * 1000);
+
+                const jam = t.toLocaleTimeString("id-ID", {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                if (i === data.length - 1) {
+                    headerTimes.push(jam + " 🔴");
+                } else {
+                    headerTimes.push(jam);
+                }
+            }
+        }
+
+        let row = [];
+        row.push(symbol);
+
+        // ================= HANDLE ERROR =================
+        if (!data) {
+            row.push({ val: 0, html: '<span class="err">ERROR</span>' });
+            rows.push(row);
+            return;
+        }
+
+        if (data.length === 0) {
+            row.push({ val: 0, html: '<span class="warn">NO DATA</span>' });
+            rows.push(row);
+            return;
+        }
+
+        // cek semua volume 0
+        const allZero = data.every(c => c.Volume === "0");
+
+        if (allZero) {
+            row.push({ val: 0, html: '<span class="warn">ZERO VOL</span>' });
+            rows.push(row);
+            return;
+        }
+
+        // ================= NORMAL DATA =================
+        for (let i = 0; i < data.length; i++) {
+
+            if (i === 0) {
+                row.push({ val: 0, html: "-" });
+                continue;
+            }
+
+            const prev = data[i - 1].Close;
+            const curr = data[i].Close;
+
+            const pct = ((curr - prev) / prev) * 100;
+            const cls = pct >= 0 ? "pos" : "neg";
+
+            row.push({
+                val: pct,
+                html: `<span class="${cls}">${pct.toFixed(2)}%</span>`
+            });
+        }
+
+        rows.push(row);
+    });
+
+    // ================= FIX KOLOM =================
+    const totalCols = headerTimes.length;
+
+    rows.forEach(r => {
+        let current = r.length - 1;
+
+        while (current < totalCols) {
+            r.push({ val: 0, html: "-" });
+            current++;
+        }
+    });
+
+    buildTable(rows, headerTimes);
+}
+
+// ===============================
+// BUILD TABLE
+// ===============================
+function buildTable(rows, headerTimes) {
+
+    if (table) {
+        table.destroy();
+        $('#tbl thead').empty();
+        $('#tbl tbody').empty();
+    }
+
+    let header = "<tr><th>No</th><th>Kode</th>";
+
+    headerTimes.forEach((h, i) => {
+        const cls = (i === headerTimes.length - 1) ? "live-header" : "";
+        header += `<th class="${cls}">${h}</th>`;
+    });
+
+    header += "</tr>";
+    $('#tbl thead').html(header);
+
+    let html = "";
+
+    rows.forEach((r, i) => {
+
+        html += `<tr>
+            <td>${i + 1}</td>
+            <td>${r[0]}</td>
+            ${r.slice(1).map((c, idx) => {
+                const cls = (idx === headerTimes.length - 1) ? "live-col" : "";
+                return `<td class="${cls}" data-order="${c.val}">${c.html}</td>`;
+            }).join("")}
+        </tr>`;
+    });
+
+    $('#tbl tbody').html(html);
+
+    table = $('#tbl').DataTable({
+        scrollX: true,
+        paging: false,
+        searching: false,
+        info: false,
+        order:[[12,"desc"]],		
+    });
+}
+
+// ===============================
+loadData();
+//setInterval(loadData, 120000);
+
+</script>
+
+</body>
+</html>
