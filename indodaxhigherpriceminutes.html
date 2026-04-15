@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Indodax Scanner FINAL (NO SKIP)</title>
+<title>Indodax Scanner FINAL (PRICE + VOLUME)</title>
 
 <link rel="stylesheet"
 href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
@@ -43,7 +43,7 @@ button {
 
 <body>
 
-<h2>🔥 Indodax Scanner (NO SKIP MODE)</h2>
+<h2>🔥 Indodax Scanner (PRICE)</h2>
 
 <button onclick="resetRange()">Reset Range</button>
 
@@ -52,13 +52,21 @@ button {
 <tbody></tbody>
 </table>
 
+<br><br>
+
+<h2>📊 Volume Change Scanner</h2>
+
+<table id="tblVol" class="display nowrap" style="width:100%">
+<thead></thead>
+<tbody></tbody>
+</table>
+
 <script>
 
 let table;
+let tableVol;
 let GLOBAL_RANGE = null;
 
-// ===============================
-// GET SYMBOL
 // ===============================
 async function getSymbols() {
     const res = await fetch("https://raw.githubusercontent.com/paulgithubcode/sind/main/datacrypto/search_v2.json");
@@ -66,8 +74,6 @@ async function getSymbols() {
     return data.map(d => d.id);
 }
 
-// ===============================
-// RANGE FIX
 // ===============================
 function getRange(count = 10) {
 
@@ -78,9 +84,6 @@ function getRange(count = 10) {
 
     GLOBAL_RANGE = { from, to };
 
-    console.log("FROM:", new Date(from * 1000));
-    console.log("TO  :", new Date(to * 1000));
-
     return GLOBAL_RANGE;
 }
 
@@ -90,63 +93,42 @@ function resetRange() {
 }
 
 // ===============================
-// FETCH HISTORY
-// ===============================
 async function getHistory(symbol) {
 
     const { from, to } = getRange(10);
 
     try {
         const url = `https://indodax.com/tradingview/history_v2?from=${from}&to=${to}&symbol=${symbol}&tf=15`;
-
         const res = await fetch(url);
 
-        if (!res.ok) {
-            console.log("FETCH ERROR:", symbol);
-            return null;
-        }
+        if (!res.ok) return null;
 
-        const json = await res.json();
-
-        console.log(symbol, json);
-
-        return json;
+        return await res.json();
 
     } catch (e) {
-        console.log("ERROR:", symbol, e);
         return null;
     }
 }
 
-// ===============================
-// SLEEP
 // ===============================
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
 
 // ===============================
-// SEQUENTIAL FETCH
-// ===============================
 async function fetchAll(symbols) {
 
     let results = [];
 
     for (let i = 0; i < symbols.length; i++) {
-
-        const sym = symbols[i];
-
-        const data = await getHistory(sym);
+        const data = await getHistory(symbols[i]);
         results.push(data);
-
         await sleep(300);
     }
 
     return results;
 }
 
-// ===============================
-// MAIN
 // ===============================
 async function loadData() {
 
@@ -160,13 +142,9 @@ async function loadData() {
 
         const symbol = symbols[idx].toUpperCase();
 
-        // ================= HEADER =================
         if (headerTimes.length === 0 && data && data.length > 0) {
-
             for (let i = 0; i < data.length; i++) {
-
                 const t = new Date(data[i].Time * 1000);
-
                 const jam = t.toLocaleTimeString("id-ID", {
                     hour: '2-digit',
                     minute: '2-digit'
@@ -183,7 +161,6 @@ async function loadData() {
         let row = [];
         row.push(symbol);
 
-        // ================= HANDLE ERROR =================
         if (!data) {
             row.push({ val: 0, html: '<span class="err">ERROR</span>' });
             rows.push(row);
@@ -196,7 +173,6 @@ async function loadData() {
             return;
         }
 
-        // cek semua volume 0
         const allZero = data.every(c => c.Volume === "0");
 
         if (allZero) {
@@ -205,7 +181,6 @@ async function loadData() {
             return;
         }
 
-        // ================= NORMAL DATA =================
         for (let i = 0; i < data.length; i++) {
 
             if (i === 0) {
@@ -228,23 +203,72 @@ async function loadData() {
         rows.push(row);
     });
 
-    // ================= FIX KOLOM =================
-    const totalCols = headerTimes.length;
-
     rows.forEach(r => {
         let current = r.length - 1;
-
-        while (current < totalCols) {
+        while (current < headerTimes.length) {
             r.push({ val: 0, html: "-" });
             current++;
         }
     });
 
     buildTable(rows, headerTimes);
+
+    // ===============================
+    // VOLUME TABLE
+    // ===============================
+    let rowsVol = [];
+
+    datas.forEach((data, idx) => {
+
+        const symbol = symbols[idx].toUpperCase();
+
+        let row = [];
+        row.push(symbol);
+
+        if (!data || data.length === 0) {
+            row.push({ val: 0, html: '<span class="warn">NO DATA</span>' });
+            rowsVol.push(row);
+            return;
+        }
+
+        for (let i = 0; i < data.length; i++) {
+
+            if (i === 0) {
+                row.push({ val: 0, html: "-" });
+                continue;
+            }
+
+            const prev = parseFloat(data[i - 1].Volume);
+            const curr = parseFloat(data[i].Volume);
+
+            if (prev === 0) {
+                row.push({ val: 0, html: '<span class="warn">DIV0</span>' });
+                continue;
+            }
+
+            const pct = ((curr - prev) / prev) * 100;
+            const cls = pct >= 0 ? "pos" : "neg";
+
+            row.push({
+                val: pct,
+                html: `<span class="${cls}">${pct.toFixed(2)}%</span>`
+            });
+        }
+
+        rowsVol.push(row);
+    });
+
+    rowsVol.forEach(r => {
+        let current = r.length - 1;
+        while (current < headerTimes.length) {
+            r.push({ val: 0, html: "-" });
+            current++;
+        }
+    });
+
+    buildTableVolume(rowsVol, headerTimes);
 }
 
-// ===============================
-// BUILD TABLE
 // ===============================
 function buildTable(rows, headerTimes) {
 
@@ -267,7 +291,6 @@ function buildTable(rows, headerTimes) {
     let html = "";
 
     rows.forEach((r, i) => {
-
         html += `<tr>
             <td>${i + 1}</td>
             <td>${r[0]}</td>
@@ -285,13 +308,56 @@ function buildTable(rows, headerTimes) {
         paging: false,
         searching: false,
         info: false,
-        order:[[12,"desc"]],		
+        order:[[12,"desc"]],
+    });
+}
+
+// ===============================
+function buildTableVolume(rows, headerTimes) {
+
+    if (tableVol) {
+        tableVol.destroy();
+        $('#tblVol thead').empty();
+        $('#tblVol tbody').empty();
+    }
+
+    let header = "<tr><th>No</th><th>Kode</th>";
+
+    headerTimes.forEach((h, i) => {
+        const cls = (i === headerTimes.length - 1) ? "live-header" : "";
+        header += `<th class="${cls}">${h}</th>`;
+    });
+
+    header += "</tr>";
+    $('#tblVol thead').html(header);
+
+    let html = "";
+
+    rows.forEach((r, i) => {
+        html += `<tr>
+            <td>${i + 1}</td>
+            <td>${r[0]}</td>
+            ${r.slice(1).map((c, idx) => {
+                const cls = (idx === headerTimes.length - 1) ? "live-col" : "";
+                return `<td class="${cls}" data-order="${c.val}">${c.html}</td>`;
+            }).join("")}
+        </tr>`;
+    });
+
+    $('#tblVol tbody').html(html);
+
+    tableVol = $('#tblVol').DataTable({
+        scrollX: true,
+        paging: false,
+        searching: false,
+        info: false,
+        order:[[12,"desc"]],
     });
 }
 
 // ===============================
 loadData();
-//setInterval(loadData, 120000);
+// setInterval(loadData, 120000);
 
 </script>
 

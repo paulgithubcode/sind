@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Buy vs Sell 1 Menit</title>
+
+<link rel="stylesheet"
+href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<style>
+body { font-family: Arial; background:#111; color:#eee; }
+.buy { color:lime; font-weight:bold; }
+.sell { color:red; font-weight:bold; }
+</style>
+
+</head>
+<body>
+
+<h2>Buy vs Sell (1 Menit Terakhir)</h2>
+
+<table id="table" class="display" style="width:100%">
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Buy (1m)</th>
+<th>Sell (1m)</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+const SEARCH_API = "https://raw.githubusercontent.com/paulgithubcode/sind/main/datacrypto/search_v2.json";
+
+let table;
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function getSymbols() {
+    const res = await fetch(SEARCH_API);
+    const data = await res.json();
+    return data.map(x => x.id);
+}
+
+async function getTrades(symbol) {
+    try {
+        const res = await fetch(`https://indodax.com/api/trades/${symbol}`);
+        return await res.json();
+    } catch (e) {
+        return [];
+    }
+}
+
+function countBuySellLast1Min(trades) {
+    const now = Math.floor(Date.now() / 1000);
+    const oneMinuteAgo = now - 60;
+
+    let buy = 0;
+    let sell = 0;
+
+    for (let t of trades) {
+        const tradeTime = parseInt(t.date);
+
+        if (tradeTime >= oneMinuteAgo) {
+            if (t.type === "buy") buy++;
+            if (t.type === "sell") sell++;
+        }
+    }
+
+    return { buy, sell };
+}
+
+async function loadData() {
+    table.clear().draw();
+
+    const symbols = await getSymbols();
+
+    for (let symbol of symbols) {
+        const trades = await getTrades(symbol);
+        const { buy, sell } = countBuySellLast1Min(trades);
+
+        table.row.add([
+            symbol,
+            `<span class="buy">${buy}</span>`,
+            `<span class="sell">${sell}</span>`
+        ]).draw(false);
+
+        await sleep(300); // delay 300ms
+    }
+
+    // sort by buy desc
+    table.order([1, 'desc']).draw();
+}
+
+$(document).ready(function() {
+    table = $('#table').DataTable({
+        paging: false,
+        searching: true,
+        info: false,
+        order: [[1, 'desc']]
+    });
+
+    loadData();
+});
+</script>
+
+</body>
+</html>
