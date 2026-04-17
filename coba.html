@@ -2,16 +2,22 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Download IDX Stock Summary</title>
+<title>IDX Downloader (Per Tanggal)</title>
 </head>
 
 <body>
 
-<h3>Download IDX Stock Summary (2023 → sekarang)</h3>
+<h3>Download IDX Stock Summary (Per Tanggal)</h3>
+<button onclick="downloadAll()">Mulai</button>
 
-<button onclick="downloadAll()">Download Semua</button>
+<pre id="log"></pre>
 
 <script>
+
+function log(msg){
+  document.getElementById("log").textContent += msg + "\n"
+  console.log(msg)
+}
 
 function formatDate(date){
   const y = date.getFullYear()
@@ -20,66 +26,97 @@ function formatDate(date){
   return `${y}-${m}-${d}`
 }
 
-async function downloadDate(date){
-
-  const url =
-  "https://www.idx.co.id/primary/TradingSummary/GetStockSummary?length=9999&start=0&date=" + date
-
+// retry fetch
+async function fetchWithRetry(url, retry=3){
   try{
-
-    const response = await fetch(url,{
-      credentials:"include"
-    })
-
-    if(!response.ok){
-      console.log("skip",date)
-      return
+    const res = await fetch(url,{credentials:"include"})
+    if(!res.ok) throw "bad response"
+    return await res.json()
+  }
+  catch(e){
+    if(retry > 0){
+      log("retry...")
+      await new Promise(r=>setTimeout(r,3000))
+      return fetchWithRetry(url, retry-1)
     }
-
-    const data = await response.json()
-
-    const blob = new Blob(
-      [JSON.stringify(data,null,2)],
-      {type:"application/json"}
-    )
-
-    const link = document.createElement("a")
-
-    link.href = URL.createObjectURL(blob)
-    link.download = "GetStockSummary_" + date + ".json"
-
-    document.body.appendChild(link)
-
-    link.click()
-
-    document.body.removeChild(link)
-
-    console.log("download",date)
-
+    return null
   }
-  catch(err){
-    console.log("error",date)
-  }
+}
 
+// download file helper
+function saveFile(data, filename){
+
+  const blob = new Blob(
+    [JSON.stringify(data,null,2)],
+    {type:"application/json"}
+  )
+
+  const link = document.createElement("a")
+  link.href = URL.createObjectURL(blob)
+  link.download = filename
+
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+
+  // cleanup memory
+  setTimeout(()=>URL.revokeObjectURL(link.href),1000)
 }
 
 async function downloadAll(){
 
-  let start = new Date("2026-03-25")
+  let start = new Date("2020-01-01")
   let today = new Date()
+
+  let countDownload = 0
 
   while(start <= today){
 
+    const day = start.getDay()
+
+    // skip sabtu & minggu
+    if(day === 0 || day === 6){
+      start.setDate(start.getDate()+1)
+      continue
+    }
+
     const date = formatDate(start)
 
-    await downloadDate(date)
+    const url =
+    "https://www.idx.co.id/primary/TradingSummary/GetStockSummary?length=9999&start=0&date=" + date
+
+    log("ambil: " + date)
+
+    const data = await fetchWithRetry(url)
+
+    if(data && data.data && data.data.length > 0){
+
+      saveFile(data, "GetStockSummary_" + date + ".json")
+
+      countDownload++
+
+      log("✔ download: " + date)
+
+      // 🔥 penting: jeda antar download supaya tidak diblok browser
+      await new Promise(r=>setTimeout(r,2000))
+
+      // 🔥 setiap 50 file, pause panjang
+      if(countDownload % 50 === 0){
+        log("PAUSE 10 detik...")
+        await new Promise(r=>setTimeout(r,10000))
+      }
+
+    }else{
+      log("✖ skip/kosong: " + date)
+    }
+
+    // delay request API
+    await new Promise(r=>setTimeout(r,2500))
 
     start.setDate(start.getDate()+1)
-
-    await new Promise(r=>setTimeout(r,1500))
-
   }
 
+  log("SELESAI")
 }
 
 </script>
