@@ -36,6 +36,7 @@ body { font-family: Arial; background:#111; color:#eee; }
 const SEARCH_API = "https://indodax.com/tradingview/search_v2";
 
 let table;
+let isLoading = false; // ⬅️ flag penting
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -76,6 +77,9 @@ function countBuySellLast1Min(trades) {
 }
 
 async function loadData() {
+    if (isLoading) return; // ⬅️ cegah overlap
+    isLoading = true;
+
     table.clear().draw();
 
     const symbols = await getSymbols();
@@ -90,11 +94,12 @@ async function loadData() {
             `<span class="sell">${sell}</span>`
         ]).draw(false);
 
-        await sleep(200); // delay 300ms
+        await sleep(200);
     }
 
-    // sort by buy desc
     table.order([1, 'desc']).draw();
+
+    isLoading = false;
 }
 
 $(document).ready(function() {
@@ -106,6 +111,12 @@ $(document).ready(function() {
     });
 
     loadData();
+
+    // ⏱️ AUTO RELOAD tiap 15 menit (900000 ms)
+    setInterval(() => {
+        console.log("Reloading data...");
+        loadData();
+    }, 900000);
 });
 </script>
 

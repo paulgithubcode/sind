@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>MICIN SCANNER PRO (MULTI TF)</title>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+
+<style>
+body { font-family: Arial; background:#111; color:#eee; }
+h2 { text-align:center; }
+
+.green { color:#00ff99; }
+.red { color:#ff4d4d; }
+yellow { color:#ffd700; }
+
+table.dataTable thead th {
+  position: sticky;
+  top: 0;
+  background: #111;
+}
+</style>
+</head>
+
+<body>
+
+<h2>🚀 MICIN SCANNER (5M + 15M CONFIRMATION)</h2>
+
+<table id="table" class="display">
+<thead>
+<tr>
+<th>Pair</th>
+<th>Price</th>
+<th>RVOL 5m</th>
+<th>RVOL 15m</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+<script>
+
+// ========================
+// TABLE
+// ========================
+let table = $('#table').DataTable({
+  paging: false,
+  info: false,
+  ordering: true,
+  order: [[4, "desc"]]
+});
+
+// ========================
+function sleep(ms){
+  return new Promise(r=>setTimeout(r,ms));
+}
+
+// ========================
+// INDODAX PAIR
+// ========================
+async function getPairs(){
+  let res = await fetch("https://indodax.com/tradingview/search_v2");
+  let data = await res.json();
+  return data.filter(x=>x.symbol.endsWith("IDR")).map(x=>x.symbol);
+}
+
+function toBinance(sym){
+  return sym.replace("IDR","USDT");
+}
+
+// ========================
+// FETCH (ANTI BLOCK)
+// ========================
+async function getKlines(symbol, interval){
+
+  let urls = [
+    `https://api1.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=50`,
+    `https://api2.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=50`,
+    `https://api3.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=50`
+  ];
+
+  for(let url of urls){
+    try{
+      let res = await fetch(url);
+      if(res.ok) return await res.json();
+    }catch(e){}
+  }
+
+  return null;
+}
+
+// ========================
+// LOGIC
+// ========================
+function avgVol(data){
+  let v = data.slice(-20).map(c=>parseFloat(c[5]));
+  return v.reduce((a,b)=>a+b,0)/20;
+}
+
+function breakout(data){
+  let last = parseFloat(data.at(-1)[4]);
+  let high = Math.max(...data.slice(-20,-1).map(c=>parseFloat(c[2])));
+  return last > high;
+}
+
+function whale(data){
+  let curr = parseFloat(data.at(-1)[5]);
+  let prev = parseFloat(data.at(-2)[5]);
+  return curr > prev*2;
+}
+
+function change(data){
+  let a = parseFloat(data.at(-1)[4]);
+  let b = parseFloat(data.at(-2)[4]);
+  return ((a-b)/b)*100;
+}
+
+// ========================
+// PROCESS
+// ========================
+async function process(pair){
+
+  let sym = toBinance(pair);
+
+  let data5 = await getKlines(sym,"5m");
+  let data15 = await getKlines(sym,"15m");
+
+  if(!data5 || !data15) return;
+
+  let last = parseFloat(data5.at(-1)[4]);
+
+  let rvol5 = parseFloat(data5.at(-1)[5]) / avgVol(data5);
+  let rvol15 = parseFloat(data15.at(-1)[5]) / avgVol(data15);
+
+  let br5 = breakout(data5);
+  let br15 = breakout(data15);
+
+  let wh = whale(data5);
+  let ch = change(data5);
+
+  let status = "❌ Skip";
+
+  // ========================
+  // MULTI TF LOGIC
+  // ========================
+
+  if(rvol5>2 && br5 && rvol15>1.2 && ch<5){
+    status = "🔥 STRONG CONFIRM";
+  }
+  else if(rvol5>2 && ch<3 && !br15){
+    status = "⚡ EARLY (BELUM 15M)";
+  }
+  else if(wh && ch<4){
+    status = "🐋 WHALE";
+  }
+  else if(br5 && rvol5<1.5){
+    status = "⚠️ FAKE";
+  }
+
+  let color="";
+  if(status.includes("STRONG")) color="green";
+  else if(status.includes("EARLY")) color="yellow";
+  else if(status.includes("WHALE")) color="green";
+  else if(status.includes("FAKE")) color="red";
+
+  table.row.add([
+    pair,
+    last.toFixed(6),
+    rvol5.toFixed(2),
+    rvol15.toFixed(2),
+    `<span class="${color}">${status}</span>`
+  ]);
+}
+
+// ========================
+// SCAN ALL
+// ========================
+async function scan(){
+
+  table.clear().draw();
+
+  let pairs = await getPairs();
+
+  for(let i=0;i<pairs.length;i++){
+    await process(pairs[i]);
+    await sleep(200);
+
+    if(i%10===0) table.draw(false);
+  }
+
+  table.draw();
+  console.log("✅ DONE");
+}
+
+// ========================
+scan();
+
+</script>
+
+<script>
+setInterval(() => {
+  console.log("♻️ Refresh data...");
+  scan();
+}, 900000);
+</script>
+
+</body>
+</html>

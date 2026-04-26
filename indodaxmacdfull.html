@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>MACD HISTOGRAM PRO (MULTI TF)</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { background:#111; color:#eee; font-family:Arial; }
+h2 { text-align:center; }
+
+table {
+  width:100%;
+  border-collapse: collapse;
+}
+
+td, th {
+  border:1px solid #333;
+  padding:6px;
+  text-align:center;
+}
+
+canvas {
+  width:140px !important;
+  height:60px !important;
+}
+</style>
+</head>
+
+<body>
+
+<h2>📊 MACD HISTOGRAM (ALL INDODAX COIN)</h2>
+
+<table>
+<thead>
+<tr>
+<th>Pair</th>
+<th>Price</th>
+<th>5m</th>
+<th>15m</th>
+<th>1h</th>
+<th>4h</th>
+<th>1d</th>
+<th>1w</th>
+</tr>
+</thead>
+<tbody id="body"></tbody>
+</table>
+
+<script>
+
+// ======================
+function sleep(ms){
+  return new Promise(r=>setTimeout(r,ms));
+}
+
+// ======================
+// GET PAIRS INDODAX
+// ======================
+async function getPairs(){
+  let res = await fetch("https://indodax.com/api/pairs");
+  let data = await res.json();
+  return data.filter(x=>x.symbol.endsWith("IDR")).map(x=>x.symbol);
+}
+
+function toBinance(sym){
+  return sym.replace("IDR","USDT");
+}
+
+// ======================
+// FETCH BINANCE
+// ======================
+async function getKlines(symbol, interval){
+  try{
+    let res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=100`);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch{
+    return null;
+  }
+}
+
+// ======================
+// EMA
+// ======================
+function ema(values, period){
+  let k = 2/(period+1);
+  let emaArr = [values[0]];
+
+  for(let i=1;i<values.length;i++){
+    emaArr.push(values[i]*k + emaArr[i-1]*(1-k));
+  }
+  return emaArr;
+}
+
+// ======================
+// MACD HISTOGRAM
+// ======================
+function macdHist(data){
+
+  let close = data.map(c=>parseFloat(c[4]));
+
+  let ema12 = ema(close,12);
+  let ema26 = ema(close,26);
+
+  let macd = ema12.map((v,i)=>v-ema26[i]);
+  let signal = ema(macd,9);
+
+  let hist = macd.map((v,i)=>v-signal[i]);
+
+  return hist.slice(-30);
+}
+
+// ======================
+// 🔥 WARNA HISTOGRAM (PUNYAMU)
+// ======================
+function getHistColor(curr, prev, index){
+
+    if(index===0 || prev==null){
+        if(curr>0) return "#006400";
+        if(curr<0) return "#8b0000";
+        return "gray";
+    }
+
+    let diff = curr - prev;
+
+    if(curr>=0){
+        return diff>0 ? "#006400" : "#00ff00";
+    }
+
+    if(curr<0){
+        return diff<0 ? "#8b0000" : "#ff7f7f";
+    }
+
+    return "gray";
+}
+
+// ======================
+// DRAW CHART
+// ======================
+function drawChart(canvas, hist){
+
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: hist.map((_,i)=>i),
+      datasets: [{
+        data: hist,
+        backgroundColor: hist.map((v,i)=> getHistColor(v, hist[i-1], i))
+      }]
+    },
+    options: {
+      responsive:false,
+      plugins:{ legend:{display:false}},
+      scales:{
+        x:{display:false},
+        y:{display:false}
+      }
+    }
+  });
+}
+
+// ======================
+// PROCESS PER COIN
+// ======================
+async function process(pair){
+
+  let sym = toBinance(pair);
+  let tf = ["5m","15m","1h","4h","1d","1w"];
+
+  let row = document.createElement("tr");
+
+  row.innerHTML = `
+    <td>${pair}</td>
+    <td>...</td>
+  `;
+
+  document.getElementById("body").appendChild(row);
+
+  for(let t of tf){
+
+    let data = await getKlines(sym,t);
+
+    let td = document.createElement("td");
+
+    if(!data){
+      td.innerText="X";
+      row.appendChild(td);
+      continue;
+    }
+
+    let hist = macdHist(data);
+
+    let canvas = document.createElement("canvas");
+    td.appendChild(canvas);
+    row.appendChild(td);
+
+    drawChart(canvas,hist);
+
+    if(t==="5m"){
+      let price = parseFloat(data.at(-1)[4]);
+      row.children[1].innerText = price.toFixed(6);
+    }
+
+    await sleep(100);
+  }
+}
+
+// ======================
+// RUN SCANNER
+// ======================
+async function run(){
+
+  let pairs = await getPairs();
+
+  for(let i=0;i<pairs.length;i++){
+    await process(pairs[i]);
+    await sleep(200);
+  }
+
+  console.log("✅ DONE");
+}
+
+run();
+
+</script>
+
+</body>
+</html>
