@@ -59,7 +59,7 @@ function sleep(ms){
 // GET PAIRS INDODAX
 // ======================
 async function getPairs(){
-  let res = await fetch("https://paulidx.kesug.com/indodax.com/tradingview/search_v2.php");
+  let res = await fetch("https://raw.githubusercontent.com/paulgithubcode/sind/main/datacrypto/search_v2.json");
   let data = await res.json();
   return data.filter(x=>x.symbol.endsWith("IDR")).map(x=>x.symbol);
 }
@@ -73,7 +73,7 @@ function toBinance(sym){
 // ======================
 async function getKlines(symbol, interval){
   try{
-    let res = await fetch(`https://paulidx.kesug.com/api.binance.com/api/v3/klines.php?symbol=${symbol}&interval=${interval}&limit=100`);
+    let res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=100`);
     if(!res.ok) return null;
     return await res.json();
   }catch{
