@@ -59,7 +59,7 @@ function sleep(ms){
 // GET PAIRS INDODAX
 // ======================
 async function getPairs(){
-  let res = await fetch("https://indodax.com/api/pairs");
+  let res = await fetch("https://indodax.com/tradingview/search_v2");
   let data = await res.json();
   return data.filter(x=>x.symbol.endsWith("IDR")).map(x=>x.symbol);
 }
