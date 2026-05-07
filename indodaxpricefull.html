@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Trend Scanner (UP / DOWN / SIDE)</title>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<style>
+body { background:#111; color:#eee; font-family:Arial; }
+
+table.dataTable { color:#eee; }
+
+td, th { text-align:center; }
+
+.up { color:#00ff00; font-weight:bold; }
+.down { color:#ff0000; font-weight:bold; }
+.side { color:#aaa; }
+</style>
+</head>
+
+<body>
+
+<h2 style="text-align:center">📊 TREND SCANNER (HH+HL vs LH+LL)</h2>
+
+<table id="tbl" class="display" style="width:100%">
+<thead>
+<tr>
+<th>Pair</th>
+<th>Price</th>
+<th>5m</th>
+<th>15m</th>
+<th>1h</th>
+<th>4h</th>
+<th>1d</th>
+<th>1w</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+
+// ======================
+function sleep(ms){
+  return new Promise(r=>setTimeout(r,ms));
+}
+
+// ======================
+// INIT DATATABLE
+// ======================
+let table = $('#tbl').DataTable({
+  paging:false,
+  searching:true,
+  ordering:true,
+  info:false
+});
+
+// ======================
+// GET PAIRS
+// ======================
+async function getPairs(){
+  let res = await fetch("https://indodax.com/tradingview/search_v2");
+  let data = await res.json();
+  return data.filter(x=>x.symbol.endsWith("IDR")).map(x=>x.symbol);
+}
+
+function toBinance(sym){
+  return sym.replace("IDR","USDT");
+}
+
+// ======================
+// FETCH BINANCE
+// ======================
+async function getKlines(symbol, interval){
+  try{
+    let res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=120`);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch{
+    return null;
+  }
+}
+
+// ======================
+// DETECT SWINGS
+// ======================
+function detectSwings(data){
+
+  let swings = [];
+
+  for(let i=2;i<data.length-2;i++){
+
+    let p = data[i-1];
+    let c = data[i];
+    let n = data[i+1];
+
+    if(+c[2] > +p[2] && +c[2] > +n[2]){
+      swings.push({type:"H", price:+c[2]});
+    }
+
+    if(+c[3] < +p[3] && +c[3] < +n[3]){
+      swings.push({type:"L", price:+c[3]});
+    }
+  }
+
+  return swings;
+}
+
+// ======================
+// GET TREND (CORE LOGIC)
+// ======================
+function getTrend(data){
+
+  let swings = detectSwings(data);
+
+  if(swings.length < 3) return "SIDE";
+
+  let a = swings.at(-3);
+  let b = swings.at(-2);
+  let c = swings.at(-1);
+
+  // UP: HL -> HH atau HH -> HL
+  if(
+    (a.type==="L" && b.type==="H" && c.type==="L" && c.price > a.price) ||
+    (a.type==="H" && b.type==="L" && c.type==="H" && c.price > a.price)
+  ){
+    return "UP";
+  }
+
+  // DOWN: LH -> LL atau LL -> LH
+  if(
+    (a.type==="H" && b.type==="L" && c.type==="H" && c.price < a.price) ||
+    (a.type==="L" && b.type==="H" && c.type==="L" && c.price < a.price)
+  ){
+    return "DOWN";
+  }
+
+  return "SIDE";
+}
+
+// ======================
+// FORMAT COLOR
+// ======================
+function formatTrend(t){
+
+  if(t==="UP") return `<span class="up">🟢 UP</span>`;
+  if(t==="DOWN") return `<span class="down">🔴 DOWN</span>`;
+  return `<span class="side">⚪ SIDE</span>`;
+}
+
+// ======================
+// PROCESS COIN
+// ======================
+async function process(pair){
+
+  let sym = toBinance(pair);
+  let tf = ["5m","15m","1h","4h","1d","1w"];
+
+  let row = [pair, "..."];
+
+  for(let t of tf){
+
+    let data = await getKlines(sym,t);
+
+    if(!data){
+      row.push("❌");
+      continue;
+    }
+
+    let trend = getTrend(data);
+    row.push(formatTrend(trend));
+
+    if(t==="5m"){
+      let price = parseFloat(data.at(-1)[4]);
+      row[1] = price.toFixed(6);
+    }
+
+    await sleep(120);
+  }
+
+  table.row.add(row).draw(false);
+}
+
+// ======================
+// RUN
+// ======================
+async function run(){
+
+  let pairs = await getPairs();
+
+  for(let i=0;i<pairs.length;i++){
+    await process(pairs[i]);
+    await sleep(150);
+  }
+
+  console.log("DONE");
+}
+
+run();
+
+</script>
+
+</body>
+</html>

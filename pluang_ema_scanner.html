@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>🔥 ENTRY ONLY SCANNER - PLUANG</title>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+<style>
+body {
+    background: #111;
+    color: #eee;
+    font-family: Arial;
+}
+
+h2 {
+    text-align: center;
+}
+
+table.dataTable thead {
+    background: #222;
+}
+
+.green { color:#00ff99; }
+.red { color:#ff4d4d; }
+
+.pump {
+    color:#00ffcc;
+    font-weight:bold;
+}
+
+.uptrend {
+    color:#66ccff;
+}
+</style>
+</head>
+<body>
+
+<h2>🔥 ENTRY ONLY SCANNER (PLUANG MICIN)</h2>
+
+<table id="scannerTable" class="display">
+<thead>
+<tr>
+    <th>Pair</th>
+    <th>Price (IDR)</th>
+    <th>EMA20</th>
+    <th>EMA50</th>
+    <th>Dev %</th>
+    <th>RVOL</th>
+    <th>Signal</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+let USDT_IDR = 17332; // fallback default
+let table;
+
+// ==========================
+// Ambil USDT dari Binance
+// ==========================
+async function getUSDT() {
+    try {
+        let res = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=USDTIDR");
+        let data = await res.json();
+
+        if (data.price) {
+            USDT_IDR = parseFloat(data.price);
+            return;
+        }
+
+        // fallback: BTC cross
+        let btcUSDT = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT").then(r=>r.json());
+        let btcIDR = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCIDR").then(r=>r.json());
+
+        if (btcUSDT.price && btcIDR.price) {
+            USDT_IDR = btcIDR.price / btcUSDT.price;
+        }
+
+    } catch (e) {
+        console.log("USDT fallback digunakan");
+    }
+}
+
+// ==========================
+// Ambil ticker dari Pluang
+// ==========================
+async function getPluangPairs() {
+    let page = 1;
+    let pairs = [];
+    let seen = new Set();
+
+    while (true) {
+        try {
+            let url = `https://pluang.com/_next/data/dashboard_YB4fdMyKMq/id/explore/crypto/spot.json?page=${page}&assetType=crypto&subAssetType=spot`;
+
+            let res = await fetch(url);
+            let data = await res.json();
+
+            let items =
+                data?.pageProps?.data?.assetCategories?.[0]?.assetCategoryData?.[0]?.assets || [];
+
+            if (items.length === 0) break;
+
+            let newCount = 0;
+
+            items.forEach(item => {
+                let symbol = item?.tileInfo?.symbol;
+
+                if (symbol && !seen.has(symbol)) {
+                    seen.add(symbol);
+                    pairs.push(symbol);
+                    newCount++;
+                }
+            });
+
+            // 🔥 STOP kalau tidak ada symbol baru
+            if (newCount === 0) {
+                console.log("Stop: tidak ada data baru di page", page);
+                break;
+            }
+
+            page++;
+
+        } catch (e) {
+            console.log("Error, stop di page", page);
+            break;
+        }
+    }
+
+    return pairs;
+}
+
+// ==========================
+function toBinanceSymbol(symbol) {
+    return symbol.toUpperCase() + "USDT";
+}
+
+// ==========================
+async function getKlines(symbol) {
+    try {
+        let url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=15m&limit=60`;
+        let res = await fetch(url);
+        let data = await res.json();
+
+        if (data.code) return null;
+        return data;
+    } catch {
+        return null;
+    }
+}
+
+// ==========================
+function calculateEMA(data, period) {
+    let k = 2 / (period + 1);
+    let ema = data[0];
+
+    for (let i = 1; i < data.length; i++) {
+        ema = data[i] * k + ema * (1 - k);
+    }
+
+    return ema;
+}
+
+// ==========================
+function getSignal(dev, rvol, ema20, ema50, price) {
+
+    if (price > ema20 && ema20 > ema50 && dev > 7 && rvol > 2) {
+        return "🚀 STRONG PUMP";
+    }
+
+    if (price > ema20 && ema20 > ema50) {
+        return "🟢 UPTREND";
+    }
+
+    return "SKIP";
+}
+
+// ==========================
+async function run() {
+
+    await getUSDT();
+    let pairs = await getPluangPairs();
+
+    table.clear().draw();
+
+    for (let pair of pairs) {
+
+        let symbol = toBinanceSymbol(pair);
+        let klines = await getKlines(symbol);
+
+        if (!klines) continue;
+
+        let closes = klines.map(k => parseFloat(k[4]));
+        let volumes = klines.map(k => parseFloat(k[5]));
+
+        let priceUSDT = closes[closes.length - 1];
+        let priceIDR = priceUSDT * USDT_IDR;
+
+        let ema20USDT = calculateEMA(closes.slice(-30), 20);
+        let ema50USDT = calculateEMA(closes, 50);
+
+        let ema20 = ema20USDT * USDT_IDR;
+        let ema50 = ema50USDT * USDT_IDR;
+
+        let dev = ((priceUSDT - ema20USDT) / ema20USDT) * 100;
+
+        let currentVol = volumes[volumes.length - 1];
+        let avgVol = volumes.slice(-20).reduce((a,b)=>a+b,0) / 20;
+        let rvol = currentVol / avgVol;
+
+        let signal = getSignal(dev, rvol, ema20, ema50, priceIDR);
+
+        // 🎯 FILTER ENTRY ONLY
+        if (
+            signal !== "🚀 STRONG PUMP" &&
+            !(signal === "🟢 UPTREND" && rvol >= 1.5)
+        ) continue;
+
+        let color = dev > 0 ? "green" : "red";
+        let signalClass = signal.includes("PUMP") ? "pump" : "uptrend";
+
+        table.row.add([
+            pair,
+            priceIDR.toLocaleString(),
+            ema20.toFixed(0),
+            ema50.toFixed(0),
+            `<span class="${color}">${dev.toFixed(2)}%</span>`,
+            rvol.toFixed(2),
+            `<span class="${signalClass}">${signal}</span>`
+        ]).draw(false);
+    }
+}
+
+// ==========================
+$(document).ready(function () {
+
+    table = $('#scannerTable').DataTable({
+        paging: false,
+        info: false,
+        order: [[4, 'desc']]
+    });
+
+    run();
+
+    // optional refresh
+    // setInterval(run, 60000);
+});
+</script>
+
+</body>
+</html>

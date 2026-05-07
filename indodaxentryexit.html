@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>🔥 MICIN SCANNER PRO (IDR VERSION)</title>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+
+<style>
+body { background:#111; color:#eee; font-family:Arial; }
+h2 { text-align:center; }
+
+.green { color:#00ff99; }
+.red { color:#ff4d4d; }
+.yellow { color:#ffd700; }
+
+table.dataTable thead th {
+  position: sticky;
+  top: 0;
+  background:#111;
+}
+</style>
+</head>
+
+<body>
+
+<h2>🚀 TOP 10 MICIN SCANNER (IDR)</h2>
+
+<table id="table" class="display">
+<thead>
+<tr>
+<th>Pair</th>
+<th>Price (IDR)</th>
+<th>Score</th>
+<th>Status</th>
+<th>Entry</th>
+<th>SL</th>
+<th>TP</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+<script>
+
+// =====================
+// CONFIG
+// =====================
+//const API = "https://paulidx.kesug.com";
+
+let USDT_IDR = 0;
+
+// =====================
+let table = $('#table').DataTable({
+  paging:false,
+  info:false,
+  order:[[2,"desc"]]
+});
+
+// =====================
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// =====================
+// AMBIL USDT IDR
+// =====================
+async function getUSDT(){
+  let res = await fetch("https://indodax.com/api/ticker/usdtidr");
+  let data = await res.json();
+  return parseFloat(data.ticker.last);
+}
+
+// =====================
+// GET PAIRS
+// =====================
+async function getPairs(){
+  let res = await fetch(`https://indodax.com/tradingview/search_v2`);
+  let data = await res.json();
+  return data.filter(x=>x.symbol.endsWith("IDR")).map(x=>x.symbol);
+}
+
+function toBinance(sym){
+  return sym.replace("IDR","USDT");
+}
+
+// =====================
+// BINANCE DATA
+// =====================
+async function getKlines(symbol, interval){
+  let url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=100`;
+
+  try{
+    let res = await fetch(url);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch{
+    return null;
+  }
+}
+
+// =====================
+// EMA
+// =====================
+function ema(values, period){
+  let k = 2/(period+1);
+  let emaArr = [values[0]];
+
+  for(let i=1;i<values.length;i++){
+    emaArr.push(values[i]*k + emaArr[i-1]*(1-k));
+  }
+  return emaArr;
+}
+
+// =====================
+// MACD
+// =====================
+function macdHist(data){
+  let close = data.map(c=>parseFloat(c[4]));
+
+  let ema12 = ema(close,12);
+  let ema26 = ema(close,26);
+
+  let macd = ema12.map((v,i)=>v-ema26[i]);
+  let signal = ema(macd,9);
+
+  return macd.map((v,i)=>v-signal[i]);
+}
+
+// =====================
+// AVG VOL
+// =====================
+function avgVol(data){
+  let v = data.slice(-20).map(c=>parseFloat(c[5]));
+  return v.reduce((a,b)=>a+b,0)/20;
+}
+
+// =====================
+// TREND
+// =====================
+function getTrend(data){
+
+  let highs = [];
+  let lows = [];
+
+  for(let i=2;i<data.length-2;i++){
+    let h = parseFloat(data[i][2]);
+    let l = parseFloat(data[i][3]);
+
+    if(h > data[i-1][2] && h > data[i-2][2] && h > data[i+1][2] && h > data[i+2][2]){
+      highs.push(h);
+    }
+
+    if(l < data[i-1][3] && l < data[i-2][3] && l < data[i+1][3] && l < data[i+2][3]){
+      lows.push(l);
+    }
+  }
+
+  if(highs.length < 2 || lows.length < 2) return "SIDEWAY";
+
+  let HH = highs.at(-1) > highs.at(-2);
+  let HL = lows.at(-1) > lows.at(-2);
+
+  let LH = highs.at(-1) < highs.at(-2);
+  let LL = lows.at(-1) < lows.at(-2);
+
+  if(HH && HL) return "UPTREND";
+  if(LH && LL) return "DOWNTREND";
+
+  return "SIDEWAY";
+}
+
+// =====================
+// SCORE
+// =====================
+function getScore(data5){
+
+  let score = 0;
+
+  let trend = getTrend(data5);
+  if(trend==="UPTREND") score+=2;
+  else if(trend==="SIDEWAY") score+=1;
+
+  let hist = macdHist(data5);
+  let curr = hist.at(-1);
+  let prev = hist.at(-2);
+
+  if(prev<0 && curr>0) score+=3;
+  else if(curr>prev) score+=1;
+
+  let rvol = parseFloat(data5.at(-1)[5]) / avgVol(data5);
+
+  if(rvol>2) score+=3;
+  else if(rvol>1.5) score+=2;
+  else if(rvol>1) score+=1;
+
+  return score;
+}
+
+// =====================
+// STATUS
+// =====================
+function analyze(data5){
+
+  let trend = getTrend(data5);
+  let hist = macdHist(data5);
+
+  let curr = hist.at(-1);
+  let prev = hist.at(-2);
+
+  let rvol = parseFloat(data5.at(-1)[5]) / avgVol(data5);
+
+  if(trend==="UPTREND" && prev<0 && curr>0 && rvol>2){
+    return "🔥 STRONG";
+  }
+
+  if(trend==="UPTREND" && curr>prev && rvol>1.5){
+    return "⚡ EARLY";
+  }
+
+  return "❌ SKIP";
+}
+
+// =====================
+// ENTRY SL TP
+// =====================
+function getSetup(data){
+
+  let highs = data.slice(-5).map(c=>parseFloat(c[2]));
+  let lows  = data.slice(-5).map(c=>parseFloat(c[3]));
+
+  let entry = Math.max(...highs);
+  let sl    = Math.min(...lows);
+
+  let risk = entry - sl;
+  let tp   = entry + risk*2;
+
+  return {entry,sl,tp};
+}
+
+// =====================
+// PROCESS
+// =====================
+async function process(pair){
+
+  let sym = toBinance(pair);
+
+  let data5 = await getKlines(sym,"5m");
+  if(!data5) return null;
+
+  let last = parseFloat(data5.at(-1)[4]);
+
+  let score = getScore(data5);
+  let status = analyze(data5);
+
+  let setup = getSetup(data5);
+
+  return {
+    pair,
+    price:last,
+    score,
+    status,
+    entry:setup.entry,
+    sl:setup.sl,
+    tp:setup.tp
+  };
+}
+
+// =====================
+// SCAN
+// =====================
+async function scan(){
+
+  table.clear().draw();
+
+  // ambil kurs
+  USDT_IDR = await getUSDT();
+
+  let pairs = await getPairs();
+  let results = [];
+
+  for(let i=0;i<pairs.length;i++){
+
+    let res = await process(pairs[i]);
+
+    if(res) results.push(res);
+
+    await sleep(150);
+  }
+
+  results.sort((a,b)=>b.score-a.score);
+
+  let top = results.slice(0,10);
+
+  top.forEach(x=>{
+
+    let price = (x.price * USDT_IDR);
+    let entry = (x.entry * USDT_IDR);
+    let sl    = (x.sl * USDT_IDR);
+    let tp    = (x.tp * USDT_IDR);
+
+    let color = "yellow";
+    if(x.status.includes("STRONG")) color="green";
+    if(x.status.includes("SKIP")) color="red";
+
+    table.row.add([
+      x.pair,
+      price.toLocaleString("id-ID"),
+      x.score,
+      `<span class="${color}">${x.status}</span>`,
+      entry.toLocaleString("id-ID"),
+      sl.toLocaleString("id-ID"),
+      tp.toLocaleString("id-ID")
+    ]);
+  });
+
+  table.draw();
+}
+
+// =====================
+// RUN
+// =====================
+scan();
+setInterval(scan, 900000); // 15 menit
+
+</script>
+
+</body>
+</html>
