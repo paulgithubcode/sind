@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>IDX AI Smart Trend Scanner</title>
+
+<link rel="stylesheet"
+href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<style>
+
+body{
+    background:#0f1115;
+    color:white;
+    font-family:Arial;
+    padding:20px;
+    margin:0;
+}
+
+h2{
+    margin-bottom:20px;
+}
+
+.table-container{
+    width:100%;
+    overflow-x:auto;
+}
+
+.dataTables_wrapper{
+    width:100%;
+    overflow-x:auto;
+}
+
+table.dataTable{
+    color:white !important;
+    width:100% !important;
+    min-width:2200px;
+}
+
+table.dataTable thead th{
+    white-space:nowrap;
+}
+
+table.dataTable tbody td{
+    white-space:nowrap;
+}
+
+.green{
+    color:#00ff88;
+    font-weight:bold;
+}
+
+.red{
+    color:#ff6666;
+    font-weight:bold;
+}
+
+.yellow{
+    color:#ffd700;
+    font-weight:bold;
+}
+
+.blue{
+    color:#66ccff;
+    font-weight:bold;
+}
+
+.orange{
+    color:orange;
+    font-weight:bold;
+}
+
+.status{
+    padding:4px 10px;
+    border-radius:6px;
+    font-size:11px;
+    font-weight:bold;
+    display:inline-block;
+}
+
+.strong{
+    background:#00aa55;
+    color:white;
+}
+
+.uptrend{
+    background:#006633;
+    color:white;
+}
+
+.weak{
+    background:#665500;
+    color:white;
+}
+
+.sideways{
+    background:#444;
+    color:white;
+}
+
+.distribution{
+    background:#aa3300;
+    color:white;
+}
+
+.downtrend{
+    background:#880000;
+    color:white;
+}
+
+.buy{
+    background:#00cc66;
+    color:white;
+}
+
+.hold{
+    background:#0077cc;
+    color:white;
+}
+
+.watch{
+    background:#ffaa00;
+    color:black;
+}
+
+.reduce{
+    background:#ff6600;
+    color:white;
+}
+
+.exit{
+    background:#ff0000;
+    color:white;
+}
+
+.wait{
+    background:#777;
+    color:white;
+}
+
+#loading{
+    margin-bottom:20px;
+    font-size:18px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>IDX AI Smart Trend Scanner</h2>
+
+<div id="loading">
+Loading historical data...
+</div>
+
+<div class="table-container">
+
+<table
+id="stockTable"
+class="display nowrap"
+style="width:100%;display:none;">
+
+<thead>
+
+<tr>
+
+<th>Kode</th>
+<th>Nama</th>
+
+<th>Close</th>
+<th>Change%</th>
+
+<th>MA20</th>
+<th>MA50</th>
+
+<th>Volume</th>
+<th>AvgVol20</th>
+
+<th>HH</th>
+<th>HL</th>
+
+<th>Breakout</th>
+
+<th>Body%</th>
+<th>ClosePos%</th>
+
+<th>TrendScore</th>
+
+<th>Status</th>
+
+<th>Confirmation</th>
+
+<th>Momentum</th>
+
+<th>VolumeSignal</th>
+
+<th>Risk</th>
+
+<th>EntryZone</th>
+
+<th>Signal</th>
+
+</tr>
+
+</thead>
+
+<tbody></tbody>
+
+</table>
+
+</div>
+
+<script>
+
+// ======================================
+// CONFIG
+// ======================================
+
+const TOTAL_DAYS = 30;
+
+const BASE_URL =
+"https://raw.githubusercontent.com/paulgithubcode/sind/main/stocksummary/";
+
+// ======================================
+// DATE FORMAT
+// ======================================
+
+function formatDate(date){
+
+    const y = date.getFullYear();
+
+    const m = String(
+        date.getMonth()+1
+    ).padStart(2,'0');
+
+    const d = String(
+        date.getDate()
+    ).padStart(2,'0');
+
+    return `${y}-${m}-${d}`;
+}
+
+// ======================================
+// GET LAST DATES
+// ======================================
+
+function getLastDates(total){
+
+    const dates = [];
+
+    let current = new Date();
+
+    while(dates.length < total){
+
+        current.setDate(
+            current.getDate()-1
+        );
+
+        const day =
+            current.getDay();
+
+        // skip sabtu minggu
+        if(day !== 0 && day !== 6){
+
+            dates.push(
+                formatDate(current)
+            );
+
+        }
+    }
+
+    return dates.reverse();
+}
+
+const dates =
+    getLastDates(TOTAL_DAYS);
+
+// ======================================
+// LOAD DATA
+// ======================================
+
+async function loadAllData(){
+
+    const results = [];
+
+    for(const date of dates){
+
+        const url =
+        `${BASE_URL}GetStockSummary_${date}.json`;
+
+        try{
+
+            console.log("LOAD:", url);
+
+            const res =
+                await fetch(url);
+
+            if(!res.ok)
+                continue;
+
+            const json =
+                await res.json();
+
+            results.push(json);
+
+        }catch(err){
+
+            console.log(err);
+
+        }
+
+    }
+
+    return results;
+}
+
+// ======================================
+// MAIN
+// ======================================
+
+loadAllData()
+
+.then(allData => {
+
+    const stocks = {};
+
+    // ======================================
+    // GROUP PER STOCK
+    // ======================================
+
+    allData.forEach(dayData => {
+
+        if(!dayData.data)
+            return;
+
+        dayData.data.forEach(stock => {
+
+            const code =
+                stock.StockCode;
+
+            if(!stocks[code])
+                stocks[code] = [];
+
+            stocks[code].push(stock);
+
+        });
+
+    });
+
+    let html = "";
+
+    // ======================================
+    // ANALYZE
+    // ======================================
+
+    Object.keys(stocks).forEach(code => {
+
+        const history =
+            stocks[code];
+
+        if(history.length < 20)
+            return;
+
+        const latest =
+            history[history.length-1];
+
+        const closes =
+            history.map(x =>
+                Number(x.Close || 0)
+            );
+
+        const highs =
+            history.map(x =>
+                Number(x.High || 0)
+            );
+
+        const lows =
+            history.map(x =>
+                Number(x.Low || 0)
+            );
+
+        const volumes =
+            history.map(x =>
+                Number(x.Volume || 0)
+            );
+
+        // ======================================
+        // AVG
+        // ======================================
+
+        function avg(arr){
+
+            return arr.reduce(
+                (a,b)=>a+b,0
+            ) / arr.length;
+        }
+
+        // ======================================
+        // MA
+        // ======================================
+
+        const ma20 =
+            avg(closes.slice(-20));
+
+        const ma50 =
+            history.length >= 50
+            ? avg(closes.slice(-50))
+            : ma20;
+
+        const avgVol20 =
+            avg(volumes.slice(-20));
+
+        // ======================================
+        // CURRENT
+        // ======================================
+
+        const currentClose =
+            closes[closes.length-1];
+
+        const prevClose =
+            closes[closes.length-2];
+
+        const currentHigh =
+            highs[highs.length-1];
+
+        const prevHigh =
+            highs[highs.length-2];
+
+        const currentLow =
+            lows[highs.length-1];
+
+        const prevLow =
+            lows[highs.length-2];
+
+        const open =
+            Number(latest.OpenPrice || 0);
+
+        const volume =
+            Number(latest.Volume || 0);
+
+        // ======================================
+        // STRUCTURE
+        // ======================================
+
+        const hh =
+            currentHigh > prevHigh;
+
+        const hl =
+            currentLow > prevLow;
+
+        const breakout =
+            currentClose >
+            Math.max(
+                ...closes.slice(-20,-1)
+            );
+
+        // ======================================
+        // CANDLE
+        // ======================================
+
+        const range =
+            currentHigh - currentLow;
+
+        const body =
+            Math.abs(
+                currentClose-open
+            );
+
+        const upperWick =
+            currentHigh -
+            Math.max(
+                open,
+                currentClose
+            );
+
+        const bodyPercent =
+            range > 0
+            ? (body/range)*100
+            : 0;
+
+        const closePosition =
+            range > 0
+            ? (
+                (
+                    currentClose-currentLow
+                ) / range
+            ) * 100
+            : 0;
+
+        // ======================================
+        // SCORE
+        // ======================================
+
+        let score = 0;
+
+        if(currentClose > ma20)
+            score += 15;
+
+        if(ma20 >= ma50)
+            score += 15;
+
+        if(hh)
+            score += 15;
+
+        if(hl)
+            score += 15;
+
+        if(breakout)
+            score += 15;
+
+        if(volume > avgVol20)
+            score += 10;
+
+        if(closePosition >= 80)
+            score += 10;
+
+        if(bodyPercent >= 60)
+            score += 5;
+
+        // ======================================
+        // STATUS
+        // ======================================
+
+        let status = "SIDEWAYS";
+        let statusClass = "sideways";
+
+        if(score >= 85){
+
+            status = "STRONG UPTREND";
+            statusClass = "strong";
+
+        }
+
+        else if(score >= 70){
+
+            status = "UPTREND";
+            statusClass = "uptrend";
+
+        }
+
+        else if(score >= 50){
+
+            status = "WEAK UPTREND";
+            statusClass = "weak";
+
+        }
+
+        else if(
+            currentClose < ma20 &&
+            volume > avgVol20
+        ){
+
+            status = "DISTRIBUTION";
+            statusClass = "distribution";
+
+        }
+
+        else if(
+            currentClose < ma20 &&
+            currentClose < prevClose
+        ){
+
+            status = "DOWNTREND";
+            statusClass = "downtrend";
+
+        }
+
+        // ======================================
+        // CONFIRMATION
+        // ======================================
+
+        let confirm = "WAIT";
+        let confirmClass = "wait";
+
+        if(
+
+            status === "STRONG UPTREND" &&
+            breakout &&
+            hh &&
+            hl &&
+            closePosition >= 80 &&
+            upperWick <= body * 0.5
+
+        ){
+
+            confirm = "BUY CONFIRM";
+            confirmClass = "buy";
+
+        }
+
+        else if(
+
+            status === "UPTREND"
+
+        ){
+
+            confirm = "HOLD";
+            confirmClass = "hold";
+
+        }
+
+        else if(
+
+            status === "WEAK UPTREND"
+
+        ){
+
+            confirm = "WATCH";
+            confirmClass = "watch";
+
+        }
+
+        if(
+
+            breakout &&
+            bodyPercent >= 90
+
+        ){
+
+            confirm = "WAIT RETEST";
+            confirmClass = "watch";
+
+        }
+
+        if(
+
+            status === "DISTRIBUTION"
+
+        ){
+
+            confirm = "REDUCE";
+            confirmClass = "reduce";
+
+        }
+
+        if(
+
+            status === "DOWNTREND"
+
+        ){
+
+            confirm = "EXIT";
+            confirmClass = "exit";
+
+        }
+
+        // ======================================
+        // MOMENTUM
+        // ======================================
+
+        let momentum = "WEAK";
+        let momentumClass = "red";
+
+        if(score >= 80){
+
+            momentum = "STRONG";
+            momentumClass = "green";
+
+        }
+
+        else if(score >= 60){
+
+            momentum = "GOOD";
+            momentumClass = "blue";
+
+        }
+
+        // ======================================
+        // VOLUME SIGNAL
+        // ======================================
+
+        let volumeSignal = "LOW VOLUME";
+        let volumeClass = "red";
+
+        if(volume > avgVol20){
+
+            volumeSignal = "VOLUME IN";
+            volumeClass = "green";
+
+        }
+
+        // ======================================
+        // RISK
+        // ======================================
+
+        let risk = "LOW RISK";
+        let riskClass = "green";
+
+        if(upperWick > body){
+
+            risk = "HIGH RISK";
+            riskClass = "red";
+
+        }
+
+        // ======================================
+        // ENTRY
+        // ======================================
+
+        let entryZone = "WAIT";
+        let entryClass = "yellow";
+
+        if(
+            breakout &&
+            closePosition >= 80
+        ){
+
+            entryZone = "IDEAL";
+            entryClass = "green";
+
+        }
+
+        // ======================================
+        // SIGNAL
+        // ======================================
+
+        let signal = "WAIT";
+        let signalClass = "yellow";
+
+        if(confirm === "BUY CONFIRM"){
+
+            signal = "BUY";
+            signalClass = "green";
+
+        }
+
+        if(confirm === "EXIT"){
+
+            signal = "SELL";
+            signalClass = "red";
+
+        }
+
+        // ======================================
+        // CHANGE %
+        // ======================================
+
+        const changePercent =
+            prevClose > 0
+            ? (
+                (
+                    (
+                        currentClose-prevClose
+                    ) / prevClose
+                ) * 100
+            )
+            : 0;
+
+        // ======================================
+        // TABLE
+        // ======================================
+
+        html += `
+
+        <tr>
+
+            <td>${code}</td>
+
+            <td>${latest.StockName}</td>
+
+            <td class="${
+                currentClose >= prevClose
+                ? 'green'
+                : 'red'
+            }">
+
+                ${currentClose.toLocaleString()}
+
+            </td>
+
+            <td class="${
+                changePercent >= 0
+                ? 'green'
+                : 'red'
+            }">
+
+                ${changePercent.toFixed(2)}%
+
+            </td>
+
+            <td>
+                ${ma20.toFixed(0)}
+            </td>
+
+            <td>
+                ${ma50.toFixed(0)}
+            </td>
+
+            <td>
+                ${volume.toLocaleString()}
+            </td>
+
+            <td>
+                ${avgVol20.toFixed(0)}
+            </td>
+
+            <td class="${
+                hh ? 'green':'red'
+            }">
+
+                ${hh ? 'YES':'NO'}
+
+            </td>
+
+            <td class="${
+                hl ? 'green':'red'
+            }">
+
+                ${hl ? 'YES':'NO'}
+
+            </td>
+
+            <td class="${
+                breakout ? 'green':'red'
+            }">
+
+                ${breakout ? 'YES':'NO'}
+
+            </td>
+
+            <td class="yellow">
+
+                ${bodyPercent.toFixed(2)}%
+
+            </td>
+
+            <td class="blue">
+
+                ${closePosition.toFixed(2)}%
+
+            </td>
+
+            <td class="orange">
+
+                ${score}
+
+            </td>
+
+            <td>
+
+                <span class="status ${statusClass}">
+                    ${status}
+                </span>
+
+            </td>
+
+            <td>
+
+                <span class="status ${confirmClass}">
+                    ${confirm}
+                </span>
+
+            </td>
+
+            <td class="${momentumClass}">
+                ${momentum}
+            </td>
+
+            <td class="${volumeClass}">
+                ${volumeSignal}
+            </td>
+
+            <td class="${riskClass}">
+                ${risk}
+            </td>
+
+            <td class="${entryClass}">
+                ${entryZone}
+            </td>
+
+            <td class="${signalClass}">
+                ${signal}
+            </td>
+
+        </tr>
+
+        `;
+
+    });
+
+    $("#stockTable tbody").html(html);
+
+    $("#loading").hide();
+
+    $("#stockTable").show();
+
+    // ======================================
+    // DATATABLE
+    // ======================================
+
+    $('#stockTable').DataTable({
+
+        paging:false,
+
+        scrollX:true,
+
+        scrollCollapse:true,
+
+        autoWidth:false,
+
+        fixedHeader:true,
+
+        order:[[13,'desc']],
+
+        pageLength:100
+
+    });
+
+});
+
+</script>
+
+</body>
+</html>
