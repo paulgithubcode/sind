@@ -1,0 +1,7 @@
+indodax
+Telegram Bot Token = 8705907765:AAGTBF2ka5cgnZ9jzcnIlXnVxmqjtqc0X1k
+chatId = 8241745751
+
+pluang
+Telegram Bot Token = 8665965188:AAGA-_z2bvpyC3CyBthyP5g1uHC2xwmb_co
+chatId = 8241745751

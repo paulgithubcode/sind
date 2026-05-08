@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Generate Pluang JSON</title>
+</head>
+<body>
+
+<h2>🔥 Generate Pluang Pairs JSON</h2>
+
+<button onclick="run()">Generate JSON</button>
+
+<script>
+
+// =========================
+// FETCH PLUANG DATA
+// =========================
+async function getPluangPairs(){
+
+    let page = 1;
+    let pairs = [];
+    let seen = new Set();
+
+    while(true){
+
+        try{
+
+            let url = `https://pluang.com/_next/data/dashboard_B0yv2Vh6No/id/explore/crypto/spot.json?page=${page}&assetType=crypto&subAssetType=spot`;
+
+            let res = await fetch(url);
+            let data = await res.json();
+
+            let items =
+                data?.pageProps?.data?.assetCategories?.[0]?.assetCategoryData?.[0]?.assets || [];
+
+            if(!items.length) break;
+
+            let newCount = 0;
+
+            items.forEach(item => {
+
+                let symbol = item?.tileInfo?.symbol;
+
+                if(symbol && !seen.has(symbol)){
+                    seen.add(symbol);
+                    pairs.push(symbol);
+                    newCount++;
+                }
+
+            });
+
+            if(newCount === 0) break;
+
+            page++;
+
+        }catch(e){
+            console.log("stop page", page);
+            break;
+        }
+
+    }
+
+    return pairs;
+}
+
+// =========================
+// DOWNLOAD JSON FILE
+// =========================
+function downloadJSON(data){
+
+    let blob = new Blob(
+        [JSON.stringify(data, null, 2)],
+        {type: "application/json"}
+    );
+
+    let url = URL.createObjectURL(blob);
+
+    let a = document.createElement("a");
+    a.href = url;
+    a.download = "pairs.json";
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+// =========================
+// MAIN
+// =========================
+async function run(){
+
+    alert("ambil data Pluang...");
+
+    let pairs = await getPluangPairs();
+
+    let output = {
+        updated: new Date().toISOString(),
+        count: pairs.length,
+        data: pairs
+    };
+
+    downloadJSON(output);
+
+    console.log("DONE:", pairs.length);
+
+}
+
+</script>
+
+</body>
+</html>
