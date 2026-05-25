@@ -3,47 +3,118 @@
 <head>
 <meta charset="UTF-8">
 <title>IDX Downloader (Per Tanggal)</title>
+
+<style>
+body{
+  font-family: Arial;
+  padding:20px;
+}
+
+input, button{
+  padding:8px;
+  margin:5px;
+}
+
+pre{
+  background:#111;
+  color:#0f0;
+  padding:15px;
+  height:400px;
+  overflow:auto;
+}
+</style>
+
 </head>
 
 <body>
 
 <h3>Download IDX Stock Summary (Per Tanggal)</h3>
+
+<label>From:</label>
+<input type="date" id="startDate">
+
+<label>To:</label>
+<input type="date" id="endDate">
+
 <button onclick="downloadAll()">Mulai</button>
 
 <pre id="log"></pre>
 
 <script>
 
+// =============================
+// DEFAULT DATE
+// =============================
+window.onload = function(){
+
+  const today = new Date()
+
+  const yyyy = today.getFullYear()
+  const mm = String(today.getMonth()+1).padStart(2,"0")
+  const dd = String(today.getDate()).padStart(2,"0")
+
+  // hari ini
+  document.getElementById("endDate").value =
+  `${yyyy}-${mm}-${dd}`
+
+  // awal bulan
+  document.getElementById("startDate").value =
+  `${yyyy}-${mm}-01`
+}
+
+// =============================
+// LOG
+// =============================
 function log(msg){
   document.getElementById("log").textContent += msg + "\n"
   console.log(msg)
 }
 
+// =============================
+// FORMAT DATE
+// =============================
 function formatDate(date){
+
   const y = date.getFullYear()
   const m = String(date.getMonth()+1).padStart(2,"0")
   const d = String(date.getDate()).padStart(2,"0")
+
   return `${y}-${m}-${d}`
 }
 
-// retry fetch
+// =============================
+// FETCH WITH RETRY
+// =============================
 async function fetchWithRetry(url, retry=3){
+
   try{
-    const res = await fetch(url,{credentials:"include"})
+
+    const res = await fetch(url,{
+      credentials:"include"
+    })
+
     if(!res.ok) throw "bad response"
+
     return await res.json()
-  }
-  catch(e){
+
+  }catch(e){
+
     if(retry > 0){
+
       log("retry...")
+
       await new Promise(r=>setTimeout(r,3000))
+
       return fetchWithRetry(url, retry-1)
     }
+
     return null
   }
 }
 
-// download file helper
+// =============================
+// SAVE FILE
+// =============================
 function saveFile(data, filename){
 
   const blob = new Blob(
@@ -52,23 +123,48 @@ function saveFile(data, filename){
   )
 
   const link = document.createElement("a")
+
   link.href = URL.createObjectURL(blob)
+
   link.download = filename
 
   document.body.appendChild(link)
+
   link.click()
+
   document.body.removeChild(link)
 
-  // cleanup memory
-  setTimeout(()=>URL.revokeObjectURL(link.href),1000)
+  setTimeout(()=>{
+    URL.revokeObjectURL(link.href)
+  },1000)
 }
 
+// =============================
+// MAIN DOWNLOAD
+// =============================
 async function downloadAll(){
 
-  let start = new Date("2026-04-25")
-  let today = new Date()
-  alert(start);
-  alert(today);
+  // clear log
+  document.getElementById("log").textContent = ""
+
+  // ambil value date input
+  let startValue =
+  document.getElementById("startDate").value
+
+  let endValue =
+  document.getElementById("endDate").value
+
+  // validasi
+  if(!startValue || !endValue){
+
+    alert("Pilih tanggal dulu")
+
+    return
+  }
+
+  let start = new Date(startValue)
+
+  let today = new Date(endValue)
 
   let countDownload = 0
 
@@ -78,7 +174,9 @@ async function downloadAll(){
 
     // skip sabtu & minggu
     if(day === 0 || day === 6){
+
       start.setDate(start.getDate()+1)
+
       continue
     }
 
@@ -93,28 +191,35 @@ async function downloadAll(){
 
     if(data && data.data && data.data.length > 0){
 
-      saveFile(data, "GetStockSummary_" + date + ".json")
+      saveFile(
+        data,
+        "GetStockSummary_" + date + ".json"
+      )
 
       countDownload++
 
       log("✔ download: " + date)
 
-      // 🔥 penting: jeda antar download supaya tidak diblok browser
+      // jeda antar download
       await new Promise(r=>setTimeout(r,2000))
 
-      // 🔥 setiap 50 file, pause panjang
+      // pause tiap 50 file
       if(countDownload % 50 === 0){
+
         log("PAUSE 10 detik...")
+
         await new Promise(r=>setTimeout(r,10000))
       }
 
     }else{
+
       log("✖ skip/kosong: " + date)
     }
 
     // delay request API
     await new Promise(r=>setTimeout(r,2500))
 
+    // next date
     start.setDate(start.getDate()+1)
   }
 

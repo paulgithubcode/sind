@@ -89,49 +89,30 @@ async function getUSDT() {
 // Ambil ticker dari Pluang
 // ==========================
 async function getPluangPairs() {
-    let page = 1;
-    let pairs = [];
-    let seen = new Set();
 
-    while (true) {
-        try {
-            let url = `https://pluang.com/_next/data/dashboard_YB4fdMyKMq/id/explore/crypto/spot.json?page=${page}&assetType=crypto&subAssetType=spot`;
+    try {
 
-            let res = await fetch(url);
-            let data = await res.json();
+        let res = await fetch(
+            "https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json"
+        );
 
-            let items =
-                data?.pageProps?.data?.assetCategories?.[0]?.assetCategoryData?.[0]?.assets || [];
+        let data = await res.json();
 
-            if (items.length === 0) break;
+        // kalau format: { data: [...] }
+        if (Array.isArray(data)) return data;
 
-            let newCount = 0;
+        if (data.data) return data.data;
 
-            items.forEach(item => {
-                let symbol = item?.tileInfo?.symbol;
+        return [];
 
-                if (symbol && !seen.has(symbol)) {
-                    seen.add(symbol);
-                    pairs.push(symbol);
-                    newCount++;
-                }
-            });
+    } catch (e) {
 
-            // 🔥 STOP kalau tidak ada symbol baru
-            if (newCount === 0) {
-                console.log("Stop: tidak ada data baru di page", page);
-                break;
-            }
+        console.log("Gagal load pairs JSON", e);
 
-            page++;
+        return [];
 
-        } catch (e) {
-            console.log("Error, stop di page", page);
-            break;
-        }
     }
 
-    return pairs;
 }
 
 // ==========================
