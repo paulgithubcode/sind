@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>
+    INDODAX Trade Activity
+</title>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    background:#081028;
+    color:white;
+    font-family:Arial,sans-serif;
+    padding:20px;
+    overflow-x:auto;
+}
+
+h1{
+    margin-bottom:20px;
+}
+
+.topbar{
+    display:flex;
+    gap:15px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    align-items:center;
+}
+
+.badge{
+    padding:10px 15px;
+    border-radius:10px;
+    font-weight:bold;
+}
+
+.connected{
+    background:#14532d;
+    color:#4ade80;
+}
+
+.disconnected{
+    background:#7f1d1d;
+    color:#f87171;
+}
+
+.connecting{
+    background:#78350f;
+    color:#facc15;
+}
+
+.search{
+    padding:10px 15px;
+    border:none;
+    border-radius:10px;
+    background:#16213e;
+    color:white;
+    width:250px;
+    outline:none;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+thead{
+    position:sticky;
+    top:0;
+    z-index:100;
+}
+
+th{
+    background:#16213e;
+    color:white;
+    padding:12px;
+    text-align:left;
+    white-space:nowrap;
+}
+
+td{
+    padding:10px 12px;
+    border-bottom:
+        1px solid rgba(255,255,255,.05);
+    white-space:nowrap;
+}
+
+tbody tr:hover{
+    background:
+        rgba(255,255,255,.03);
+}
+
+.green{
+    color:#4ade80;
+    font-weight:bold;
+}
+
+.red{
+    color:#f87171;
+    font-weight:bold;
+}
+
+.buy{
+    color:#22c55e;
+    font-weight:bold;
+}
+
+.sell{
+    color:#ef4444;
+    font-weight:bold;
+}
+
+.small{
+    margin-top:15px;
+    color:#94a3b8;
+    font-size:12px;
+}
+
+.flash-buy{
+    animation:flashBuy .5s;
+}
+
+.flash-sell{
+    animation:flashSell .5s;
+}
+
+@keyframes flashBuy{
+
+    0%{
+        background:
+        rgba(34,197,94,.5);
+    }
+
+    100%{
+        background:transparent;
+    }
+
+}
+
+@keyframes flashSell{
+
+    0%{
+        background:
+        rgba(239,68,68,.5);
+    }
+
+    100%{
+        background:transparent;
+    }
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>
+    INDODAX Trade Activity
+</h1>
+
+<div class="topbar">
+
+    <input
+        type="text"
+        id="search"
+        class="search"
+        placeholder="Search pair..."
+    >
+
+    <div
+        id="wsStatus"
+        class="badge disconnected"
+    >
+        DISCONNECTED
+    </div>
+
+    <div class="badge connecting">
+        PAIRS:
+        <span id="pairCount">
+            0
+        </span>
+    </div>
+
+    <div class="badge connecting">
+        SOCKETS:
+        <span id="socketCount">
+            0
+        </span>
+    </div>
+
+</div>
+
+<table>
+
+<thead>
+
+<tr>
+
+    <th>PAIR</th>
+
+    <th>BUY</th>
+    <th>Δ BUY</th>
+
+    <th>SELL</th>
+    <th>Δ SELL</th>
+
+    <th>BUY VOL</th>
+    <th>SELL VOL</th>
+
+    <th>DELTA</th>
+
+	<th>LAST PRICE</th>
+	<th>Δ PRICE %</th>
+	<th>UPDATE</th>
+
+
+</tr>
+
+</thead>
+
+<tbody id="tbody">
+
+</tbody>
+
+</table>
+
+<div class="small">
+    Auto Sort DESC by DELTA BUY
+</div>
+
+<script>
+
+const WS_URL =
+    'wss://ws3.indodax.com/ws/';
+
+const BATCH_SIZE = 80;
+
+const AUTH_TOKEN =
+'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE5NDY2MTg0MTV9.UR1lBM6Eqh0yWz-PVirw1uPCxe60FdchR8eNVdsskeo';
+
+let allPairs = [];
+
+let pairMap = {};
+
+let sockets = [];
+
+$(document).ready(function(){
+
+    loadPairs();
+
+    $('#search').on(
+        'keyup',
+        function(){
+
+            const value =
+                $(this)
+                .val()
+                .toLowerCase();
+
+            $('#tbody tr').filter(function(){
+
+                $(this).toggle(
+                    $(this)
+                    .text()
+                    .toLowerCase()
+                    .indexOf(value) > -1
+                );
+
+            });
+
+        }
+    );
+
+});
+
+function loadPairs(){
+
+    $.ajax({
+
+        url:
+            'https://indodax.com/api/pairs',
+
+        method:'GET',
+
+        success:function(data){
+
+            allPairs = data;
+
+            $('#pairCount')
+                .html(data.length);
+
+            data.forEach(pair => {
+
+                const pairId =
+                    pair.old_ticker_id
+                    ? pair.old_ticker_id
+                        .replace(/[_-]/g,'')
+                    : pair.id;
+
+                pairMap[pairId] = {
+
+                    symbol:
+                        pair.symbol,
+
+                    buy:0,
+                    sell:0,
+
+                    prevBuy:0,
+                    prevSell:0,
+
+                    deltaBuy:0,
+                    deltaSell:0,
+
+                    buyVol:0,
+                    sellVol:0,
+
+lastPrice:0,
+
+prevPrice:0,
+
+priceChangePercent:0,
+
+lastUpdate:'-'
+                };
+
+                createRow(pairId);
+
+            });
+
+            startBatchSockets();
+
+        }
+
+    });
+
+}
+
+function createRow(pairId){
+
+    const pair =
+        pairMap[pairId];
+
+    $('#tbody').append(`
+
+        <tr
+            id="row-${pairId}"
+            data-delta-buy="0"
+        >
+
+            <td>
+                <b>${pair.symbol}</b>
+            </td>
+
+            <td id="buy-${pairId}">
+                0
+            </td>
+
+            <td
+                class="green"
+                id="deltaBuy-${pairId}"
+            >
+                0
+            </td>
+
+            <td id="sell-${pairId}">
+                0
+            </td>
+
+            <td
+                class="red"
+                id="deltaSell-${pairId}"
+            >
+                0
+            </td>
+
+            <td
+                class="green"
+                id="buyVol-${pairId}"
+            >
+                0
+            </td>
+
+            <td
+                class="red"
+                id="sellVol-${pairId}"
+            >
+                0
+            </td>
+
+            <td id="delta-${pairId}">
+                0
+            </td>
+
+<td id="price-${pairId}">
+    0
+</td>
+
+<td id="priceChange-${pairId}">
+    0%
+</td>
+
+<td id="update-${pairId}">
+    -
+</td>
+
+        </tr>
+
+    `);
+
+}
+
+function startBatchSockets(){
+
+    let totalSockets = 0;
+
+    for(
+        let i = 0;
+        i < allPairs.length;
+        i += BATCH_SIZE
+    ){
+
+        const batch =
+            allPairs.slice(
+                i,
+                i + BATCH_SIZE
+            );
+
+        createSocket(batch);
+
+        totalSockets++;
+
+    }
+
+    $('#socketCount')
+        .html(totalSockets);
+
+}
+
+function createSocket(batch){
+
+    const ws =
+        new WebSocket(WS_URL);
+
+    sockets.push(ws);
+
+    ws.onopen = () => {
+
+        setStatus(
+            'CONNECTED',
+            'connected'
+        );
+
+        authenticate(ws);
+
+        subscribeBatch(
+            ws,
+            batch
+        );
+
+    };
+
+    ws.onmessage = (event) => {
+
+        try{
+
+            const msg =
+                JSON.parse(
+                    event.data
+                );
+
+            processMessage(msg);
+
+        }catch(err){
+
+            console.log(err);
+
+        }
+
+    };
+
+    ws.onerror = (err) => {
+
+        console.log(
+            'WS ERROR',
+            err
+        );
+
+    };
+
+    ws.onclose = () => {
+
+        setStatus(
+            'RECONNECTING',
+            'connecting'
+        );
+
+        setTimeout(() => {
+
+            createSocket(batch);
+
+        }, 5000);
+
+    };
+
+}
+
+function authenticate(ws){
+
+    if(
+        ws.readyState !==
+        WebSocket.OPEN
+    ){
+        return;
+    }
+
+    ws.send(
+        JSON.stringify({
+
+            params:{
+                token:AUTH_TOKEN
+            },
+
+            id:1
+
+        })
+    );
+
+}
+
+function subscribeBatch(
+    ws,
+    batch
+){
+
+    batch.forEach(
+        (pair, index) => {
+
+        const pairId =
+            pair.old_ticker_id
+            ? pair.old_ticker_id
+                .replace(/[_-]/g,'')
+            : pair.id;
+
+        setTimeout(() => {
+
+            subscribe(
+                ws,
+                pairId,
+                index
+            );
+
+        }, index * 120);
+
+    });
+
+}
+
+function subscribe(
+    ws,
+    pairId,
+    index
+){
+
+    if(
+        ws.readyState !==
+        WebSocket.OPEN
+    ){
+        return;
+    }
+
+    try{
+
+        ws.send(
+            JSON.stringify({
+
+                method:1,
+
+                params:{
+                    channel:
+                    `market:trade-activity-${pairId}`
+                },
+
+                id:index + 1
+
+            })
+        );
+
+    }catch(err){
+
+        console.log(err);
+
+    }
+
+}
+
+function processMessage(msg){
+
+    if(
+        !msg.result ||
+        !msg.result.data ||
+        !msg.result.data.data
+    ){
+        return;
+    }
+
+    const trades =
+        msg.result.data.data;
+
+    trades.forEach(trade => {
+
+        const pairId =
+            trade[0];
+
+        const side =
+            trade[3];
+
+        const price =
+            parseFloat(trade[4]);
+
+        const idrVol =
+            parseFloat(trade[5]);
+
+        const pair =
+            pairMap[pairId];
+
+        if(!pair){
+            return;
+        }
+
+        pair.prevBuy =
+            pair.buy;
+
+        pair.prevSell =
+            pair.sell;
+
+        if(side === 'buy'){
+
+            pair.buy++;
+
+            pair.buyVol += idrVol;
+
+        }else{
+
+            pair.sell++;
+
+            pair.sellVol += idrVol;
+
+        }
+
+        pair.deltaBuy =
+            pair.buy -
+            pair.prevBuy;
+
+        pair.deltaSell =
+            pair.sell -
+            pair.prevSell;
+
+// simpan harga sebelumnya
+pair.prevPrice =
+    pair.lastPrice || price;
+
+// update harga sekarang
+pair.lastPrice =
+    price;
+
+// hitung % change (SAFE)
+if(pair.prevPrice > 0){
+    pair.priceChangePercent =
+        ((pair.lastPrice - pair.prevPrice) / pair.prevPrice) * 100;
+}else{
+    pair.priceChangePercent = 0;
+}
+
+        pair.lastUpdate =
+            new Date(
+                trade[1] * 1000
+            ).toLocaleTimeString();
+
+        updateRow(
+            pairId,
+            side
+        );
+
+    });
+
+}
+
+function updateRow(
+    pairId,
+    side
+){
+
+    const pair =
+        pairMap[pairId];
+
+    const delta =
+        pair.buyVol -
+        pair.sellVol;
+
+    $('#buy-' + pairId)
+        .html(
+            format(pair.buy)
+        );
+
+    $('#sell-' + pairId)
+        .html(
+            format(pair.sell)
+        );
+
+    $('#deltaBuy-' + pairId)
+        .html(
+            '+' +
+            format(pair.deltaBuy)
+        );
+
+    $('#deltaSell-' + pairId)
+        .html(
+            '+' +
+            format(pair.deltaSell)
+        );
+
+    $('#buyVol-' + pairId)
+        .html(
+            format(pair.buyVol)
+        );
+
+    $('#sellVol-' + pairId)
+        .html(
+            format(pair.sellVol)
+        );
+
+    $('#delta-' + pairId)
+        .html(
+            `
+            <span class="${
+                delta >= 0
+                ? 'buy'
+                : 'sell'
+            }">
+                ${format(delta)}
+            </span>
+            `
+        );
+
+    $('#price-' + pairId)
+        .html(
+            format(pair.lastPrice)
+        );
+		
+$('#priceChange-' + pairId)
+    .html(
+        `
+        <span class="${
+            pair.priceChangePercent >= 0
+            ? 'buy'
+            : 'sell'
+        }">
+            ${
+                pair.priceChangePercent >= 0 ? '+' : ''
+            }
+            ${Number(pair.priceChangePercent || 0).toFixed(2)}%
+        </span>
+        `
+    );	
+
+    $('#update-' + pairId)
+        .html(
+            pair.lastUpdate
+        );
+
+    const row =
+        $('#row-' + pairId);
+
+    row.attr(
+        'data-delta-buy',
+        pair.deltaBuy
+    );
+
+    row.removeClass(
+        'flash-buy flash-sell'
+    );
+
+    void row[0].offsetWidth;
+
+    row.addClass(
+        side === 'buy'
+        ? 'flash-buy'
+        : 'flash-sell'
+    );
+
+}
+
+/*
+AUTO SORT DESC
+BY TOTAL BUY
+*/
+
+setInterval(() => {
+
+    const rows =
+        $('#tbody tr')
+        .get();
+
+    rows.sort((a, b) => {
+
+        const pairIdA =
+            $(a)
+            .attr('id')
+            .replace('row-','');
+
+        const pairIdB =
+            $(b)
+            .attr('id')
+            .replace('row-','');
+
+return (
+    (pairMap[pairIdB]?.priceChangePercent || 0) -
+    (pairMap[pairIdA]?.priceChangePercent || 0)
+);
+
+    });
+
+    $.each(rows, function(_, row){
+
+        $('#tbody').append(row);
+
+    });
+
+}, 1000);
+
+
+function setStatus(
+    text,
+    cls
+){
+
+    $('#wsStatus')
+        .removeClass(
+            'connected disconnected connecting'
+        )
+        .addClass(cls)
+        .html(text);
+
+}
+
+function format(x){
+
+    return Number(x)
+        .toLocaleString(
+            'id-ID',
+            {
+                maximumFractionDigits:2
+            }
+        );
+
+}
+
+</script>
+
+</body>
+</html>
+ 

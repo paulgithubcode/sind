@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+
+<title>IDX HIGH LOW RANGE SCANNER</title>
+
+<link rel="stylesheet"
+href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<style>
+
+body{
+    font-family:Arial;
+    padding:15px;
+    background:#f5f5f5;
+}
+
+h2{
+    margin-bottom:15px;
+    font-size:24px;
+}
+
+.controls{
+    margin-bottom:15px;
+}
+
+input,button{
+    padding:6px 10px;
+    font-size:13px;
+}
+
+button{
+    cursor:pointer;
+}
+
+.wrapper{
+
+    overflow:auto;
+
+    width:100%;
+
+    background:white;
+
+    padding:8px;
+
+    border-radius:10px;
+
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* ================= TABLE ================= */
+
+#table{
+
+    border-collapse:collapse;
+
+    width:max-content !important;
+
+    min-width:100%;
+
+    table-layout:fixed;
+}
+
+#table th,
+#table td{
+
+    width:68px;
+    min-width:68px;
+    max-width:68px;
+
+    padding:4px 6px;
+
+    text-align:center;
+
+    vertical-align:middle;
+
+    white-space:nowrap;
+
+    border-right:1px solid #ddd;
+    border-bottom:1px solid #eee;
+
+    font-size:11px;
+
+    box-sizing:border-box;
+}
+
+/* HEADER */
+#table th{
+
+    background:#fafafa;
+
+    font-weight:bold;
+
+    height:42px;
+
+    line-height:14px;
+}
+
+/* DATA */
+#table td{
+
+    height:28px;
+}
+
+/* ================= STICKY ================= */
+
+/* KODE */
+#table th:nth-child(1),
+#table td:nth-child(1){
+
+    position:sticky;
+
+    left:0;
+
+    width:90px;
+    min-width:90px;
+    max-width:90px;
+
+    background:white;
+
+    z-index:10;
+}
+
+/* 20H */
+#table th:nth-child(2),
+#table td:nth-child(2){
+
+    position:sticky;
+
+    left:90px;
+
+    width:80px;
+    min-width:80px;
+    max-width:80px;
+
+    background:white;
+
+    z-index:10;
+}
+
+/* 5H */
+#table th:nth-child(3),
+#table td:nth-child(3){
+
+    position:sticky;
+
+    left:170px;
+
+    width:80px;
+    min-width:80px;
+    max-width:80px;
+
+    background:white;
+
+    z-index:10;
+}
+
+/* AVG UP 20 */
+#table th:nth-child(4),
+#table td:nth-child(4){
+
+    position:sticky;
+
+    left:250px;
+
+    width:78px;
+    min-width:78px;
+    max-width:78px;
+
+    background:#dfffe0;
+
+    z-index:10;
+}
+
+/* AVG DOWN 20 */
+#table th:nth-child(5),
+#table td:nth-child(5){
+
+    position:sticky;
+
+    left:328px;
+
+    width:78px;
+    min-width:78px;
+    max-width:78px;
+
+    background:#ffe0e0;
+
+    z-index:10;
+}
+
+/* MAX UP 20 */
+#table th:nth-child(6),
+#table td:nth-child(6){
+
+    position:sticky;
+
+    left:406px;
+
+    width:78px;
+    min-width:78px;
+    max-width:78px;
+
+    background:#d8ffd8;
+
+    z-index:10;
+}
+
+/* MAX DOWN 20 */
+#table th:nth-child(7),
+#table td:nth-child(7){
+
+    position:sticky;
+
+    left:484px;
+
+    width:78px;
+    min-width:78px;
+    max-width:78px;
+
+    background:#ffd8d8;
+
+    z-index:10;
+}
+
+/* AVG UP 5 */
+#table th:nth-child(8),
+#table td:nth-child(8){
+
+    position:sticky;
+
+    left:562px;
+
+    width:78px;
+    min-width:78px;
+    max-width:78px;
+
+    background:#dff4ff;
+
+    z-index:10;
+}
+
+/* AVG DOWN 5 */
+#table th:nth-child(9),
+#table td:nth-child(9){
+
+    position:sticky;
+
+    left:640px;
+
+    width:78px;
+    min-width:78px;
+    max-width:78px;
+
+    background:#fff0d9;
+
+    z-index:10;
+}
+
+/* MAX UP 5 */
+#table th:nth-child(10),
+#table td:nth-child(10){
+
+    position:sticky;
+
+    left:718px;
+
+    width:78px;
+    min-width:78px;
+    max-width:78px;
+
+    background:#d8eeff;
+
+    z-index:10;
+}
+
+/* MAX DOWN 5 */
+#table th:nth-child(11),
+#table td:nth-child(11){
+
+    position:sticky;
+
+    left:796px;
+
+    width:78px;
+    min-width:78px;
+    max-width:78px;
+
+    background:#ffeacc;
+
+    z-index:10;
+}
+
+/* HEADER TOP */
+#table thead th{
+
+    position:sticky;
+
+    top:0;
+
+    z-index:20;
+}
+
+/* ================= COLOR ================= */
+
+.pos{
+    color:green;
+    font-weight:bold;
+}
+
+.neg{
+    color:red;
+    font-weight:bold;
+}
+
+/* ================= BADGE ================= */
+
+.super{
+    background:#00aa00;
+    color:white;
+    padding:2px 6px;
+    border-radius:5px;
+    font-weight:bold;
+}
+
+.good{
+    background:#2d8cff;
+    color:white;
+    padding:2px 6px;
+    border-radius:5px;
+    font-weight:bold;
+}
+
+.normal{
+    background:#ffd966;
+    color:black;
+    padding:2px 6px;
+    border-radius:5px;
+    font-weight:bold;
+}
+
+.bad{
+    background:#cc0000;
+    color:white;
+    padding:2px 6px;
+    border-radius:5px;
+    font-weight:bold;
+}
+
+</style>
+</head>
+
+<body>
+
+<h2>IDX HIGH LOW RANGE SCANNER</h2>
+
+<div class="controls">
+
+    <label>Tanggal:</label>
+
+    <input type="date" id="date">
+
+    <button onclick="scan()">Scan</button>
+
+</div>
+
+<div class="wrapper">
+
+<table id="table"
+class="display nowrap">
+
+<thead id="thead"></thead>
+
+</table>
+
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<script>
+
+const TOTAL_DAYS = 20
+
+let db
+
+/* =========================
+DB
+========================= */
+
+function openDB(){
+
+    return new Promise((resolve,reject)=>{
+
+        const req = indexedDB.open("idxDB",1)
+
+        req.onsuccess = e=>{
+
+            db = e.target.result
+
+            resolve()
+        }
+
+        req.onerror = reject
+    })
+}
+
+function getAllDaily(){
+
+    return new Promise(resolve=>{
+
+        const tx = db.transaction("daily","readonly")
+
+        const store = tx.objectStore("daily")
+
+        const req = store.getAll()
+
+        req.onsuccess = ()=> resolve(req.result)
+    })
+}
+
+/* =========================
+FORMAT
+========================= */
+
+function pctCell(v){
+
+    if(v==null || !isFinite(v)){
+
+        return "-"
+    }
+
+    const cls = v >= 0 ? "pos" : "neg"
+
+    return `
+    <span class="${cls}">
+        ${v.toFixed(1)}%
+    </span>`
+}
+
+/* =========================
+MENARIK 20
+========================= */
+
+function menarik20Cell(row){
+
+    let reward =
+        row.maxUp20 +
+        row.avgUp20
+
+    let risk =
+        Math.abs(
+            row.maxDown20 +
+            row.avgDown20
+        )
+
+    let ratio = reward / (risk || 1)
+
+    let score = reward - risk
+
+    if(
+        ratio >= 3 &&
+        score >= 10 &&
+        row.avgUp20 > 3
+    ){
+
+        return `<span class="super">🔥 SUPER</span>`
+    }
+
+    if(
+        ratio >= 2 &&
+        score >= 5
+    ){
+
+        return `<span class="good">✅ GOOD</span>`
+    }
+
+    if(ratio >= 1){
+
+        return `<span class="normal">⚠ NORMAL</span>`
+    }
+
+    return `<span class="bad">❌ BAD</span>`
+}
+
+/* =========================
+MENARIK 5
+========================= */
+
+function menarik5Cell(row){
+
+    let reward =
+        row.maxUp5 +
+        row.avgUp5
+
+    let risk =
+        Math.abs(
+            row.maxDown5 +
+            row.avgDown5
+        )
+
+    let ratio = reward / (risk || 1)
+
+    let score = reward - risk
+
+    if(
+        ratio >= 3 &&
+        score >= 8 &&
+        row.avgUp5 > 2
+    ){
+
+        return `<span class="super">🔥 SUPER</span>`
+    }
+
+    if(
+        ratio >= 2 &&
+        score >= 4
+    ){
+
+        return `<span class="good">✅ GOOD</span>`
+    }
+
+    if(ratio >= 1){
+
+        return `<span class="normal">⚠ NORMAL</span>`
+    }
+
+    return `<span class="bad">❌ BAD</span>`
+}
+
+/* =========================
+FIND INDEX
+========================= */
+
+function findIndex(rows,date){
+
+    for(let i=0;i<rows.length;i++){
+
+        if(rows[i].date===date){
+
+            return i
+        }
+    }
+
+    return -1
+}
+
+/* =========================
+HEADER
+========================= */
+
+function buildHeader(){
+
+    let html = "<tr>"
+
+    html += "<th>Kode</th>"
+
+    html += "<th>20H</th>"
+
+    html += "<th>5H</th>"
+
+    html += "<th>AVG↑20</th>"
+
+    html += "<th>AVG↓20</th>"
+
+    html += "<th>MAX↑20</th>"
+
+    html += "<th>MAX↓20</th>"
+
+    html += "<th>AVG↑5</th>"
+
+    html += "<th>AVG↓5</th>"
+
+    html += "<th>MAX↑5</th>"
+
+    html += "<th>MAX↓5</th>"
+
+    for(let i=0;i<=TOTAL_DAYS;i++){
+
+        if(i===0){
+
+            html += `<th>T↑</th>`
+            html += `<th>T↓</th>`
+
+        }else{
+
+            html += `<th>H-${i}↑</th>`
+            html += `<th>H-${i}↓</th>`
+        }
+    }
+
+    html += "</tr>"
+
+    document.getElementById("thead").innerHTML = html
+}
+
+/* =========================
+SCAN
+========================= */
+
+async function scan(){
+
+    await openDB()
+
+    const rows = await getAllDaily()
+
+    let byCode = {}
+
+    rows.forEach(r=>{
+
+        if(!byCode[r.code]){
+
+            byCode[r.code] = []
+        }
+
+        byCode[r.code].push(r)
+    })
+
+    const selectedDate =
+    document.getElementById("date").value
+
+    let result = []
+
+    Object.keys(byCode).forEach(code=>{
+
+        let data = byCode[code]
+        .sort((a,b)=>
+            new Date(a.date)-new Date(b.date)
+        )
+
+        const idx = findIndex(data,selectedDate)
+
+        if(idx < TOTAL_DAYS+1) return
+
+        let row = {
+
+            code:code
+        }
+
+        let up20 = []
+        let down20 = []
+
+        let up5 = []
+        let down5 = []
+
+        for(let d=0; d<=TOTAL_DAYS; d++){
+
+            const current = data[idx-d]
+
+            const prev = data[idx-d-1]
+
+            if(!current || !prev){
+
+                row["up"+d] = null
+                row["down"+d] = null
+
+                continue
+            }
+
+            const prevClose = prev.c
+
+            const up =
+            ((current.h - prevClose)
+            / prevClose) * 100
+
+            const down =
+            ((current.l - prevClose)
+            / prevClose) * 100
+
+            row["up"+d] = up
+            row["down"+d] = down
+
+            up20.push(up)
+            down20.push(down)
+
+            if(d<=5){
+
+                up5.push(up)
+                down5.push(down)
+            }
+        }
+
+        /* AVG */
+
+        row.avgUp20 =
+        up20.reduce((a,b)=>a+b,0)/up20.length
+
+        row.avgDown20 =
+        down20.reduce((a,b)=>a+b,0)/down20.length
+
+        row.avgUp5 =
+        up5.reduce((a,b)=>a+b,0)/up5.length
+
+        row.avgDown5 =
+        down5.reduce((a,b)=>a+b,0)/down5.length
+
+        /* MAX */
+
+        row.maxUp20 = Math.max(...up20)
+
+        row.maxDown20 = Math.min(...down20)
+
+        row.maxUp5 = Math.max(...up5)
+
+        row.maxDown5 = Math.min(...down5)
+
+        result.push(row)
+    })
+
+    render(result)
+}
+
+/* =========================
+TABLE
+========================= */
+
+let table
+
+function render(data){
+
+    if(table){
+
+        table.destroy()
+
+        $("#table").empty()
+
+        buildHeader()
+    }
+
+    let columns = [
+
+        {data:"code"},
+
+        {
+            data:null,
+            render:row=>menarik20Cell(row)
+        },
+
+        {
+            data:null,
+            render:row=>menarik5Cell(row)
+        },
+
+        {data:"avgUp20",render:pctCell},
+
+        {data:"avgDown20",render:pctCell},
+
+        {data:"maxUp20",render:pctCell},
+
+        {data:"maxDown20",render:pctCell},
+
+        {data:"avgUp5",render:pctCell},
+
+        {data:"avgDown5",render:pctCell},
+
+        {data:"maxUp5",render:pctCell},
+
+        {data:"maxDown5",render:pctCell}
+    ]
+
+    for(let i=0;i<=TOTAL_DAYS;i++){
+
+        columns.push({
+
+            data:"up"+i,
+
+            render:pctCell
+        })
+
+        columns.push({
+
+            data:"down"+i,
+
+            render:pctCell
+        })
+    }
+
+    table = $("#table").DataTable({
+
+        data:data,
+
+        paging:false,
+
+        scrollX:true,
+
+        scrollCollapse:true,
+
+        autoWidth:true,
+
+        info:false,
+
+        searching:true,
+
+        ordering:true,
+
+        order:[[3,"desc"]],
+
+        columns:columns
+    })
+}
+
+/* =========================
+INIT
+========================= */
+
+buildHeader()
+
+document.getElementById("date").value =
+new Date().toISOString().split("T")[0]
+
+</script>
+
+</body>
+</html>
