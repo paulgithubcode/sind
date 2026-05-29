@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -834,8 +835,7 @@ setInterval(() => {
             .replace('row-','');
 
 return (
-    (pairMap[pairIdB]?.priceChangePercent || 0) -
-    (pairMap[pairIdA]?.priceChangePercent || 0)
+(pairMap[pairIdB]?.buy || 0) - (pairMap[pairIdA]?.buy || 0)
 );
 
     });
