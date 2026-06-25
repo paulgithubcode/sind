@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>Indodax Pump Dump Scanner</title>
+
+<style>
+
+body{
+background:#111;
+color:white;
+font-family:Arial;
+}
+
+
+button{
+padding:10px;
+background:#009966;
+color:white;
+border:0;
+cursor:pointer;
+}
+
+
+table{
+width:100%;
+border-collapse:collapse;
+font-size:12px;
+}
+
+
+th,td{
+border:1px solid #555;
+padding:5px;
+text-align:center;
+}
+
+
+.pump{
+background:#064d25;
+}
+
+
+.dump{
+background:#551010;
+}
+
+
+.green{
+color:#00ff88;
+}
+
+
+.red{
+color:#ff5555;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<h2>Indodax Pump & Dump Scanner</h2>
+
+
+<button onclick="scan()">
+SCAN
+</button>
+
+
+<p id="status">
+Idle
+</p>
+
+
+<table>
+
+<thead>
+
+<tr>
+<th>Pair</th>
+<th>Price</th>
+<th>1H%</th>
+<th>RVOL</th>
+<th>EMA20</th>
+<th>Volatility</th>
+<th>Pump</th>
+<th>Dump</th>
+<th>Signal</th>
+</tr>
+
+</thead>
+
+
+<tbody id="table">
+
+</tbody>
+
+
+</table>
+
+
+
+<script>
+
+
+const API =
+"https://indodax.com";
+
+
+const DELAY=1200;
+
+
+
+function sleep(ms){
+
+return new Promise(
+r=>setTimeout(r,ms)
+);
+
+}
+
+
+
+
+
+function avg(a){
+
+return a.reduce((x,y)=>x+y,0)/a.length;
+
+}
+
+
+
+
+
+function std(a){
+
+let m=avg(a);
+
+return Math.sqrt(
+avg(
+a.map(x=>(x-m)**2)
+)
+);
+
+}
+
+
+
+
+
+function ema(arr,n){
+
+
+let k=2/(n+1);
+
+let e=arr[0];
+
+
+for(let i=1;i<arr.length;i++){
+
+e =
+arr[i]*k+
+e*(1-k);
+
+}
+
+
+return e;
+
+}
+
+
+
+
+
+
+
+// =====================
+// GET PAIRS
+// =====================
+
+
+async function getPairs(){
+
+
+let r =
+await fetch(
+API+"/api/pairs"
+);
+
+
+return await r.json();
+
+}
+
+
+
+
+
+
+
+// =====================
+// HISTORY
+// =====================
+
+
+async function getHistory(pair){
+
+
+
+let now =
+Math.floor(Date.now()/1000);
+
+
+
+let from =
+now-(50*3600);
+
+
+
+let url =
+`${API}/tradingview/history_v2?symbol=${pair}&tf=60&from=${from}&to=${now}`;
+
+
+
+let r =
+await fetch(url);
+
+
+
+return await r.json();
+
+
+}
+
+
+
+
+
+
+
+// =====================
+// FEATURE
+// =====================
+
+
+function calculate(data){
+
+
+
+let close =
+data.map(x=>Number(x.Close));
+
+
+let volume =
+data.map(x=>Number(x.Volume));
+
+
+
+if(close.length<25)
+return null;
+
+
+
+
+let price =
+close.at(-1);
+
+
+
+let prev =
+close.at(-2);
+
+
+
+let ret =
+Math.log(price/prev)*100;
+
+
+
+let avgVol =
+avg(volume.slice(0,-1));
+
+
+
+let rvol =
+volume.at(-1)/avgVol;
+
+
+
+let returns=[];
+
+
+for(let i=1;i<close.length;i++){
+
+
+returns.push(
+Math.log(close[i]/close[i-1])
+);
+
+
+}
+
+
+
+let volatility =
+std(returns)*100;
+
+
+
+let ema20 =
+ema(close,20);
+
+
+
+return {
+
+price,
+ret,
+rvol,
+volatility,
+ema20
+
+};
+
+
+}
+
+
+
+
+
+
+
+// =====================
+// SCORE
+// =====================
+
+
+function pumpScore(f){
+
+
+let s=0;
+
+
+
+if(f.ret>2)
+s+=25;
+
+
+if(f.ret>5)
+s+=25;
+
+
+if(f.rvol>3)
+s+=25;
+
+
+if(f.rvol>5)
+s+=15;
+
+
+if(f.price>f.ema20)
+s+=10;
+
+
+
+return Math.min(100,s);
+
+}
+
+
+
+
+
+
+
+function dumpScore(f){
+
+
+let s=0;
+
+
+
+if(f.ret<-2)
+s+=30;
+
+
+if(f.ret<-5)
+s+=30;
+
+
+if(f.rvol>3 && f.ret<0)
+s+=25;
+
+
+if(f.volatility>3)
+s+=15;
+
+
+if(f.price<f.ema20)
+s+=10;
+
+
+
+return Math.min(100,s);
+
+}
+
+
+
+
+
+
+
+
+async function scan(){
+
+
+
+let table =
+document.getElementById("table");
+
+
+table.innerHTML="";
+
+
+
+let status =
+document.getElementById("status");
+
+
+
+status.innerHTML="Loading pairs...";
+
+
+
+let pairs =
+await getPairs();
+
+
+
+// ambil semua pair
+
+pairs = pairs;
+
+
+let result=[];
+
+
+let no=0;
+
+
+
+for(let p of pairs){
+
+
+no++;
+
+
+let pair=p.id;
+
+
+
+status.innerHTML =
+`Scan ${no}/${pairs.length} ${pair}`;
+
+
+
+try{
+
+
+await sleep(DELAY);
+
+
+
+let data =
+await getHistory(pair);
+
+
+
+if(!Array.isArray(data))
+continue;
+
+
+
+let f =
+calculate(data);
+
+
+
+if(!f)
+continue;
+
+
+
+let pump =
+pumpScore(f);
+
+
+
+let dump =
+dumpScore(f);
+
+
+
+let signal="NORMAL";
+
+
+
+if(pump>=70)
+signal="PUMP";
+
+
+
+if(dump>=70)
+signal="DUMP";
+
+
+
+
+result.push({
+
+pair,
+...f,
+pump,
+dump,
+signal
+
+});
+
+
+
+}catch(e){
+
+console.log(pair,e);
+
+}
+
+
+
+}
+
+
+
+
+
+
+result.sort(
+(a,b)=>
+Math.max(b.pump,b.dump)
+-
+Math.max(a.pump,a.dump)
+);
+
+
+
+render(result);
+
+
+
+status.innerHTML =
+"DONE "+result.length+" pair";
+
+
+}
+
+
+
+
+
+
+
+
+
+function render(rows){
+
+
+let html="";
+
+
+
+rows.forEach(r=>{
+
+
+let cls="";
+
+
+if(r.signal=="PUMP")
+cls="pump";
+
+
+if(r.signal=="DUMP")
+cls="dump";
+
+
+
+html+=`
+
+<tr class="${cls}">
+
+
+<td>${r.pair}</td>
+
+
+<td>${r.price.toLocaleString()}</td>
+
+
+<td class="${r.ret>=0?'green':'red'}">
+
+${r.ret.toFixed(2)}%
+
+</td>
+
+
+<td>
+${r.rvol.toFixed(2)}x
+</td>
+
+
+<td>
+${r.price>r.ema20?"UP":"DOWN"}
+</td>
+
+
+<td>
+${r.volatility.toFixed(2)}
+</td>
+
+
+<td class="green">
+${r.pump}%
+</td>
+
+
+<td class="red">
+${r.dump}%
+</td>
+
+
+<td>
+${r.signal}
+</td>
+
+
+</tr>
+
+`;
+
+
+
+});
+
+
+document
+.getElementById("table")
+.innerHTML=html;
+
+
+}
+
+
+
+</script>
+
+
+</body>
+
+</html>

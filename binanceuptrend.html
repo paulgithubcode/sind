@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Binance High Low 3 Days Filtered</title>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<style>
+body{font-family:Arial;margin:20px;}
+#status{margin-bottom:15px;}
+.up{color:green;font-weight:bold;}
+.down{color:red;font-weight:bold;}
+</style>
+</head>
+
+<body>
+
+<h2>Binance High Low Filtered (Bullish Only)</h2>
+<div id="status">Loading...</div>
+
+<table id="table" class="display" style="width:100%">
+<thead>
+<tr>
+    <th>Pair</th>
+
+    <th>High D-2</th>
+    <th>High D-1</th>
+    <th>High D0</th>
+
+    <th>Δ High D-1 vs D-2</th>
+    <th>Δ High D0 vs D-1</th>
+
+    <th>Low D-2</th>
+    <th>Low D-1</th>
+    <th>Low D0</th>
+
+    <th>Δ Low D-1 vs D-2</th>
+    <th>Δ Low D0 vs D-1</th>
+</tr>
+</thead>
+
+<tbody id="tbody"></tbody>
+</table>
+
+<script>
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function fmt(n){
+    return Number(n).toLocaleString('id-ID',{maximumFractionDigits:8});
+}
+
+function pct(v){
+    const cls = v >= 0 ? 'up' : 'down';
+    return `<span class="${cls}">${v.toFixed(2)}%</span>`;
+}
+
+// =========================
+// PERIOD (same logic WIB 07:00)
+// =========================
+function getPeriods(){
+    const now = new Date();
+
+    const wibNow = new Date(
+        now.toLocaleString('en-US',{timeZone:'Asia/Jakarta'})
+    );
+
+    const d0 = new Date(wibNow);
+    d0.setHours(7,0,0,0);
+
+    if(wibNow < d0){
+        d0.setDate(d0.getDate()-1);
+    }
+
+    const d1 = new Date(d0);
+    d1.setDate(d1.getDate()-1);
+
+    const d2 = new Date(d1);
+    d2.setDate(d2.getDate()-1);
+
+    return {
+        d2: d2.getTime(),
+        d1: d1.getTime(),
+        d0: d0.getTime(),
+        to: Date.now()
+    };
+}
+
+const P = getPeriods();
+
+// =========================
+// PAIRS BINANCE
+// =========================
+async function getPairs(){
+    const res = await fetch('https://api.binance.com/api/v3/exchangeInfo');
+    const json = await res.json();
+
+    return json.symbols
+        .filter(s => s.status === "TRADING")
+        .map(s => s.symbol);
+}
+
+// =========================
+// SCAN BINANCE KLINES
+// =========================
+async function scanPair(symbol){
+
+    try{
+        const url =
+            `https://api.binance.com/api/v3/klines`+
+            `?symbol=${symbol}`+
+            `&interval=1d`+
+            `&limit=1000`;
+
+        const res = await fetch(url);
+        if(!res.ok) return null;
+
+        const data = await res.json();
+        if(!Array.isArray(data)) return null;
+
+        let H2=-Infinity,H1=-Infinity,H0=-Infinity;
+        let L2=Infinity,L1=Infinity,L0=Infinity;
+
+        for(const c of data){
+
+            const t = c[0]; // openTime ms
+            const h = Number(c[2]);
+            const l = Number(c[3]);
+
+            if(t < P.d1){
+                H2 = Math.max(H2,h);
+                L2 = Math.min(L2,l);
+            }
+            else if(t < P.d0){
+                H1 = Math.max(H1,h);
+                L1 = Math.min(L1,l);
+            }
+            else{
+                H0 = Math.max(H0,h);
+                L0 = Math.min(L0,l);
+            }
+        }
+
+        if(!isFinite(H2)||!isFinite(H1)||!isFinite(H0)) return null;
+
+        const dH_1_2 = ((H1-H2)/H2)*100;
+        const dH_0_1 = ((H0-H1)/H1)*100;
+
+        const dL_1_2 = ((L1-L2)/L2)*100;
+        const dL_0_1 = ((L0-L1)/L1)*100;
+
+        return {
+            pair: symbol,
+            H2,H1,H0,
+            L2,L1,L0,
+            dH_1_2,dH_0_1,
+            dL_1_2,dL_0_1
+        };
+
+    }catch(e){
+        return null;
+    }
+}
+
+// =========================
+// MAIN
+// =========================
+async function main(){
+
+    const status = document.getElementById('status');
+    const tbody  = document.getElementById('tbody');
+
+    const pairs = await getPairs();
+    const results = [];
+
+    let i=0;
+
+    for(const p of pairs){
+
+        const r = await scanPair(p);
+
+        if(r){
+
+            // FILTER (same logic kamu)
+            if(r.dH_0_1 > 0 && r.dL_0_1 > 0){
+                results.push(r);
+            }
+        }
+
+        i++;
+        status.innerHTML = `Scanning ${i}/${pairs.length}`;
+
+        await sleep(200); // Binance lebih sensitif rate limit
+    }
+
+    tbody.innerHTML = results.map(r=>`
+        <tr>
+            <td>${r.pair}</td>
+
+            <td>${fmt(r.H2)}</td>
+            <td>${fmt(r.H1)}</td>
+            <td>${fmt(r.H0)}</td>
+
+            <td>${pct(r.dH_1_2)}</td>
+            <td>${pct(r.dH_0_1)}</td>
+
+            <td>${fmt(r.L2)}</td>
+            <td>${fmt(r.L1)}</td>
+            <td>${fmt(r.L0)}</td>
+
+            <td>${pct(r.dL_1_2)}</td>
+            <td>${pct(r.dL_0_1)}</td>
+        </tr>
+    `).join('');
+
+    $('#table').DataTable({
+        paging:false,
+        info:false,
+        order:[[5,'desc']]
+    });
+
+    status.innerHTML = `Done. ${results.length} bullish pairs`;
+}
+
+main();
+
+</script>
+
+</body>
+</html>

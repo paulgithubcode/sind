@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Indodax Orderbook Scanner</title>
+
+<style>
+body{
+    background:#111827;
+    color:white;
+    font-family:Arial;
+    padding:20px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th,td{
+    padding:6px;
+    border-bottom:1px solid #333;
+    text-align:right;
+}
+
+th:first-child,
+td:first-child{
+    text-align:left;
+}
+
+.buy{
+    color:#22c55e;
+}
+
+.sell{
+    color:#ef4444;
+}
+</style>
+</head>
+<body>
+
+<h2>INDODAX ORDERBOOK SCANNER</h2>
+
+<table>
+<thead>
+<tr>
+<th>PAIR</th>
+<th>BEST BID</th>
+<th>Δ BID %</th>
+<th>BID SIZE</th>
+<th>BEST ASK</th>
+<th>Δ ASK %</th>
+<th>ASK SIZE</th>
+</tr>
+</thead>
+
+<tbody id="tbody"></tbody>
+
+</table>
+
+<script>
+
+const WS_URL='wss://ws3.indodax.com/ws/';
+const AUTH_TOKEN='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE5NDY2MTg0MTV9.UR1lBM6Eqh0yWz-PVirw1uPCxe60FdchR8eNVdsskeo';
+const BATCH_SIZE=50;
+
+let pairMap={};
+let allPairs=[];
+
+function format(v){
+    return Number(v).toLocaleString(
+        'id-ID',
+        {
+            maximumFractionDigits:8
+        }
+    );
+}
+
+function getCoinVolume(row){
+
+    for(const key in row){
+
+        if(
+            key.endsWith('_volume')
+            &&
+            key!=='idr_volume'
+        ){
+            return parseFloat(row[key])||0;
+        }
+
+    }
+
+    return 0;
+}
+
+fetch(
+'https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json'
+)
+.then(r=>r.json())
+.then(data=>{
+
+    allPairs=data;
+
+    data.forEach(pair=>{
+
+        const id=
+            pair.old_ticker_id
+            ? pair.old_ticker_id.replace(/[_-]/g,'')
+            : pair.id;
+
+        pairMap[id]={
+
+            symbol:pair.symbol,
+
+bestBid:0,
+lastBid:0,
+bidDelta:0,
+bidSize:0,
+
+bestAsk:0,
+lastAsk:0,
+askDelta:0,
+askSize:0
+
+        };
+
+    });
+
+    startSockets();
+
+});
+
+function startSockets(){
+
+    for(
+        let i=0;
+        i<allPairs.length;
+        i+=BATCH_SIZE
+    ){
+
+        createSocket(
+            allPairs.slice(
+                i,
+                i+BATCH_SIZE
+            )
+        );
+
+    }
+
+}
+
+function createSocket(batch){
+
+    const ws=
+        new WebSocket(WS_URL);
+
+    ws.onopen=()=>{
+
+        ws.send(
+            JSON.stringify({
+                params:{
+                    token:AUTH_TOKEN
+                },
+                id:1
+            })
+        );
+
+        batch.forEach(
+            (pair,index)=>{
+
+            const id=
+                pair.old_ticker_id
+                ? pair.old_ticker_id.replace(/[_-]/g,'')
+                : pair.id;
+
+            setTimeout(()=>{
+
+                ws.send(
+                    JSON.stringify({
+                        method:1,
+                        params:{
+                            channel:
+                            `market:order-book-${id}`
+                        },
+                        id:index+1
+                    })
+                );
+
+            },index*100);
+
+        });
+
+    };
+
+    ws.onmessage=(event)=>{
+
+        let raw=
+            String(event.data||'');
+
+        raw=
+            raw.replace(
+                /}\s*{/g,
+                '}|SPLIT|{'
+            );
+
+        raw.split('|SPLIT|')
+        .forEach(text=>{
+
+            try{
+
+                process(
+                    JSON.parse(text)
+                );
+
+            }catch(e){}
+
+        });
+
+    };
+
+    ws.onclose=()=>{
+
+        setTimeout(
+            ()=>createSocket(batch),
+            5000
+        );
+
+    };
+
+}
+
+function process(msg){
+
+    if(
+        !msg.result ||
+        !msg.result.channel
+    ){
+        return;
+    }
+
+    if(
+        !msg.result.channel.startsWith(
+            'market:order-book-'
+        )
+    ){
+        return;
+    }
+
+    const ob=
+        msg.result.data?.data;
+
+    if(!ob) return;
+
+    const pairId=
+        ob.pair;
+
+    const p=
+        pairMap[pairId];
+
+    if(!p) return;
+
+    const bids=
+        ob.bid||[];
+
+    const asks=
+        ob.ask||[];
+
+if(bids.length){
+
+    const bid=bids[0];
+
+    const newBid =
+        parseFloat(
+            bid.price || 0
+        );
+
+
+    // hitung dari BID WS terakhir
+    if(p.lastBid > 0){
+
+        p.bidDelta =
+        (
+            (newBid - p.lastBid)
+            /
+            p.lastBid
+        ) * 100;
+
+    }
+
+
+    // simpan bid terakhir
+    p.lastBid =
+        newBid;
+
+
+    // untuk display
+    p.bestBid =
+        newBid;
+
+
+    p.bidSize =
+        getCoinVolume(bid);
+
+}
+
+if(asks.length){
+
+    const ask=asks[0];
+
+    const newAsk =
+        parseFloat(
+            ask.price || 0
+        );
+
+
+    // hitung dari ASK WS terakhir
+    if(p.lastAsk > 0){
+
+        p.askDelta =
+        (
+            (newAsk - p.lastAsk)
+            /
+            p.lastAsk
+        ) * 100;
+
+    }
+
+
+    // simpan ask terakhir
+    p.lastAsk =
+        newAsk;
+
+
+    // display
+    p.bestAsk =
+        newAsk;
+
+
+    p.askSize =
+        getCoinVolume(ask);
+
+}
+
+}
+
+setInterval(()=>{
+
+    const rows=
+        Object.values(pairMap)
+        .filter(
+            p=>
+            p.bestBid>0 &&
+            p.bestAsk>0
+        )
+        .sort(
+            (a,b)=>
+            b.bidDelta-a.bidDelta
+        );
+
+    document
+    .getElementById('tbody')
+    .innerHTML=
+
+    rows.map(p=>`
+
+<tr>
+
+<td>${p.symbol}</td>
+
+<td class="buy">
+${format(p.bestBid)}
+</td>
+
+<td class="${
+p.bidDelta>=0
+?'buy'
+:'sell'
+}">
+${p.bidDelta.toFixed(4)}%
+</td>
+
+<td>
+${format(p.bidSize)}
+</td>
+
+<td class="sell">
+${format(p.bestAsk)}
+</td>
+
+<td class="${
+p.askDelta<=0
+?'buy'
+:'sell'
+}">
+${p.askDelta.toFixed(4)}%
+</td>
+
+<td>
+${format(p.askSize)}
+</td>
+
+</tr>
+
+`).join('');
+
+},1000);
+
+</script>
+
+</body>
+</html>

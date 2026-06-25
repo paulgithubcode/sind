@@ -226,6 +226,7 @@ tbody tr:hover{
     <th>SELL VOL</th>
 
     <th>DELTA</th>
+    <th>Δ DELTA</th>
 
 	<th>LAST PRICE</th>
 	<th>Δ PRICE %</th>
@@ -249,7 +250,7 @@ tbody tr:hover{
 </table>
 
 <div class="small">
-    Auto Sort DESC by DELTA BUY
+    Auto Sort DESC by Δ DELTA Momentum
 </div>
 
 <script>
@@ -328,32 +329,21 @@ function loadPairs(){
                     symbol:
                         pair.symbol,
 
-                    buy:0,
+                    buy:0, prevBuy:0,
+                    deltaBuy:0, prevSell:0,
                     sell:0,
-
-                    prevBuy:0,
-                    prevSell:0,
-
-                    deltaBuy:0,
                     deltaSell:0,
-
                     buyVol:0,
                     sellVol:0,
-
-lastPrice:0,
-
-prevPrice:0,
-
-priceChangePercent:0,
-
-lastUpdate:'-',
-
-buyPrice: 0,
-sellPrice: 0,
-prevBuyPrice: 0,
-prevSellPrice: 0,
-buyPressure: 0,
-sellPressure: 0,
+					delta:0, prevDelta:0, deltaChange:0,
+					lastPrice:0, prevPrice:0,
+					priceChangePercent:0,
+					lastUpdate:'-',
+					buyPrice: 0, prevBuyPrice: 0,
+					sellPrice: 0, prevSellPrice: 0,
+					buyPressure: 0,
+					sellPressure: 0,
+					
                 };
 
                 createRow(pairId);
@@ -420,26 +410,30 @@ function createRow(pairId){
                 0
             </td>
 
-            <td id="delta-${pairId}">
-                0
-            </td>
+			<td id="delta-${pairId}">
+				0
+			</td>
 
-<td id="price-${pairId}">
-    0
-</td>
+			<td id="deltaChange-${pairId}">
+				0
+			</td>
 
-<td id="priceChange-${pairId}">
-    0%
-</td>
+			<td id="price-${pairId}">
+				0
+			</td>
 
-<td id="update-${pairId}">
-    -
-</td>
-<td class="buy" id="buyPrice-${pairId}">0</td>
-<td class="sell" id="sellPrice-${pairId}">0</td>
+			<td id="priceChange-${pairId}">
+				0%
+			</td>
 
-<td id="buyPress-${pairId}">0%</td>
-<td id="sellPress-${pairId}">0%</td>
+			<td id="update-${pairId}">
+				-
+			</td>
+			<td class="buy" id="buyPrice-${pairId}">0</td>
+			<td class="sell" id="sellPrice-${pairId}">0</td>
+
+			<td id="buyPress-${pairId}">0%</td>
+			<td id="sellPress-${pairId}">0%</td>
 
         </tr>
 
@@ -655,12 +649,8 @@ console.log(trade);
         const price =
             parseFloat(trade[4]);
 
-const amount =
-    parseFloat(trade[5]);
-
 const idrVol =
-    amount ;
-	
+    parseFloat(trade[5]);	
 
         const pair =
             pairMap[pairId];
@@ -707,6 +697,24 @@ if(totalVol > 0){
         pair.deltaSell =
             pair.sell -
             pair.prevSell;
+			
+// =====================
+// DELTA CHANGE
+// =====================
+
+pair.prevDelta =
+    pair.delta;
+
+
+pair.delta =
+    pair.buyVol -
+    pair.sellVol;
+
+
+pair.deltaChange =
+    pair.delta -
+    pair.prevDelta;			
+			
 
 // simpan harga sebelumnya
 pair.prevPrice =
@@ -794,6 +802,33 @@ function updateRow(
             </span>
             `
         );
+		
+// =====================
+// DISPLAY Δ DELTA
+// =====================
+
+$('#deltaChange-' + pairId)
+.html(
+
+`
+<span class="${
+pair.deltaChange >= 0
+? 'buy'
+: 'sell'
+}">
+
+${
+pair.deltaChange >= 0
+? '+'
+: ''
+}
+
+${format(pair.deltaChange)}
+
+</span>
+`
+
+);		
 
     $('#price-' + pairId)
         .html(
@@ -893,7 +928,9 @@ setInterval(() => {
             .replace('row-','');
 
 return (
-(pairMap[pairIdB]?.buy || 0) - (pairMap[pairIdA]?.buy || 0)
+(pairMap[pairIdB]?.deltaChange || 0)
+-
+(pairMap[pairIdA]?.deltaChange || 0)
 );
 
     });

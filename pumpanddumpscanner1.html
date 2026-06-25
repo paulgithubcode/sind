@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>Indodax Single Pair Pump Dump</title>
+
+<style>
+
+body{
+background:#111;
+color:white;
+font-family:Arial;
+}
+
+
+button{
+padding:10px;
+background:#009966;
+color:white;
+border:0;
+cursor:pointer;
+}
+
+
+table{
+width:100%;
+border-collapse:collapse;
+font-size:13px;
+}
+
+
+th,td{
+border:1px solid #555;
+padding:8px;
+text-align:center;
+}
+
+
+.pump{
+background:#064d25;
+}
+
+
+.dump{
+background:#551010;
+}
+
+
+.green{
+color:#00ff88;
+}
+
+
+.red{
+color:#ff5555;
+}
+
+
+</style>
+
+
+</head>
+
+
+<body>
+
+
+<h2>Indodax Pump & Dump Scanner</h2>
+
+
+<label>
+Pair ID:
+</label>
+
+
+<input id="pair"
+value="btcidr">
+
+
+<button onclick="scan()">
+SCAN
+</button>
+
+
+<p id="status">
+Idle
+</p>
+
+
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>Pair</th>
+<th>Price</th>
+<th>1H %</th>
+<th>RVOL</th>
+<th>EMA20</th>
+<th>Volatility</th>
+<th>Pump</th>
+<th>Dump</th>
+<th>Signal</th>
+
+</tr>
+
+</thead>
+
+
+<tbody id="table">
+
+</tbody>
+
+
+</table>
+
+
+
+
+
+
+<script>
+
+
+const API =
+"https://indodax.com";
+
+
+
+const DELAY=500;
+
+
+
+function sleep(ms){
+
+return new Promise(
+r=>setTimeout(r,ms)
+);
+
+}
+
+
+
+
+
+function avg(a){
+
+return a.reduce((x,y)=>x+y,0)/a.length;
+
+}
+
+
+
+
+
+function std(a){
+
+let m=avg(a);
+
+return Math.sqrt(
+avg(
+a.map(x=>(x-m)**2)
+)
+);
+
+}
+
+
+
+
+
+function ema(arr,n){
+
+
+let k=2/(n+1);
+
+let e=arr[0];
+
+
+for(let i=1;i<arr.length;i++){
+
+e =
+arr[i]*k +
+e*(1-k);
+
+}
+
+
+return e;
+
+}
+
+
+
+
+
+
+
+
+
+async function getHistory(pair){
+
+
+
+let now =
+Math.floor(Date.now()/1000);
+
+
+
+let from =
+now-(50*3600);
+
+
+
+let url =
+`${API}/tradingview/history_v2?symbol=${pair}&tf=60&from=${from}&to=${now}`;
+
+
+
+let r =
+await fetch(url);
+
+
+
+return await r.json();
+
+
+}
+
+
+
+
+
+
+
+
+
+function calculate(data){
+
+
+
+let close =
+data.map(x=>Number(x.Close));
+
+
+let volume =
+data.map(x=>Number(x.Volume));
+
+
+
+if(close.length<25)
+return null;
+
+
+
+let price =
+close.at(-1);
+
+
+let prev =
+close.at(-2);
+
+
+
+let ret =
+Math.log(price/prev)*100;
+
+
+
+
+
+let avgVol =
+avg(
+volume.slice(0,-1)
+);
+
+
+
+let rvol =
+volume.at(-1)/avgVol;
+
+
+
+
+
+let returns=[];
+
+
+for(let i=1;i<close.length;i++){
+
+
+returns.push(
+Math.log(close[i]/close[i-1])
+);
+
+}
+
+
+
+let volatility =
+std(returns)*100;
+
+
+
+let ema20 =
+ema(close,20);
+
+
+
+return {
+
+price,
+ret,
+rvol,
+volatility,
+ema20
+
+};
+
+}
+
+
+
+
+
+
+
+
+
+function pumpScore(f){
+
+
+let s=0;
+
+
+
+if(f.ret>2)
+s+=25;
+
+
+if(f.ret>5)
+s+=25;
+
+
+if(f.rvol>3)
+s+=25;
+
+
+if(f.rvol>5)
+s+=15;
+
+
+if(f.price>f.ema20)
+s+=10;
+
+
+
+return Math.min(100,s);
+
+}
+
+
+
+
+
+
+
+
+
+function dumpScore(f){
+
+
+let s=0;
+
+
+
+if(f.ret<-2)
+s+=30;
+
+
+if(f.ret<-5)
+s+=30;
+
+
+
+if(f.rvol>3 && f.ret<0)
+s+=25;
+
+
+
+if(f.volatility>3)
+s+=15;
+
+
+
+if(f.price<f.ema20)
+s+=10;
+
+
+
+return Math.min(100,s);
+
+}
+
+
+
+
+
+
+
+
+
+
+async function scan(){
+
+
+
+let pair =
+document.getElementById("pair").value
+.toLowerCase();
+
+
+
+let status =
+document.getElementById("status");
+
+
+status.innerHTML =
+"Loading "+pair;
+
+
+
+await sleep(DELAY);
+
+
+
+let data =
+await getHistory(pair);
+
+
+
+console.log(data);
+
+
+
+if(!Array.isArray(data)){
+
+
+status.innerHTML =
+"API error";
+
+
+return;
+
+}
+
+
+
+let f =
+calculate(data);
+
+
+
+if(!f){
+
+status.innerHTML =
+"Data kurang";
+
+return;
+
+}
+
+
+
+let pump =
+pumpScore(f);
+
+
+let dump =
+dumpScore(f);
+
+
+
+let signal="NORMAL";
+
+
+if(pump>=70)
+signal="PUMP";
+
+
+if(dump>=70)
+signal="DUMP";
+
+
+
+render({
+
+pair,
+...f,
+pump,
+dump,
+signal
+
+});
+
+
+
+status.innerHTML =
+"DONE";
+
+
+}
+
+
+
+
+
+
+
+
+
+function render(r){
+
+
+
+let cls="";
+
+
+if(r.signal=="PUMP")
+cls="pump";
+
+
+if(r.signal=="DUMP")
+cls="dump";
+
+
+
+
+document
+.getElementById("table")
+.innerHTML=`
+
+<tr class="${cls}">
+
+<td>${r.pair}</td>
+
+<td>
+${r.price.toLocaleString()}
+</td>
+
+
+<td class="${r.ret>=0?'green':'red'}">
+
+${r.ret.toFixed(2)}%
+
+</td>
+
+
+<td>
+${r.rvol.toFixed(2)}x
+</td>
+
+
+<td>
+
+${r.price>r.ema20?"UP":"DOWN"}
+
+</td>
+
+
+<td>
+${r.volatility.toFixed(2)}
+</td>
+
+
+<td class="green">
+${r.pump}%
+</td>
+
+
+<td class="red">
+${r.dump}%
+</td>
+
+
+<td>
+${r.signal}
+</td>
+
+
+</tr>
+
+`;
+
+}
+
+
+
+</script>
+
+
+</body>
+
+</html>

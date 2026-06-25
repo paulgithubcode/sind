@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Indodax Pump Scanner + Notes</title>
+<style>
+body{background:#111827;color:white;font-family:Arial;padding:20px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px;border-bottom:1px solid #333;text-align:right}
+th:first-child,td:first-child{text-align:left}
+.buy{color:#22c55e}
+.sell{color:#ef4444}
+thead{position:sticky;top:0;background:#111827}
+</style>
+</head>
+<body>
+
+<h2>INDODAX PUMP SCANNER + NOTES</h2>
+
+<table>
+<thead>
+<tr>
+<th>PAIR</th>
+<th>BUY VOL</th>
+<th>SELL VOL</th>
+<th>BID VOL</th>
+<th>ASK VOL</th>
+<th>TRADE %</th>
+<th>BOOK %</th>
+<th>MOMENTUM</th>
+<th>SCORE</th>
+<th>CATATAN</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+
+<script>
+
+const WS_URL='wss://ws3.indodax.com/ws/';
+const AUTH_TOKEN='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE5NDY2MTg0MTV9.UR1lBM6Eqh0yWz-PVirw1uPCxe60FdchR8eNVdsskeo';
+const BATCH_SIZE=50;
+
+let pairMap={};
+let allPairs=[];
+
+function formatNumber(x){
+ return Number(x).toLocaleString('id-ID',{maximumFractionDigits:0});
+}
+
+function getNote(p){
+
+ if(
+  p.buyVol > p.sellVol * 5 &&
+  p.orderbookPressure > 60
+ ){
+  return "🚀 Potensi Pump";
+ }
+
+ if(
+  p.tradePressure > 90 &&
+  p.orderbookPressure < 35
+ ){
+  return "⚠️ Buyer kuat, orderbook lemah";
+ }
+
+ if(
+  p.tradePressure > 80 &&
+  p.orderbookPressure > 50
+ ){
+  return "🟢 Akumulasi";
+ }
+
+ if(
+  p.sellVol > p.buyVol
+ ){
+  return "🔴 Dominasi Seller";
+ }
+
+ return "🟡 Tunggu Konfirmasi";
+}
+
+fetch('https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json')
+.then(r=>r.json())
+.then(data=>{
+
+ allPairs=data;
+
+ data.forEach(pair=>{
+
+  const id=pair.old_ticker_id
+   ? pair.old_ticker_id.replace(/[_-]/g,'')
+   : pair.id;
+
+  pairMap[id]={
+   symbol:pair.symbol,
+   buyVol:0,
+   sellVol:0,
+   buyCount:0,
+   sellCount:0,
+   bidVol:0,
+   askVol:0,
+   tradePressure:50,
+   orderbookPressure:50,
+   momentum:50,
+   score:50,
+   note:""
+  };
+
+ });
+
+ startSockets();
+
+});
+
+function startSockets(){
+
+ for(let i=0;i<allPairs.length;i+=BATCH_SIZE){
+  createSocket(allPairs.slice(i,i+BATCH_SIZE));
+ }
+
+}
+
+function createSocket(batch){
+
+ const ws=new WebSocket(WS_URL);
+
+ ws.onopen=()=>{
+
+  ws.send(JSON.stringify({
+   params:{token:AUTH_TOKEN},
+   id:1
+  }));
+
+  batch.forEach((pair,index)=>{
+
+   const id=pair.old_ticker_id
+    ? pair.old_ticker_id.replace(/[_-]/g,'')
+    : pair.id;
+
+   setTimeout(()=>{
+
+    ws.send(JSON.stringify({
+     method:1,
+     params:{channel:`market:trade-activity-${id}`},
+     id:index+1
+    }));
+
+    ws.send(JSON.stringify({
+     method:1,
+     params:{channel:`market:order-book-${id}`},
+     id:index+1000
+    }));
+
+   },index*100);
+
+  });
+
+ };
+
+ ws.onmessage=(event)=>{
+  try{
+   process(JSON.parse(event.data));
+  }catch(e){}
+ };
+
+ ws.onclose=()=>{
+  setTimeout(()=>createSocket(batch),5000);
+ };
+
+}
+
+function process(msg){
+
+ if(!msg.result || !msg.result.channel) return;
+
+ const channel=msg.result.channel;
+
+ if(channel.startsWith('market:trade-activity-')){
+
+  const trades=msg.result.data.data;
+
+  trades.forEach(t=>{
+
+   const pairId=t[0];
+   const side=t[3];
+   const price=parseFloat(t[4]);
+   const amount=parseFloat(t[5]);
+
+   const vol=price*amount;
+
+   const p=pairMap[pairId];
+   if(!p) return;
+
+   if(side==='buy'){
+    p.buyVol+=vol;
+    p.buyCount++;
+   }else{
+    p.sellVol+=vol;
+    p.sellCount++;
+   }
+
+   const total=p.buyVol+p.sellVol;
+
+   if(total>0){
+    p.tradePressure=(p.buyVol/total)*100;
+   }
+
+  });
+
+ }
+
+ if(channel.startsWith('market:order-book-')){
+
+  const ob=msg.result.data.data;
+  const pairId=ob.pair;
+
+  const p=pairMap[pairId];
+  if(!p) return;
+
+  let bidVol=0;
+  let askVol=0;
+
+  ob.bid.forEach(b=>{
+   bidVol+=Number(b.idr_volume||0);
+  });
+
+  ob.ask.forEach(a=>{
+   askVol+=Number(a.idr_volume||0);
+  });
+
+  p.bidVol=bidVol;
+  p.askVol=askVol;
+
+  const total=bidVol+askVol;
+
+  if(total>0){
+   p.orderbookPressure=(bidVol/total)*100;
+  }
+
+ }
+
+}
+
+setInterval(()=>{
+
+ Object.values(pairMap).forEach(p=>{
+
+  const tc=p.buyCount+p.sellCount;
+
+  if(tc>0){
+   p.momentum=(p.buyCount/tc)*100;
+  }
+
+  const volumeRatio=
+   p.sellVol>0
+   ? p.buyVol/p.sellVol
+   : 5;
+
+  const volumeScore=
+   Math.min(volumeRatio,5)*10;
+
+  p.score=
+   (p.tradePressure*0.25)+
+   (p.orderbookPressure*0.25)+
+   (p.momentum*0.10)+
+   volumeScore;
+
+  p.note=getNote(p);
+
+ });
+
+ const top=Object.values(pairMap)
+ .filter(p=>
+  p.buyVol>50000000 &&
+  p.bidVol>100000000
+ )
+ .sort((a,b)=>b.score-a.score)
+ .slice(0,30);
+
+ document.getElementById('tbody').innerHTML=top.map(p=>`
+ <tr>
+ <td>${p.symbol}</td>
+ <td class="buy">${formatNumber(p.buyVol)}</td>
+ <td class="sell">${formatNumber(p.sellVol)}</td>
+ <td class="buy">${formatNumber(p.bidVol)}</td>
+ <td class="sell">${formatNumber(p.askVol)}</td>
+ <td>${p.tradePressure.toFixed(1)}%</td>
+ <td>${p.orderbookPressure.toFixed(1)}%</td>
+ <td>${p.momentum.toFixed(1)}%</td>
+ <td class="${p.score>=80?'buy':(p.score<60?'sell':'')}">${p.score.toFixed(1)}</td>
+ <td>${p.note}</td>
+ </tr>
+ `).join('');
+
+},1000);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Indodax Delta Scanner</title>
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<style>
+body{font-family:Arial;margin:20px;}
+.up{color:green;font-weight:bold;}
+.down{color:red;font-weight:bold;}
+#status{margin-bottom:10px;}
+</style>
+</head>
+
+<body>
+
+<h2>Indodax Delta Price & Volume (1 Min)</h2>
+<div id="status">Loading...</div>
+
+<table id="table" class="display" style="width:100%">
+<thead>
+<tr>
+    <th>Ticker</th>
+    <th>Last Price</th>
+    <th>Volume IDR</th>
+    <th>Δ Price %</th>
+    <th>Δ Volume %</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script>
+
+let prev = {};
+let table;
+
+// =========================
+// FORMAT
+// =========================
+function fmt(n){
+    return Number(n).toLocaleString('id-ID');
+}
+
+function pct(v){
+    const cls = v >= 0 ? 'up' : 'down';
+    return `<span class="${cls}">${v.toFixed(2)}%</span>`;
+}
+
+// =========================
+// FETCH API
+// =========================
+async function fetchData(){
+    const res = await fetch('https://indodax.com/api/summaries');
+    const json = await res.json();
+    return json.tickers || {};
+}
+
+// =========================
+// PROCESS DELTA
+// =========================
+function process(tickers){
+
+    const rows = [];
+
+    for(const [pair, t] of Object.entries(tickers)){
+
+        const last = Number(t.last);
+        const vol  = Number(t.vol_idr || 0);
+
+        const old = prev[pair];
+
+        let dPrice = 0;
+        let dVol = 0;
+
+        if(old){
+            dPrice = ((last - old.last) / old.last) * 100;
+            dVol   = ((vol - old.vol) / (old.vol || 1)) * 100;
+        }
+
+        rows.push({
+            pair,
+            last,
+            vol,
+            dPrice,
+            dVol
+        });
+
+        prev[pair] = { last, vol };
+    }
+
+    return rows;
+}
+
+// =========================
+// RENDER TABLE
+// =========================
+function render(rows){
+
+    const html = rows.map(r => `
+        <tr>
+            <td>${r.pair}</td>
+            <td>${fmt(r.last)}</td>
+            <td>${fmt(r.vol)}</td>
+            <td>${pct(r.dPrice)}</td>
+            <td>${pct(r.dVol)}</td>
+        </tr>
+    `).join('');
+
+    if(table) table.destroy();
+
+    document.querySelector("#table tbody").innerHTML = html;
+
+    table = $('#table').DataTable({
+        paging:false,
+        info:false,
+        order:[[3,'desc']]
+    });
+}
+
+// =========================
+// MAIN LOOP
+// =========================
+async function loop(){
+
+    try{
+
+        document.getElementById('status').innerText = "Fetching...";
+
+        const tickers = await fetchData();
+        const rows = process(tickers);
+
+        render(rows);
+
+        document.getElementById('status').innerText =
+            "Updated: " + new Date().toLocaleTimeString();
+
+    }catch(e){
+        console.log(e);
+        document.getElementById('status').innerText = "Error fetching data";
+    }
+}
+
+// first run
+loop();
+
+// refresh tiap 1 menit
+setInterval(loop, 60000);
+
+</script>
+
+</body>
+</html>
