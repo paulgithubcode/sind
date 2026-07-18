@@ -1,0 +1,44 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>Martingale Saham</title>
+<style>
+body{font-family:Arial;background:#f3f3f3;margin:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.card,.sum{background:#fff;padding:10px;border-radius:8px}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:15px 0}
+input{width:100%;padding:6px}table{width:100%;border-collapse:collapse;background:#fff}th,td{border:1px solid #ccc;padding:6px;text-align:right}th{background:#1565c0;color:#fff}
+</style></head><body>
+<h2>Martingale Saham Calculator</h2>
+<div class='grid'>
+<div class='card'>Harga Awal<input id=h type=number value=500></div>
+<div class='card'>Lot Awal<input id=l type=number value=2></div>
+<div class='card'>Martingale<input id=m type=number step=0.1 value=2></div>
+<div class='card'>Turun %<input id=d type=number step=0.1 value=10></div>
+<div class='card'>Level<input id=n type=number value=10></div>
+<div class='card'>Fee Beli %<input id=fb type=number step=0.01 value=0.15></div>
+<div class='card'>Fee Jual %<input id=fj type=number step=0.01 value=0.25></div>
+</div>
+<div class='summary'>
+<div class='sum'><b>Total Modal</b><h2 id=tm>0</h2></div>
+<div class='sum'><b>Total Lot</b><h2 id=tl>0</h2></div>
+<div class='sum'><b>Average Buy</b><h2 id=ab>0</h2></div>
+</div>
+<table><thead><tr><th>Lv</th><th>Harga</th><th>Lot</th><th>Lembar</th><th>Dana</th><th>Total Lot</th><th>Total Modal</th><th>Avg Buy</th><th>BEP</th><th>Naik%</th></tr></thead><tbody id=tb></tbody></table>
+<script>
+const ids=["h","l","m","d","n","fb","fj"];ids.forEach(x=>document.getElementById(x).oninput=calc);
+const fmt=(x,d=2)=>Number(x).toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d});
+const tick=p=>p<200?1:p<500?2:p<2000?5:p<5000?10:25;
+const rnd=p=>Math.round(p/tick(p))*tick(p);
+function calc(){
+let p=+h.value,lot=+l.value,mg=+m.value,down=+d.value/100,L=+n.value,bf=+fb.value/100,sf=+fj.value/100;
+let tLot=0,tShare=0,tCost=0,html="";
+for(let i=1;i<=L;i++){
+ if(i>1){p=rnd(p*(1-down));lot=Math.round(lot*mg);}
+ let sh=lot*100,cost=sh*p,feeCost=cost*(1+bf);
+ tLot+=lot;tShare+=sh;tCost+=feeCost;
+ let avg=tCost/tShare,bep=avg/(1-sf),need=(bep-p)/p*100;
+ html+=`<tr><td>${i}</td><td>${fmt(p)}</td><td>${lot}</td><td>${sh}</td><td>${fmt(cost)}</td><td>${tLot}</td><td>${fmt(tCost)}</td><td>${fmt(avg)}</td><td>${fmt(bep)}</td><td>${fmt(need)}%</td></tr>`;
+}
+tb.innerHTML=html;
+tm.innerHTML="Rp "+fmt(tCost);
+tl.innerHTML=tLot;
+ab.innerHTML=fmt(tCost/tShare);
+}
+calc();
+</script></body></html>
