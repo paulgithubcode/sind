@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>IDX MACD + TREND SCANNER</title>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<style>
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+}
+.pos { color: green; font-weight: bold; }
+.neg { color: red; font-weight: bold; }
+.up { color: #006400; font-weight: bold; background: #e6ffe6; padding: 2px 6px; border-radius: 3px; }
+.down { color: #8b0000; font-weight: bold; background: #ffe6e6; padding: 2px 6px; border-radius: 3px; }
+.side { color: #555; font-weight: bold; background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
+.score5 { background: #00aa00; color: white; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+.score4 { background: #66bb00; color: white; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+.score3 { background: #ffaa00; color: black; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+.score2 { background: #ff7700; color: white; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+.score1 { background: #cc0000; color: white; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+.controls {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.controls label { font-weight: bold; }
+
+/* Freeze kolom */
+#table th:nth-child(1), #table td:nth-child(1) {
+    position: sticky; left: 0; background: #fff; z-index: 3;
+}
+#table th:nth-child(2), #table td:nth-child(2) {
+    position: sticky; left: 45px; background: #fff; z-index: 3;
+}
+#table thead th { z-index: 4; }
+</style>
+</head>
+<body>
+
+<h3>IDX MACD + TREND SCANNER</h3>
+
+<div class="controls">
+    <div>
+        <label>Tanggal: </label>
+        <input type="date" id="date">
+    </div>
+    <div>
+        <label>EMA: </label>
+        <select id="emaPeriod">
+            <option value="20">EMA 20 (responsif)</option>
+            <option value="50" selected>EMA 50 (stabil - recommended)</option>
+        </select>
+    </div>
+    <button onclick="scan()">Scan</button>
+</div>
+
+<table id="table" class="display" style="width:100%">
+<thead>
+<tr>
+    <th>No</th>
+    <th>Kode</th>
+    <th>Open</th>
+    <th>High</th>
+    <th>Low</th>
+    <th>Close</th>
+    <th>Volume</th>
+    <th id="emaHeader">EMA50</th>
+    <th>Dist EMA%</th>
+    <th>Slope%</th>
+    <th>Trend</th>
+    <th>Skor</th>
+    <th>MACD</th>
+    <th>Signal</th>
+    <th>Hist-9</th>
+    <th>Hist-8</th>
+    <th>Hist-7</th>
+    <th>Hist-6</th>
+    <th>Hist-5</th>
+    <th>Hist-4</th>
+    <th>Hist-3</th>
+    <th>Hist-2</th>
+    <th>Hist-1</th>
+    <th>Hist0</th>
+    <th>ΔHist</th>
+    <th>%Δ9→8</th>
+    <th>%Δ8→7</th>
+    <th>%Δ7→6</th>
+    <th>%Δ6→5</th>
+    <th>%Δ5→4</th>
+    <th>%Δ4→3</th>
+    <th>%Δ3→2</th>
+    <th>%Δ2→1</th>
+    <th>%Δ1→0</th>
+    <th>Chart Hist</th>
+</tr>
+</thead>
+</table>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script>
+const SLOPE_PERIOD = 10;
+const SLOPE_THRESHOLD = 0.10;
+
+let db;
+function openDB(){
+    return new Promise((resolve,reject)=>{
+        const req = indexedDB.open("idxDB",1);
+        req.onsuccess = e => { db = e.target.result; resolve(); };
+        req.onerror = reject;
+    });
+}
+function getAllDaily(){
+    return new Promise(resolve=>{
+        const tx = db.transaction("daily","readonly");
+        const store = tx.objectStore("daily");
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+    });
+}
+
+function EMA(values, period){
+    const k = 2/(period+1);
+    let ema = [], prev = values[0];
+    values.forEach((v,i)=>{
+        prev = i===0 ? v : v*k + prev*(1-k);
+        ema.push(prev);
+    });
+    return ema;
+}
+
+function calculateSlope(prices){
+    const n = prices.length;
+    if(n < 2) return 0;
+    let sumX=0, sumY=0, sumXY=0, sumX2=0;
+    for(let i=0; i<n; i++){
+        sumX += i;
+        sumY += prices[i];
+        sumXY += i * prices[i];
+        sumX2 += i * i;
+    }
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const avgPrice = sumY / n;
+    return (slope / avgPrice) * 100;
+}
+
+function classifyTrendAndScore(slopePct, distEMA){
+    const absSlope = Math.abs(slopePct);
+    let label = "SIDEWAYS", cls = "side", score = 1;
+
+    if(slopePct > SLOPE_THRESHOLD){
+        label = distEMA > 0 ? "UPTREND" : "UPTREND LEMAH";
+        cls = "up";
+    } else if(slopePct < -SLOPE_THRESHOLD){
+        label = distEMA < 0 ? "DOWNTREND" : "DOWNTREND LEMAH";
+        cls = "down";
+    }
+
+    if(absSlope >= 0.35) score = 5;
+    else if(absSlope >= 0.25) score = 4;
+    else if(absSlope >= 0.15) score = 3;
+    else if(absSlope >= 0.08) score = 2;
+    else score = 1;
+
+    if(label.includes("UPTREND") && distEMA > 2) score = Math.min(5, score + 1);
+    if(label.includes("DOWNTREND") && distEMA < -2) score = Math.min(5, score + 1);
+    if(label.includes("LEMAH")) score = Math.max(1, score - 1);
+    if(label === "SIDEWAYS") score = absSlope < 0.05 ? 1 : 2;
+
+    return { label, cls, score };
+}
+
+function MACD(close){
+    if(close.length < 35) return null;
+    const ema12 = EMA(close,12);
+    const ema26 = EMA(close,26);
+    const macd = close.map((v,i)=> ema12[i]-ema26[i]);
+    const signal = EMA(macd,9);
+    const hist = macd.map((v,i)=> v-signal[i]);
+    const last = hist.length-1;
+    return {
+        macd: macd[last],
+        signal: signal[last],
+        hist: hist.slice(last-9, last+1)
+    };
+}
+
+function histStats(hist){
+    const deltaHist = hist[9] - hist[8];
+    const pct = [];
+    for(let i=0; i<9; i++){
+        const a = hist[i], b = hist[i+1];
+        pct.push( ((b-a)/Math.abs(a)) * 100 );
+    }
+    return { deltaHist, pct };
+}
+
+function cell(v){
+    if(v==null) return "-";
+    return `<span class="${v>0?'pos':'neg'}">${v.toFixed(4)}</span>`;
+}
+function pctCell(v){
+    if(!isFinite(v)) return "-";
+    return `<span class="${v>0?'pos':'neg'}">${v.toFixed(2)}%</span>`;
+}
+function emaCell(v){ return v==null ? "-" : v.toFixed(2); }
+function distCell(v){
+    if(!isFinite(v)) return "-";
+    return `<span class="${v>0?'pos':'neg'}">${v.toFixed(2)}%</span>`;
+}
+function slopeCell(v){
+    if(!isFinite(v)) return "-";
+    return `<span class="${v>0?'pos':'neg'}">${v.toFixed(3)}%</span>`;
+}
+function trendCell(obj){ return `<span class="${obj.cls}">${obj.label}</span>`; }
+function scoreCell(score){ return `<span class="score${score}">${score}</span>`; }
+
+function getHistColor(curr, prev, index){
+    if(index===0 || prev==null){
+        if(curr>0) return "#006400";
+        if(curr<0) return "#8b0000";
+        return "gray";
+    }
+    const diff = curr - prev;
+    if(curr>=0) return diff>0 ? "#006400" : "#00ff00";
+    if(curr<0) return diff<0 ? "#8b0000" : "#ff7f7f";
+    return "gray";
+}
+
+function renderHistChart(row){
+    const raw = [row.h9,row.h8,row.h7,row.h6,row.h5,row.h4,row.h3,row.h2,row.h1,row.h0];
+    const h = raw.map(v => v ?? 0);
+    let max = Math.max(...h.map(v=>Math.abs(v)));
+    if(max === 0) max = 1;
+    const colors = h.map((v,i)=>getHistColor(v,h[i-1],i));
+    const bars = h.map((v,i)=>{
+        const height = (Math.abs(v)/max)*20 + 2;
+        if(v >= 0){
+            return `<div style="width:6px;display:flex;flex-direction:column;margin-right:1px">
+                <div style="height:${20-height}px"></div>
+                <div style="height:${height}px;background:${colors[i]}"></div>
+                <div style="height:20px"></div>
+            </div>`;
+        } else {
+            return `<div style="width:6px;display:flex;flex-direction:column;margin-right:1px">
+                <div style="height:20px"></div>
+                <div style="height:${height}px;background:${colors[i]}"></div>
+                <div style="height:${20-height}px"></div>
+            </div>`;
+        }
+    }).join("");
+    return `<div style="position:relative;height:50px;display:flex;align-items:center;">
+        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:#999;"></div>
+        ${bars}
+    </div>`;
+}
+
+function findIndex(rows, date){
+    for(let i=0; i<rows.length; i++){
+        if(rows[i].date === date) return i;
+    }
+    return -1;
+}
+
+async function scan(){
+    await openDB();
+    const rows = await getAllDaily();
+    const byCode = {};
+    rows.forEach(r=>{
+        if(!byCode[r.code]) byCode[r.code] = [];
+        byCode[r.code].push(r);
+    });
+
+    const selectedDate = document.getElementById("date").value;
+    const EMA_PERIOD = parseInt(document.getElementById("emaPeriod").value);
+    document.getElementById("emaHeader").innerText = "EMA" + EMA_PERIOD;
+
+    const result = [];
+
+    Object.keys(byCode).forEach(code=>{
+        const data = byCode[code].sort((a,b)=> new Date(a.date) - new Date(b.date));
+        const idx = findIndex(data, selectedDate);
+        if(idx < Math.max(55, EMA_PERIOD + 5, SLOPE_PERIOD + 5)) return;
+
+        const close = data.slice(0, idx+1).map(x => x.c);
+
+        // EMA
+        const emaArr = EMA(close, EMA_PERIOD);
+        const emaNow = emaArr[emaArr.length-1];
+        const lastClose = close[close.length-1];
+        const distEMA = ((lastClose - emaNow) / emaNow) * 100;
+
+        // Slope
+        const recentCloses = close.slice(-SLOPE_PERIOD);
+        const slopePct = calculateSlope(recentCloses);
+
+        // Trend + Score
+        const trendObj = classifyTrendAndScore(slopePct, distEMA);
+
+        // MACD
+        const macd = MACD(close);
+        if(!macd) return;
+        const stats = histStats(macd.hist);
+        const last = data[idx];
+        const h = macd.hist;
+
+        result.push({
+            code,
+            open: last.o,
+            high: last.h,
+            low: last.l,
+            close: last.c,
+            volume: last.v,
+            ema: emaNow,
+            distEMA,
+            slope: slopePct,
+            trend: trendObj,
+            score: trendObj.score,
+            macd: macd.macd,
+            signal: macd.signal,
+            h9:h[0], h8:h[1], h7:h[2], h6:h[3], h5:h[4],
+            h4:h[5], h3:h[6], h2:h[7], h1:h[8], h0:h[9],
+            deltaHist: stats.deltaHist,
+            p98:stats.pct[0], p87:stats.pct[1], p76:stats.pct[2],
+            p65:stats.pct[3], p54:stats.pct[4], p43:stats.pct[5],
+            p32:stats.pct[6], p21:stats.pct[7], p10:stats.pct[8]
+        });
+    });
+
+    render(result);
+}
+
+let table;
+function render(data){
+    if(table) table.destroy();
+    table = $("#table").DataTable({
+        data: data,
+        paging: false,
+        order: [[11, "desc"]],
+        columns: [
+            { data: null },
+            { data: "code" },
+            { data: "open" },
+            { data: "high" },
+            { data: "low" },
+            { data: "close" },
+            { data: "volume" },
+            { data: "ema", render: emaCell },
+            { data: "distEMA", render: distCell },
+            { data: "slope", render: slopeCell },
+            { data: "trend", render: trendCell },
+            { data: "score", render: scoreCell },
+            { data: "macd", render: d => d ? d.toFixed(4) : "-" },
+            { data: "signal", render: d => d ? d.toFixed(4) : "-" },
+            { data: "h9", render: cell },
+            { data: "h8", render: cell },
+            { data: "h7", render: cell },
+            { data: "h6", render: cell },
+            { data: "h5", render: cell },
+            { data: "h4", render: cell },
+            { data: "h3", render: cell },
+            { data: "h2", render: cell },
+            { data: "h1", render: cell },
+            { data: "h0", render: cell },
+            { data: "deltaHist", render: cell },
+            { data: "p98", render: pctCell },
+            { data: "p87", render: pctCell },
+            { data: "p76", render: pctCell },
+            { data: "p65", render: pctCell },
+            { data: "p54", render: pctCell },
+            { data: "p43", render: pctCell },
+            { data: "p32", render: pctCell },
+            { data: "p21", render: pctCell },
+            { data: "p10", render: pctCell },
+            { data: null, orderable: false, render: row => renderHistChart(row) }
+        ],
+        drawCallback: function(){
+            this.api().column(0).nodes().each((cell, i) => {
+                cell.innerHTML = i + 1;
+            });
+        }
+    });
+}
+
+document.getElementById("date").value = new Date().toISOString().split("T")[0];
+</script>
+</body>
+</html>

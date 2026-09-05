@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Classroom Seating Chart</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f6f8;
+            color: #222;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: auto;
+        }
+
+        h1 {
+            margin: 0 0 20px;
+            text-align: center;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        button {
+            border: none;
+            border-radius: 6px;
+            padding: 10px 16px;
+            cursor: pointer;
+            background: #2563eb;
+            color: white;
+            font-size: 14px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-green {
+            background: #16a34a;
+        }
+
+        .btn-orange {
+            background: #ea580c;
+        }
+
+        .btn-red {
+            background: #dc2626;
+        }
+
+        .btn-gray {
+            background: #64748b;
+        }
+
+        .class-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .class-info input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .classroom-wrapper {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            overflow-x: auto;
+        }
+
+		.teacher-area {
+			width: 300px;
+			margin: 0 0 30px 0;
+			padding: 15px;
+			text-align: center;
+			border: 2px solid #333;
+			border-radius: 8px;
+			background: #e2e8f0;
+			font-weight: bold;
+		}
+		
+        .board {
+            width: 70%;
+            min-width: 400px;
+            margin: 0 auto 30px;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px;
+            background: #1e293b;
+            color: white;
+            font-weight: bold;
+        }
+
+        .seating-chart {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(120px, 1fr));
+            gap: 15px;
+            min-width: 800px;
+        }
+
+        .seat {
+            min-height: 100px;
+            position: relative;
+            padding: 10px;
+            border: 2px solid #94a3b8;
+            border-radius: 10px;
+            background: #f8fafc;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .seat:hover {
+            transform: translateY(-2px);
+            border-color: #2563eb;
+        }
+
+        .seat-number {
+            position: absolute;
+            top: 5px;
+            left: 7px;
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        .student-name {
+            width: 100%;
+            height: 100%;
+            min-height: 70px;
+            padding: 20px 5px 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-weight: bold;
+            outline: none;
+        }
+
+        .student-name:focus {
+            background: #dbeafe;
+            border-radius: 5px;
+        }
+
+        .status {
+            margin-top: 15px;
+            text-align: center;
+            color: #475569;
+            font-size: 13px;
+        }
+
+        .json-box {
+            margin-top: 20px;
+        }
+
+        .json-box textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 800px) {
+            body {
+                padding: 10px;
+            }
+
+            .classroom-wrapper {
+                padding: 15px;
+            }
+
+            .seating-chart {
+                grid-template-columns: repeat(6, 110px);
+            }
+
+            .board {
+                width: 90%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Classroom Seating Chart</h1>
+
+    <div class="class-info">
+        <input
+            type="text"
+            id="schoolName"
+            placeholder="Nama Sekolah"
+        >
+
+        <input
+            type="text"
+            id="className"
+            placeholder="Kelas"
+        >
+
+        <input
+            type="text"
+            id="teacherName"
+            placeholder="Nama Guru"
+        >
+    </div>
+
+    <div class="toolbar">
+
+        <button onclick="addSeat()">
+            + Tambah Bangku
+        </button>
+
+        <button
+            class="btn-green"
+            onclick="saveData()"
+        >
+            Simpan
+        </button>
+
+        <button
+            class="btn-orange"
+            onclick="downloadJSON()"
+        >
+            Download JSON
+        </button>
+
+        <button
+            class="btn-gray"
+            onclick="loadJSONFile()"
+        >
+            Import JSON
+        </button>
+
+        <button
+            class="btn-gray"
+            onclick="toggleJSON()"
+        >
+            Lihat JSON
+        </button>
+
+        <button
+            class="btn-red"
+            onclick="resetChart()"
+        >
+            Reset
+        </button>
+
+        <input
+            type="file"
+            id="jsonFile"
+            accept=".json"
+            class="hidden"
+            onchange="handleJSONFile(event)"
+        >
+
+    </div>
+
+    <div class="classroom-wrapper">
+
+
+        <div class="board">
+            PAPAN TULIS
+        </div>
+
+        <div class="teacher-area">
+            MEJA GURU
+            <br>
+            <span id="teacherDisplay">
+                Nama Guru
+            </span>
+        </div>
+
+        <div
+            id="seatingChart"
+            class="seating-chart"
+        ></div>
+
+        <div class="status">
+            Klik nama siswa untuk mengedit.
+            Perubahan otomatis disimpan di browser.
+        </div>
+
+    </div>
+
+    <div
+        id="jsonContainer"
+        class="json-box hidden"
+    >
+        <h3>Data JSON</h3>
+
+        <textarea
+            id="jsonOutput"
+            spellcheck="false"
+        ></textarea>
+    </div>
+
+</div>
+
+
+<script>
+
+    /*
+    ============================================================
+    DATA DEFAULT
+    ============================================================
+    */
+
+    let classroomData = {
+
+        school: "",
+
+        className: "",
+
+        teacher: "",
+
+        seats: []
+
+    };
+
+
+    /*
+    ============================================================
+    INITIAL SEAT
+    ============================================================
+    */
+
+    function createDefaultSeats() {
+
+        classroomData.seats = [];
+
+        for (let i = 1; i <= 30; i++) {
+
+            classroomData.seats.push({
+
+                id: i,
+
+                name: "",
+
+                row: Math.ceil(i / 6),
+
+                column: ((i - 1) % 6) + 1
+
+            });
+
+        }
+
+    }
+
+
+    /*
+    ============================================================
+    LOAD DATA
+    ============================================================
+    */
+
+    function loadData() {
+
+        const saved =
+            localStorage.getItem(
+                "classroomSeatingChart"
+            );
+
+        if (saved) {
+
+            try {
+
+                classroomData =
+                    JSON.parse(saved);
+
+            } catch (error) {
+
+                console.error(
+                    "JSON tidak valid",
+                    error
+                );
+
+                createDefaultSeats();
+
+            }
+
+        } else {
+
+            createDefaultSeats();
+
+        }
+
+        document.getElementById(
+            "schoolName"
+        ).value =
+            classroomData.school || "";
+
+        document.getElementById(
+            "className"
+        ).value =
+            classroomData.className || "";
+
+        document.getElementById(
+            "teacherName"
+        ).value =
+            classroomData.teacher || "";
+
+        updateTeacherDisplay();
+
+        renderSeats();
+
+        updateJSON();
+
+    }
+
+
+    /*
+    ============================================================
+    RENDER SEATS
+    ============================================================
+    */
+
+    function renderSeats() {
+
+        const chart =
+            document.getElementById(
+                "seatingChart"
+            );
+
+        chart.innerHTML = "";
+
+        classroomData.seats.forEach(
+            function(seat) {
+
+                const seatElement =
+                    document.createElement("div");
+
+                seatElement.className =
+                    "seat";
+
+                seatElement.dataset.id =
+                    seat.id;
+
+
+                const number =
+                    document.createElement("div");
+
+                number.className =
+                    "seat-number";
+
+                number.textContent =
+                    "Bangku " + seat.id;
+
+
+                const name =
+                    document.createElement("div");
+
+                name.className =
+                    "student-name";
+
+                name.contentEditable =
+                    "true";
+
+                name.spellcheck =
+                    false;
+
+                name.textContent =
+                    seat.name || "";
+
+
+                name.addEventListener(
+                    "input",
+                    function() {
+
+                        updateStudentName(
+                            seat.id,
+                            name.textContent
+                        );
+
+                    }
+                );
+
+
+                name.addEventListener(
+                    "blur",
+                    function() {
+
+                        saveData();
+
+                    }
+                );
+
+
+                seatElement.appendChild(
+                    number
+                );
+
+                seatElement.appendChild(
+                    name
+                );
+
+                chart.appendChild(
+                    seatElement
+                );
+
+            }
+        );
+
+    }
+
+
+    /*
+    ============================================================
+    UPDATE STUDENT NAME
+    ============================================================
+    */
+
+    function updateStudentName(
+        id,
+        name
+    ) {
+
+        const seat =
+            classroomData.seats.find(
+                function(item) {
+
+                    return item.id === id;
+
+                }
+            );
+
+        if (seat) {
+
+            seat.name =
+                name.trim();
+
+            updateJSON();
+
+        }
+
+    }
+
+
+    /*
+    ============================================================
+    UPDATE TEACHER DISPLAY
+    ============================================================
+    */
+
+    function updateTeacherDisplay() {
+
+        const teacher =
+            document.getElementById(
+                "teacherName"
+            ).value;
+
+        document.getElementById(
+            "teacherDisplay"
+        ).textContent =
+            teacher || "Nama Guru";
+
+    }
+
+
+    /*
+    ============================================================
+    FORM CHANGE
+    ============================================================
+    */
+
+    document.getElementById(
+        "schoolName"
+    ).addEventListener(
+        "input",
+        function() {
+
+            classroomData.school =
+                this.value;
+
+            updateJSON();
+
+        }
+    );
+
+
+    document.getElementById(
+        "className"
+    ).addEventListener(
+        "input",
+        function() {
+
+            classroomData.className =
+                this.value;
+
+            updateJSON();
+
+        }
+    );
+
+
+    document.getElementById(
+        "teacherName"
+    ).addEventListener(
+        "input",
+        function() {
+
+            classroomData.teacher =
+                this.value;
+
+            updateTeacherDisplay();
+
+            updateJSON();
+
+        }
+    );
+
+
+    /*
+    ============================================================
+    SAVE DATA
+    ============================================================
+    */
+
+    function saveData() {
+
+        classroomData.school =
+            document.getElementById(
+                "schoolName"
+            ).value;
+
+        classroomData.className =
+            document.getElementById(
+                "className"
+            ).value;
+
+        classroomData.teacher =
+            document.getElementById(
+                "teacherName"
+            ).value;
+
+
+        localStorage.setItem(
+
+            "classroomSeatingChart",
+
+            JSON.stringify(
+                classroomData,
+                null,
+                2
+            )
+
+        );
+
+
+        updateJSON();
+
+
+        console.log(
+            "Data berhasil disimpan."
+        );
+
+    }
+
+
+    /*
+    ============================================================
+    UPDATE JSON TEXTAREA
+    ============================================================
+    */
+
+    function updateJSON() {
+
+        document.getElementById(
+            "jsonOutput"
+        ).value =
+            JSON.stringify(
+                classroomData,
+                null,
+                2
+            );
+
+    }
+
+
+    /*
+    ============================================================
+    TOGGLE JSON
+    ============================================================
+    */
+
+    function toggleJSON() {
+
+        const box =
+            document.getElementById(
+                "jsonContainer"
+            );
+
+        box.classList.toggle(
+            "hidden"
+        );
+
+    }
+
+
+    /*
+    ============================================================
+    ADD SEAT
+    ============================================================
+    */
+
+    function addSeat() {
+
+        const newId =
+            classroomData.seats.length + 1;
+
+
+        classroomData.seats.push({
+
+            id: newId,
+
+            name: "",
+
+            row:
+                Math.ceil(
+                    newId / 6
+                ),
+
+            column:
+                ((newId - 1) % 6) + 1
+
+        });
+
+
+        renderSeats();
+
+        saveData();
+
+    }
+
+
+    /*
+    ============================================================
+    DOWNLOAD JSON
+    ============================================================
+    */
+
+    function downloadJSON() {
+
+        const json =
+            JSON.stringify(
+                classroomData,
+                null,
+                2
+            );
+
+
+        const blob =
+            new Blob(
+                [json],
+                {
+                    type:
+                        "application/json"
+                }
+            );
+
+
+        const url =
+            URL.createObjectURL(
+                blob
+            );
+
+
+        const a =
+            document.createElement(
+                "a"
+            );
+
+        a.href = url;
+
+        a.download =
+            "classroom-seating.json";
+
+        document.body.appendChild(a);
+
+        a.click();
+
+        document.body.removeChild(a);
+
+        URL.revokeObjectURL(url);
+
+    }
+
+
+    /*
+    ============================================================
+    IMPORT JSON
+    ============================================================
+    */
+
+    function loadJSONFile() {
+
+        document.getElementById(
+            "jsonFile"
+        ).click();
+
+    }
+
+
+    /*
+    ============================================================
+    HANDLE JSON FILE
+    ============================================================
+    */
+
+    function handleJSONFile(event) {
+
+        const file =
+            event.target.files[0];
+
+        if (!file) {
+
+            return;
+
+        }
+
+
+        const reader =
+            new FileReader();
+
+
+        reader.onload =
+            function(e) {
+
+                try {
+
+                    const data =
+                        JSON.parse(
+                            e.target.result
+                        );
+
+
+                    if (
+                        !data.seats ||
+                        !Array.isArray(
+                            data.seats
+                        )
+                    ) {
+
+                        console.log(
+                            "Format JSON tidak valid."
+                        );
+
+                        return;
+
+                    }
+
+
+                    classroomData =
+                        data;
+
+
+                    document.getElementById(
+                        "schoolName"
+                    ).value =
+                        classroomData.school || "";
+
+
+                    document.getElementById(
+                        "className"
+                    ).value =
+                        classroomData.className || "";
+
+
+                    document.getElementById(
+                        "teacherName"
+                    ).value =
+                        classroomData.teacher || "";
+
+
+                    updateTeacherDisplay();
+
+                    renderSeats();
+
+                    saveData();
+
+                    console.log(
+                        "JSON berhasil diimport."
+                    );
+
+
+                } catch (error) {
+
+                    console.error(
+                        error
+                    );
+
+                    console.log(
+                        "File JSON tidak valid."
+                    );	
+
+                }
+
+            };
+
+
+        reader.readAsText(file);
+
+        event.target.value = "";
+
+    }
+
+
+    /*
+    ============================================================
+    RESET
+    ============================================================
+    */
+
+    function resetChart() {
+
+        const confirmReset =
+            confirm(
+                "Yakin ingin menghapus semua data?"
+            );
+
+
+        if (!confirmReset) {
+
+            return;
+
+        }
+
+
+        localStorage.removeItem(
+            "classroomSeatingChart"
+        );
+
+
+        document.getElementById(
+            "schoolName"
+        ).value = "";
+
+        document.getElementById(
+            "className"
+        ).value = "";
+
+        document.getElementById(
+            "teacherName"
+        ).value = "";
+
+
+        createDefaultSeats();
+
+        updateTeacherDisplay();
+
+        renderSeats();
+
+        updateJSON();
+
+    }
+
+
+    /*
+    ============================================================
+    AUTO SAVE
+    ============================================================
+    */
+
+    setInterval(
+        function() {
+
+            localStorage.setItem(
+
+                "classroomSeatingChart",
+
+                JSON.stringify(
+                    classroomData
+                )
+
+            );
+
+        },
+        5000
+    );
+
+
+    /*
+    ============================================================
+    START
+    ============================================================
+    */
+
+    loadData();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indodax OHLC History</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 24px;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      color: #38bdf8;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+      background: #1e293b;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    input, select, button {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 0.95rem;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+    button {
+      background: #0ea5e9;
+      border: none;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #0284c7; }
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
+    .status.error { color: #f87171; }
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      border: 1px solid #334155;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 10px 14px;
+      text-align: right;
+      border-bottom: 1px solid #1e293b;
+      white-space: nowrap;
+    }
+    th {
+      background: #1e293b;
+      color: #94a3b8;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+    th:first-child, td:first-child {
+      text-align: left;
+    }
+    tr:hover td { background: #1e293b66; }
+    .pos { color: #4ade80; }
+    .neg { color: #f87171; }
+    .zero { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <h1>Indodax OHLC History</h1>
+
+  <div class="controls">
+    <div class="field">
+      <label for="symbol">Koin (simbol)</label>
+      <input type="text" id="symbol" value="btcidr" placeholder="btcidr, ethidr, ...">
+    </div>
+    <div class="field">
+      <label for="fromDate">Dari Tanggal</label>
+      <input type="date" id="fromDate">
+    </div>
+    <div class="field">
+      <label for="toDate">Sampai Tanggal</label>
+      <input type="date" id="toDate">
+    </div>
+    <div class="field">
+      <label for="tf">Timeframe</label>
+      <select id="tf">
+        <option value="1D" selected>1 Hari</option>
+        <option value="3D">3 Hari</option>
+        <option value="1W">1 Minggu</option>
+        <option value="240">4 Jam</option>
+        <option value="60">1 Jam</option>
+      </select>
+    </div>
+    <button id="btnLoad">Load Data</button>
+  </div>
+
+  <div class="status" id="status">Silakan pilih tanggal & koin, lalu klik Load Data</div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Close</th>
+          <th>Volume</th>
+          <th>Price Change %</th>
+          <th>Price % / Volume</th>
+          <th>Akumulasi Price % / Volume</th>
+          <th>Akumulasi Volume</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    // Set default date: 30 hari terakhir
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    document.getElementById('toDate').valueAsDate = today;
+    document.getElementById('fromDate').valueAsDate = thirtyDaysAgo;
+
+    function toUnix(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      return Math.floor(d.getTime() / 1000);
+    }
+
+    function toUnixEnd(dateStr) {
+      const d = new Date(dateStr + 'T23:59:59Z');
+      return Math.floor(d.getTime() / 1000);
+    }
+
+    function formatDate(unix) {
+      const d = new Date(unix * 1000);
+      return d.toLocaleDateString('id-ID', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    }
+
+    function formatNumber(num, decimals = 0) {
+      return Number(num).toLocaleString('id-ID', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    }
+
+    function formatPct(val) {
+      if (val === null || isNaN(val)) return '-';
+      const sign = val > 0 ? '+' : '';
+      return sign + val.toFixed(4) + '%';
+    }
+
+    function formatAccum(val) {
+      if (val === null || isNaN(val)) return '-';
+      return val.toFixed(6);
+    }
+
+    function formatSignedVolume(val) {
+      if (val === null || isNaN(val)) return '-';
+      const sign = val > 0 ? '+' : '';
+      return sign + formatNumber(val, 8);
+    }
+
+    async function loadData() {
+      const symbol = document.getElementById('symbol').value.trim().toLowerCase();
+      const fromDate = document.getElementById('fromDate').value;
+      const toDate = document.getElementById('toDate').value;
+      const tf = document.getElementById('tf').value;
+      const statusEl = document.getElementById('status');
+      const tbody = document.getElementById('tbody');
+      const btn = document.getElementById('btnLoad');
+
+      if (!symbol || !fromDate || !toDate) {
+        statusEl.textContent = 'Isi semua field dulu!';
+        statusEl.className = 'status error';
+        return;
+      }
+
+      const from = toUnix(fromDate);
+      const to = toUnixEnd(toDate);
+
+      if (from >= to) {
+        statusEl.textContent = 'Tanggal "Dari" harus lebih kecil dari "Sampai"';
+        statusEl.className = 'status error';
+        return;
+      }
+
+      btn.disabled = true;
+      statusEl.textContent = 'Loading data dari Indodax...';
+      statusEl.className = 'status';
+      tbody.innerHTML = '';
+
+      const url = `https://indodax.com/tradingview/history_v2?from=${from}&symbol=${symbol}&tf=${tf}&to=${to}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+          statusEl.textContent = 'Tidak ada data untuk rentang tanggal / simbol ini.';
+          statusEl.className = 'status error';
+          return;
+        }
+
+        // Sort ascending by Time
+        data.sort((a, b) => a.Time - b.Time);
+
+        let html = '';
+        let accumPricePerVol = 0;   // Akumulasi Price % / Volume
+        let accumVolume = 0;        // Akumulasi Volume (signed)
+
+        for (let i = 0; i < data.length; i++) {
+          const cur = data[i];
+          const close = Number(cur.Close);
+          const volume = Number(cur.Volume);
+
+          let changePct = null;
+          let pricePerVol = null;
+          let signedVolume = null;
+
+          if (i > 0) {
+            const prevClose = Number(data[i - 1].Close);
+            if (prevClose !== 0) {
+              changePct = ((close - prevClose) / prevClose) * 100;
+
+              // Signed volume: +volume jika harga naik, -volume jika harga turun
+              if (changePct > 0) {
+                signedVolume = volume;
+              } else if (changePct < 0) {
+                signedVolume = -volume;
+              } else {
+                signedVolume = 0; // harga tidak berubah
+              }
+
+              accumVolume += signedVolume;
+
+              if (volume !== 0) {
+                pricePerVol = changePct / volume;
+                accumPricePerVol += pricePerVol;
+              }
+            }
+          }
+
+          const changeClass = changePct === null ? 'zero' :
+                              changePct > 0 ? 'pos' :
+                              changePct < 0 ? 'neg' : 'zero';
+
+          const accumPPVClass = i === 0 ? 'zero' :
+                                accumPricePerVol > 0 ? 'pos' :
+                                accumPricePerVol < 0 ? 'neg' : 'zero';
+
+          const accumVolClass = i === 0 ? 'zero' :
+                                accumVolume > 0 ? 'pos' :
+                                accumVolume < 0 ? 'neg' : 'zero';
+
+          html += `
+            <tr>
+              <td>${formatDate(cur.Time)}</td>
+              <td>${formatNumber(close, 0)}</td>
+              <td>${formatNumber(volume, 8)}</td>
+              <td class="${changeClass}">${formatPct(changePct)}</td>
+              <td class="${changeClass}">${pricePerVol !== null ? pricePerVol.toFixed(6) : '-'}</td>
+              <td class="${accumPPVClass}">${i === 0 ? '-' : formatAccum(accumPricePerVol)}</td>
+              <td class="${accumVolClass}">${i === 0 ? '-' : formatSignedVolume(accumVolume)}</td>
+            </tr>
+          `;
+        }
+
+        tbody.innerHTML = html;
+        statusEl.textContent = `Berhasil load ${data.length} data (${symbol.toUpperCase()}, ${tf})`;
+        statusEl.className = 'status';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = `Error: ${err.message}. Jika CORS error, coba pakai extension atau proxy.`;
+        statusEl.className = 'status error';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById('btnLoad').addEventListener('click', loadData);
+  </script>
+</body>
+</html>

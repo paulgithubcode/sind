@@ -1,0 +1,12 @@
+{
+  "name": "classroom-seating-chart",
+  "version": "1.0.0",
+  "description": "Classroom Seating Chart using HTML JS Node.js JSON",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
