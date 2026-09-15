@@ -44,7 +44,6 @@
       background: var(--green);
     }
     .status .dot.error { background: var(--red); }
-
     .tabs {
       display: flex;
       gap: 8px;
@@ -66,10 +65,8 @@
       border-color: var(--blue);
       color: var(--text);
     }
-
     .panel { display: none; }
     .panel.active { display: block; }
-
     .controls {
       display: flex;
       gap: 8px;
@@ -88,13 +85,11 @@
     button { cursor: pointer; }
     button:hover { background: var(--card-hover); }
     input[type="text"] { flex: 1; min-width: 100px; }
-
     .section-title {
       font-size: 14px;
       color: var(--text-dim);
       margin: 16px 0 10px;
     }
-
     /* Timeline */
     .timeline { position: relative; }
     .timeline::before {
@@ -144,22 +139,25 @@
     .pct.up { color: var(--green); }
     .pct.down { color: var(--red); }
     .meta { margin-left: auto; white-space: nowrap; }
-
     /* Stats */
     .stat-card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 14px;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      transition: border-color 0.15s;
+    }
+    .stat-card:hover {
+      border-color: #3a3a3a;
     }
     .stat-card h3 {
       font-size: 14px;
-      margin-bottom: 12px;
-      color: var(--blue);
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 10px;
     }
     .stat-row {
       display: flex;
@@ -174,8 +172,8 @@
     .stat-count {
       background: #1e3a5f;
       color: var(--blue);
-      padding: 2px 9px;
-      border-radius: 10px;
+      padding: 3px 10px;
+      border-radius: 20px;
       font-size: 12px;
       font-weight: 600;
       white-space: nowrap;
@@ -186,14 +184,12 @@
       line-height: 1.6;
     }
     .stock-list b { color: var(--text); }
-
     .loading, .empty {
       text-align: center;
       padding: 40px 20px;
       color: var(--text-dim);
       font-size: 14px;
     }
-
     .sub-tabs {
       display: flex;
       gap: 6px;
@@ -212,6 +208,90 @@
       background: #1e3a5f;
       border-color: var(--blue);
       color: var(--text);
+    }
+
+    /* ===== Stats UI Upgrade ===== */
+    .stats-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .stats-toolbar input {
+      flex: 1;
+      min-width: 140px;
+    }
+    .stats-toolbar select {
+      min-width: 130px;
+    }
+    .signal-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .signal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .signal-dot.up { background: var(--green); }
+    .signal-dot.down { background: var(--red); }
+
+    .chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #252525;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 5px 9px;
+      font-size: 12px;
+      color: var(--text);
+      transition: background 0.12s;
+    }
+    .chip:hover {
+      background: #2e2e2e;
+    }
+    .chip b {
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .chip .cnt {
+      color: var(--blue);
+      font-weight: 600;
+      font-size: 11px;
+    }
+    .chip .dates {
+      color: var(--text-dim);
+      font-size: 10px;
+    }
+    .expand-btn {
+      margin-top: 10px;
+      background: transparent;
+      border: 1px dashed #444;
+      color: var(--text-dim);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      width: 100%;
+      cursor: pointer;
+    }
+    .expand-btn:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+    .summary-card {
+      background: linear-gradient(135deg, #1a2332 0%, #1a1a1a 100%);
+      border: 1px solid #2a3a4a;
+    }
+    .summary-card h3 {
+      color: var(--blue);
     }
   </style>
 </head>
@@ -279,6 +359,16 @@
         <div class="sub-tab" onclick="switchStatsView('stock', this)">Per Saham</div>
       </div>
 
+      <!-- Toolbar search + sort -->
+      <div class="stats-toolbar" id="statsToolbar" style="display:none">
+        <input type="text" id="statsSearch" placeholder="Cari kode / nama signal..." />
+        <select id="statsSort">
+          <option value="count-desc">Terbanyak</option>
+          <option value="count-asc">Tersedikit</option>
+          <option value="name-asc">A → Z</option>
+        </select>
+      </div>
+
       <div id="statsResult">
         <div class="empty">Pilih rentang tanggal lalu klik Hitung</div>
       </div>
@@ -287,7 +377,6 @@
 
   <script>
     const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/market_radar_by_day/";
-
     const SIGNAL_MAP = {
       1:  { name: "Huge Buy (Lot)",        dir: "up" },
       2:  { name: "Huge Sell (Lot)",       dir: "down" },
@@ -309,6 +398,8 @@
     let currentSearch = "";
     let currentSignal = "";
     let statsCache = null;
+    let statsView = "signal";
+    let statsExpanded = {};
 
     const today = new Date().toISOString().slice(0, 10);
     document.getElementById("datePicker").value = today;
@@ -320,7 +411,6 @@
       try { return iso.split("T")[1].split("+")[0].substring(0, 8); }
       catch { return iso; }
     }
-
     function formatValue(val) {
       if (val == null) return "-";
       const n = Number(val);
@@ -329,15 +419,15 @@
       if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
       return n.toLocaleString("id-ID");
     }
-
     function getSignalName(sig) {
       return SIGNAL_MAP[sig]?.name || `Signal ${sig}`;
     }
-
     function isUp(item) {
       return SIGNAL_MAP[item.signal]?.dir === "up";
     }
-
+    function getSignalDir(sig) {
+      return SIGNAL_MAP[sig]?.dir || "up";
+    }
     function getDatesInRange(from, to) {
       const dates = [];
       let current = new Date(from);
@@ -348,7 +438,6 @@
       }
       return dates;
     }
-
     async function fetchDay(date) {
       try {
         const res = await fetch(`${BASE_URL}radar_${date}.json?t=${Date.now()}`);
@@ -372,7 +461,9 @@
     function switchStatsView(view, el) {
       document.querySelectorAll(".sub-tab").forEach(t => t.classList.remove("active"));
       el.classList.add("active");
-      if (statsCache) renderStats(view);
+      statsView = view;
+      statsExpanded = {};
+      if (statsCache) renderStats();
     }
 
     // ===================== TIMELINE =====================
@@ -383,26 +474,21 @@
         return true;
       });
     }
-
     function renderTimeline(list) {
       const el = document.getElementById("timeline");
       const filtered = filterList(list);
       const badge = document.getElementById("countBadge");
-
       badge.textContent = filtered.length !== list.length
         ? `(${filtered.length} / ${list.length})`
         : list.length ? `(${list.length})` : "";
-
       if (!filtered.length) {
         el.innerHTML = `<div class="empty">Tidak ada data</div>`;
         return;
       }
-
       el.innerHTML = filtered.map(item => {
         const up = isUp(item);
         const pct = item.changePercentage || "0%";
         const pctClass = pct.startsWith("-") ? "down" : "up";
-
         return `
           <div class="item">
             <div class="time">${formatTime(item.timestamp)}</div>
@@ -428,15 +514,12 @@
         `;
       }).join("");
     }
-
     async function loadTimeline() {
       const date = document.getElementById("datePicker").value;
       if (!date) return alert("Pilih tanggal");
-
       document.getElementById("statusText").textContent = "Loading...";
       document.getElementById("timeline").innerHTML = `<div class="loading">Mengambil data...</div>`;
       document.getElementById("dateLabel").textContent = date;
-
       const data = await fetchDay(date);
       const seen = {};
       historyList = data.filter(i => {
@@ -444,11 +527,9 @@
         seen[i.id] = true;
         return true;
       }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
       renderTimeline(historyList);
       document.getElementById("statusText").textContent = `Total ${historyList.length}`;
     }
-
     document.getElementById("searchInput").addEventListener("input", e => {
       currentSearch = e.target.value;
       renderTimeline(historyList);
@@ -462,17 +543,16 @@
     async function loadStats() {
       const from = document.getElementById("statsFrom").value;
       const to   = document.getElementById("statsTo").value;
-
       if (!from || !to) return alert("Pilih rentang tanggal");
       if (from > to) return alert("Tanggal 'dari' tidak boleh lebih besar dari 'sampai'");
 
       const el = document.getElementById("statsResult");
       el.innerHTML = `<div class="loading">Mengambil data ${from} s/d ${to}...</div>`;
       document.getElementById("statusText").textContent = "Loading stats...";
+      document.getElementById("statsToolbar").style.display = "none";
 
       const dates = getDatesInRange(from, to);
       const allData = [];
-
       for (const d of dates) {
         const data = await fetchDay(d);
         data.forEach(item => {
@@ -510,64 +590,137 @@
       });
 
       statsCache = { bySignal, byStock, total: allData.length, from, to };
-      renderStats("signal");
+      statsExpanded = {};
+      renderStats();
       document.getElementById("statusText").textContent = `Stats: ${allData.length} data`;
     }
 
-    function renderStats(view) {
+    function renderStats() {
       if (!statsCache) return;
       const el = document.getElementById("statsResult");
+      const toolbar = document.getElementById("statsToolbar");
+      toolbar.style.display = "flex";
+
       const { bySignal, byStock, total, from, to } = statsCache;
+      const search = (document.getElementById("statsSearch")?.value || "").toLowerCase();
+      const sortMode = document.getElementById("statsSort")?.value || "count-desc";
 
       let html = `
-        <div class="stat-card">
-          <h3>Ringkasan ${from} s/d ${to}</h3>
-          <div class="stat-row">
-            <span>Total sinyal</span>
-            <span class="stat-count">${total}</span>
+        <div class="stat-card summary-card">
+          <h3>
+            <span>Ringkasan ${from} s/d ${to}</span>
+            <span class="stat-count">${total.toLocaleString("id-ID")}</span>
+          </h3>
+          <div class="stat-row" style="border:none;padding:0">
+            <span style="color:var(--text-dim);font-size:13px">Total sinyal</span>
           </div>
         </div>
       `;
 
-      if (view === "signal") {
-        const sorted = Object.entries(bySignal).sort((a, b) => b[1].total - a[1].total);
+      if (statsView === "signal") {
+        let entries = Object.entries(bySignal);
 
-        sorted.forEach(([sig, info]) => {
-          const stockList = Object.entries(info.stocks)
-            .sort((a, b) => b[1].count - a[1].count)
-            .map(([code, s]) => {
-              const dates = [...s.dates].sort().join(", ");
-              return `<b>${code}</b> (${s.count}x) <small>${dates}</small>`;
-            }).join("<br>");
+        // Filter
+        if (search) {
+          entries = entries.filter(([sig, info]) => {
+            const name = getSignalName(sig).toLowerCase();
+            const hasStock = Object.keys(info.stocks).some(c => c.toLowerCase().includes(search));
+            return name.includes(search) || hasStock;
+          });
+        }
+
+        // Sort
+        entries.sort((a, b) => {
+          if (sortMode === "count-desc") return b[1].total - a[1].total;
+          if (sortMode === "count-asc") return a[1].total - b[1].total;
+          return getSignalName(a[0]).localeCompare(getSignalName(b[0]));
+        });
+
+        entries.forEach(([sig, info]) => {
+          const dir = getSignalDir(sig);
+          const stocks = Object.entries(info.stocks)
+            .sort((a, b) => b[1].count - a[1].count);
+
+          const isExpanded = statsExpanded[`sig-${sig}`];
+          const limit = 8;
+          const show = isExpanded ? stocks : stocks.slice(0, limit);
+          const hasMore = stocks.length > limit;
+
+          const chips = show.map(([code, s]) => {
+            const dates = [...s.dates].sort().join(", ");
+            return `
+              <div class="chip" title="${dates}">
+                <b>${code}</b>
+                <span class="cnt">${s.count}×</span>
+                ${s.dates.size > 1 ? `<span class="dates">${s.dates.size} hari</span>` : ""}
+              </div>
+            `;
+          }).join("");
 
           html += `
             <div class="stat-card">
               <h3>
-                <span>${getSignalName(sig)}</span>
-                <span class="stat-count">${info.total}</span>
+                <div class="signal-title">
+                  <span class="signal-dot ${dir}"></span>
+                  <span>${getSignalName(sig)}</span>
+                </div>
+                <span class="stat-count">${info.total.toLocaleString("id-ID")}</span>
               </h3>
-              <div class="stock-list">${stockList}</div>
+              <div class="chip-list">${chips}</div>
+              ${hasMore ? `
+                <button class="expand-btn" onclick="toggleExpand('sig-${sig}')">
+                  ${isExpanded ? "Tampilkan lebih sedikit" : `Tampilkan ${stocks.length - limit} lainnya`}
+                </button>
+              ` : ""}
             </div>
           `;
         });
       } else {
-        const sorted = Object.entries(byStock).sort((a, b) => b[1].total - a[1].total);
+        // ===== PER SAHAM =====
+        let entries = Object.entries(byStock);
 
-        sorted.forEach(([code, info]) => {
-          const signalList = Object.entries(info.signals)
-            .sort((a, b) => b[1].count - a[1].count)
-            .map(([sig, s]) => {
-              const dates = [...s.dates].sort().join(", ");
-              return `<b>${getSignalName(sig)}</b> (${s.count}x) <small>${dates}</small>`;
-            }).join("<br>");
+        if (search) {
+          entries = entries.filter(([code]) => code.toLowerCase().includes(search));
+        }
+
+        entries.sort((a, b) => {
+          if (sortMode === "count-desc") return b[1].total - a[1].total;
+          if (sortMode === "count-asc") return a[1].total - b[1].total;
+          return a[0].localeCompare(b[0]);
+        });
+
+        entries.forEach(([code, info]) => {
+          const signals = Object.entries(info.signals)
+            .sort((a, b) => b[1].count - a[1].count);
+
+          const isExpanded = statsExpanded[`stk-${code}`];
+          const limit = 6;
+          const show = isExpanded ? signals : signals.slice(0, limit);
+          const hasMore = signals.length > limit;
+
+          const chips = show.map(([sig, s]) => {
+            const dir = getSignalDir(sig);
+            return `
+              <div class="chip" title="${[...s.dates].sort().join(", ")}">
+                <span class="signal-dot ${dir}" style="width:6px;height:6px"></span>
+                <b style="font-weight:500">${getSignalName(sig)}</b>
+                <span class="cnt">${s.count}×</span>
+              </div>
+            `;
+          }).join("");
 
           html += `
             <div class="stat-card">
               <h3>
-                <span>${code}</span>
-                <span class="stat-count">${info.total}</span>
+                <span style="font-weight:600;letter-spacing:0.4px">${code}</span>
+                <span class="stat-count">${info.total.toLocaleString("id-ID")}</span>
               </h3>
-              <div class="stock-list">${signalList}</div>
+              <div class="chip-list">${chips}</div>
+              ${hasMore ? `
+                <button class="expand-btn" onclick="toggleExpand('stk-${code}')">
+                  ${isExpanded ? "Tampilkan lebih sedikit" : `Tampilkan ${signals.length - limit} lainnya`}
+                </button>
+              ` : ""}
             </div>
           `;
         });
@@ -575,6 +728,19 @@
 
       el.innerHTML = html || `<div class="empty">Tidak ada data</div>`;
     }
+
+    function toggleExpand(key) {
+      statsExpanded[key] = !statsExpanded[key];
+      renderStats();
+    }
+
+    // Event listeners search & sort
+    document.getElementById("statsSearch").addEventListener("input", () => {
+      if (statsCache) renderStats();
+    });
+    document.getElementById("statsSort").addEventListener("change", () => {
+      if (statsCache) renderStats();
+    });
   </script>
 </body>
 </html>
