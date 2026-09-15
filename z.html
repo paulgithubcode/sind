@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pluang - Asset + Broker Summary (Range Tanggal)</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1100px;
+      margin: 30px auto;
+      padding: 0 20px;
+      background: #f8fafc;
+    }
+    h1 { margin-bottom: 4px; }
+    .subtitle { color: #64748b; margin-bottom: 20px; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    label { font-weight: 600; font-size: 14px; }
+    input[type="date"] {
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 11px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    button.stop { background: #dc2626; }
+    button.stop:hover { background: #b91c1c; }
+    button.secondary { background: #0f766e; }
+    button.secondary:hover { background: #0d9488; }
+    #status {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      display: none;
+      font-weight: 500;
+    }
+    #status.loading { display: block; background: #e0f2fe; color: #0369a1; }
+    #status.success { display: block; background: #dcfce7; color: #15803d; }
+    #status.error { display: block; background: #fee2e2; color: #b91c1c; }
+    .info {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 14px;
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .info div span { display: block; font-size: 12px; color: #64748b; }
+    .info div strong { font-size: 17px; }
+    .progress {
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #2563eb;
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 14px;
+      border-radius: 10px;
+      overflow: auto;
+      max-height: 480px;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <h1>Pluang · Asset + Broker Summary (Range Tanggal)</h1>
+  <p class="subtitle">
+    1) Ambil semua asset (skip X*) → 2) Loop tanggal mulai s/d akhir → Download BrokerSummary_YYYY-MM-DD.json
+  </p>
+
+  <div class="controls">
+    <label>Tanggal Mulai:</label>
+    <input type="date" id="startDate" value="2026-09-01">
+    <label>Tanggal Akhir:</label>
+    <input type="date" id="endDate" value="2026-09-08">
+  </div>
+
+  <div class="controls">
+    <button id="startBtn" onclick="startProcess()">Mulai Semua Proses</button>
+    <button id="stopBtn" class="stop" onclick="stopProcess()" disabled>Stop</button>
+    <button id="downloadAssetsBtn" class="secondary" onclick="downloadAssets()" disabled>Download Assets</button>
+  </div>
+
+  <div class="progress" id="progress">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="info" id="info">
+    <div><span>Tahap</span><strong id="stage">-</strong></div>
+    <div><span>Progress</span><strong id="progressText">-</strong></div>
+    <div><span>Asset Terkumpul</span><strong id="assetCount">0</strong></div>
+    <div><span>Tanggal Selesai</span><strong id="dateDone">0</strong></div>
+  </div>
+
+  <pre id="result">Klik "Mulai Semua Proses" untuk memulai...</pre>
+
+<script>
+  // ===================== STATE =====================
+  let allAssets = [];
+  let isRunning = false;
+  let shouldStop = false;
+
+  const assetHeaders = {
+    'x-device-id': 'web-ae613eb2-a8e2-4d90-9070-7a1443b36458',
+    'x-language-code': 'id',
+    'x-platform': 'desktop-web',
+    'x-request-id': crypto.randomUUID(),
+    'Accept': 'application/json'
+  };
+
+  const brokerHeaders = {
+    'x-device-id': 'web-ae613eb2-a8e2-4d90-9070-7a1443b36458',
+    'x-language-code': 'id',
+    'x-platform': 'desktop-web',
+    'x-request-id': crypto.randomUUID(),
+    'Accept': 'application/json'
+  };
+
+  // ===================== UI HELPERS =====================
+  function setStatus(type, text) {
+    const el = document.getElementById('status');
+    el.className = type;
+    el.textContent = text;
+  }
+
+  function updateInfo(stage, progressText, dateDone = 0) {
+    document.getElementById('info').style.display = 'grid';
+    document.getElementById('stage').textContent = stage;
+    document.getElementById('progressText').textContent = progressText;
+    document.getElementById('assetCount').textContent = allAssets.length;
+    document.getElementById('dateDone').textContent = dateDone;
+  }
+
+  function setProgress(percent) {
+    const bar = document.getElementById('progressBar');
+    const wrap = document.getElementById('progress');
+    wrap.style.display = 'block';
+    bar.style.width = Math.min(100, percent) + '%';
+  }
+
+  // ===================== DATE HELPERS =====================
+  function parseDate(str) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function formatDate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  function getDateRange(startStr, endStr) {
+    const start = parseDate(startStr);
+    const end = parseDate(endStr);
+    const dates = [];
+    let current = new Date(start);
+
+    while (current <= end) {
+      dates.push(formatDate(current));
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  }
+
+  // ===================== FETCH ASSETS =====================
+  async function fetchAssetPage(page) {
+    const url = `https://api-pluang.pluang.com/api/v4/mobile-app/explore/assets?page=${page}&pageSize=10&category=indo_stock&sortBy=market_cap_desc&viewBy=both`;
+    assetHeaders['x-request-id'] = crypto.randomUUID();
+    const res = await fetch(url, { method: 'GET', headers: assetHeaders });
+    if (!res.ok) throw new Error(`Asset API HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function collectAllAssets() {
+    allAssets = [];
+    let page = 1;
+    let totalPageCount = null;
+
+    while (true) {
+      if (shouldStop) break;
+      setStatus('loading', `Mengambil daftar asset · halaman ${page}...`);
+      updateInfo('Ambil Asset', `Halaman ${page}`);
+      setProgress(totalPageCount ? (page / totalPageCount) * 30 : 5);
+
+      const json = await fetchAssetPage(page);
+      const data = json.data;
+
+      if (totalPageCount === null) {
+        totalPageCount = data.totalPageCount || 1;
+      }
+
+      const categories = data.assetCategories || [];
+      let assets = [];
+      if (categories.length > 0) {
+        const catData = categories[0].assetCategoryData || [];
+        if (catData.length > 0) assets = catData[0].assets || [];
+      }
+
+      if (assets.length === 0) break;
+
+      for (const item of assets) {
+        const info = item.tileInfo;
+        if (!info) continue;
+        if (info.symbol && info.symbol.toUpperCase().startsWith('X')) continue;
+        allAssets.push({
+          assetId: info.assetId,
+          symbol: info.symbol,
+          name: info.name
+        });
+      }
+
+      document.getElementById('result').textContent =
+        `Asset terkumpul: ${allAssets.length}\n\n` +
+        JSON.stringify(allAssets.slice(-6), null, 2);
+
+      if (totalPageCount && page >= totalPageCount) break;
+      page++;
+      await new Promise(r => setTimeout(r, 280));
+    }
+
+    document.getElementById('downloadAssetsBtn').disabled = allAssets.length === 0;
+    return allAssets.length;
+  }
+
+  // ===================== FETCH BROKER SUMMARY =====================
+  async function fetchBrokerSummary(assetId, dateStr) {
+    const url = `https://indo-stock-api-v2.pluang.com/api/v2/indo-stock/broker/summary?stockId=${assetId}&startDate=${dateStr}&endDate=${dateStr}&net=true`;
+    brokerHeaders['x-request-id'] = crypto.randomUUID();
+    const res = await fetch(url, { method: 'GET', headers: brokerHeaders });
+    if (!res.ok) {
+      return { error: true, status: res.status, assetId };
+    }
+    return res.json();
+  }
+
+  async function collectBrokerForDate(dateStr, dateIndex, totalDates) {
+    const results = [];
+    const total = allAssets.length;
+
+    for (let i = 0; i < total; i++) {
+      if (shouldStop) break;
+
+      const asset = allAssets[i];
+      setStatus('loading', `[${dateStr}] ${asset.symbol} (${i + 1}/${total})`);
+      updateInfo('Broker Summary', `${dateStr} · ${i + 1}/${total}`, dateIndex);
+      setProgress(30 + ((dateIndex + (i + 1) / total) / totalDates) * 70);
+
+      try {
+        const data = await fetchBrokerSummary(asset.assetId, dateStr);
+        results.push({
+          assetId: asset.assetId,
+          symbol: asset.symbol,
+          name: asset.name,
+          date: dateStr,
+          brokerData: data
+        });
+      } catch (err) {
+        results.push({
+          assetId: asset.assetId,
+          symbol: asset.symbol,
+          name: asset.name,
+          date: dateStr,
+          brokerData: { error: true, message: err.message }
+        });
+      }
+
+      document.getElementById('result').textContent =
+        `Tanggal: ${dateStr}\nProgress: ${i + 1}/${total}\nTerakhir: ${asset.symbol}\n\n` +
+        JSON.stringify(results.slice(-3), null, 2);
+
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    return results;
+  }
+
+  function downloadJson(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ===================== MAIN PROCESS =====================
+  async function startProcess() {
+    if (isRunning) return;
+
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    if (!startDate || !endDate) {
+      alert('Isi Tanggal Mulai dan Tanggal Akhir');
+      return;
+    }
+    if (startDate > endDate) {
+      alert('Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir');
+      return;
+    }
+
+    isRunning = true;
+    shouldStop = false;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('downloadAssetsBtn').disabled = true;
+    document.getElementById('result').textContent = 'Memulai...';
+
+    try {
+      // Tahap 1: Ambil semua asset
+      const assetCount = await collectAllAssets();
+      if (shouldStop) {
+        setStatus('error', `Dihentikan. Asset terkumpul: ${assetCount}`);
+        return;
+      }
+      if (assetCount === 0) {
+        setStatus('error', 'Tidak ada asset yang berhasil diambil');
+        return;
+      }
+
+      // Tahap 2: Loop tanggal
+      const dates = getDateRange(startDate, endDate);
+      setStatus('loading', `Asset selesai (${assetCount}). Mulai loop ${dates.length} tanggal...`);
+
+      for (let d = 0; d < dates.length; d++) {
+        if (shouldStop) break;
+
+        const dateStr = dates[d];
+        setStatus('loading', `Memproses tanggal ${dateStr} (${d + 1}/${dates.length})`);
+
+        const results = await collectBrokerForDate(dateStr, d, dates.length);
+
+        // Download langsung per tanggal
+        downloadJson(results, `BrokerSummary_${dateStr}.json`);
+        setStatus('success', `Selesai ${dateStr} → file BrokerSummary_${dateStr}.json terunduh`);
+
+        // jeda antar tanggal
+        await new Promise(r => setTimeout(r, 800));
+      }
+
+      if (shouldStop) {
+        setStatus('error', 'Proses dihentikan');
+      } else {
+        setStatus('success', `Semua selesai! ${dates.length} file berhasil diunduh`);
+        setProgress(100);
+      }
+
+    } catch (err) {
+      setStatus('error', 'Error: ' + err.message);
+      console.error(err);
+      document.getElementById('result').textContent = err.toString();
+    } finally {
+      isRunning = false;
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+    }
+  }
+
+  function stopProcess() {
+    shouldStop = true;
+    setStatus('loading', 'Menghentikan setelah request saat ini selesai...');
+  }
+
+  function downloadAssets() {
+    const blob = new Blob([JSON.stringify(allAssets, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `pluang-assets-${allAssets.length}.json`;
+    a.click();
+  }
+</script>
+</body>
+</html>

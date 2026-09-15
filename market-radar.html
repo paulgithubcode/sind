@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Radar</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --card: #1a1a1a;
+      --card-hover: #222;
+      --border: #2a2a2a;
+      --text: #e0e0e0;
+      --text-dim: #888;
+      --green: #00c853;
+      --red: #ff5252;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .container { max-width: 480px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+    header h1 { font-size: 18px; font-weight: 600; }
+    .status {
+      font-size: 12px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+    }
+    .status .dot.error { background: var(--red); }
+    .section-title {
+      font-size: 14px; font-weight: 500; color: var(--text-dim);
+      margin-bottom: 12px; padding-left: 4px;
+    }
+    .timeline { position: relative; padding-left: 0; }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 52px; top: 8px; bottom: 8px;
+      width: 2px; background: var(--border);
+    }
+    .item {
+      display: flex; align-items: flex-start;
+      gap: 12px; margin-bottom: 10px; position: relative;
+    }
+    .time {
+      width: 48px; font-size: 12px; color: var(--text-dim);
+      text-align: right; padding-top: 14px; flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .dot-line {
+      width: 12px; display: flex; justify-content: center;
+      padding-top: 16px; flex-shrink: 0; z-index: 1;
+    }
+    .dot-line span {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #555; border: 2px solid var(--bg);
+    }
+    .card {
+      flex: 1; background: var(--card); border-radius: 12px;
+      padding: 12px 14px; display: flex; align-items: center;
+      gap: 12px; border: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .card:hover { background: var(--card-hover); }
+    .logo-wrap {
+      width: 40px; height: 40px; border-radius: 50%;
+      overflow: hidden; flex-shrink: 0; background: #2a2a2a;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .logo-fallback { font-size: 11px; font-weight: 700; color: #aaa; }
+    .info { flex: 1; min-width: 0; }
+    .row1 { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .sec-code { font-size: 14px; font-weight: 600; }
+    .signal-name { font-size: 13px; font-weight: 500; }
+    .signal-name.up { color: var(--green); }
+    .signal-name.down { color: var(--red); }
+    .arrow { font-size: 12px; }
+    .row2 {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 12px; color: var(--text-dim);
+    }
+    .price { font-weight: 500; color: var(--text); }
+    .pct { font-weight: 500; }
+    .pct.up { color: var(--green); }
+    .pct.down { color: var(--red); }
+    .meta {
+      margin-left: auto; font-size: 12px;
+      color: var(--text-dim); white-space: nowrap;
+    }
+    .loading, .empty { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 14px; }
+    .controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    button, input[type="date"] {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 14px; border-radius: 8px;
+      font-size: 13px; cursor: pointer;
+    }
+    button:hover { background: var(--card-hover); }
+    .search-box { width: 100%; margin-bottom: 12px; display: flex; gap: 8px; }
+    .search-box input, .search-box select {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); padding: 10px 14px; border-radius: 10px;
+      font-size: 14px; outline: none;
+    }
+    .search-box input { flex: 1; min-width: 0; }
+    .search-box input::placeholder { color: #666; }
+    .search-box select { width: 170px; flex-shrink: 0; cursor: pointer; }
+    .search-box select option { background: #1a1a1a; color: var(--text); }
+    .card.buy .logo-wrap { box-shadow: 0 0 0 2px var(--green); }
+    .card.sell .logo-wrap { box-shadow: 0 0 0 2px var(--red); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Market Radar</h1>
+      <div class="status" id="status">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">Ready</span>
+      </div>
+    </header>
+
+    <div class="controls">
+      <input type="date" id="datePicker" />
+      <button onclick="loadData()">Tampilkan</button>
+    </div>
+
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Cari kode saham..." autocomplete="off" />
+      <select id="signalFilter">
+        <option value="">Semua Signal</option>
+        <option value="1">Huge Buy (Lot)</option>
+        <option value="2">Huge Sell (Lot)</option>
+        <option value="3">Intensive Buy</option>
+        <option value="4">Intensive Sell</option>
+        <option value="5">Rapid Buy (IDR)</option>
+        <option value="6">Rapid Sell (IDR)</option>
+        <option value="7">Large Best Bid (Lot)</option>
+        <option value="8">Large Best Offer (Lot)</option>
+        <option value="9">Nego Spike (IDR)</option>
+        <option value="10">Nego Active (IDR)</option>
+        <option value="11">Breakout High</option>
+        <option value="12">Breakout Low</option>
+        <option value="13">Quick Rebound</option>
+        <option value="14">Quick Reject</option>
+      </select>
+    </div>
+
+    <div class="section-title">
+      <span id="dateLabel">-</span>
+      <span id="countBadge" style="color:#666;font-weight:400"></span>
+    </div>
+
+    <div class="timeline" id="timeline">
+      <div class="loading">Pilih tanggal lalu klik Tampilkan</div>
+    </div>
+  </div>
+
+  <script>
+    const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/market_radar_by_day/";
+
+    const SIGNAL_MAP = {
+      1:  { name: "Huge Buy (Lot)",        dir: "up",   format: "volume" },
+      2:  { name: "Huge Sell (Lot)",       dir: "down", format: "volume" },
+      3:  { name: "Intensive Buy",         dir: "up",   format: "option_buy" },
+      4:  { name: "Intensive Sell",        dir: "down", format: "option_sell" },
+      5:  { name: "Rapid Buy (IDR)",       dir: "up",   format: "value" },
+      6:  { name: "Rapid Sell (IDR)",      dir: "down", format: "value" },
+      7:  { name: "Large Best Bid (Lot)",  dir: "up",   format: "option_lot" },
+      8:  { name: "Large Best Offer (Lot)",dir: "down", format: "option_lot" },
+      9:  { name: "Nego Spike (IDR)",      dir: "up",   format: "value" },
+      10: { name: "Nego Active (IDR)",     dir: "down", format: "value" },
+      11: { name: "Breakout High",         dir: "up",   format: "period" },
+      12: { name: "Breakout Low",          dir: "down", format: "period" },
+      13: { name: "Quick Rebound",         dir: "up",   format: "rebound" },
+      14: { name: "Quick Reject",          dir: "up",   format: "reject" }
+    };
+
+    const PERIOD_MAP     = { 1: "1 Month", 2: "3 Month", 3: "1 Year" };
+    const INTENSIVE_BUY  = { 1: "Buy ≥4x Sell", 2: "Buy ≥5x Sell", 3: "Buy ≥6x Sell" };
+    const INTENSIVE_SELL = { 1: "Sell ≥4x Buy", 2: "Sell ≥5x Buy", 3: "Sell ≥6x Buy" };
+    const LOT_THRESHOLD  = { 1: "≥40,000", 2: "≥45,000", 3: "≥50,000" };
+    const REBOUND_MAP    = { 1: "Dari ≤ -2.5%", 2: "Dari ≤ -5%", 3: "Dari ≤ -7.5%" };
+    const REJECT_MAP     = { 1: "Dari ≤ +2.5%", 2: "Dari ≤ +5%", 3: "Dari ≤ +7.5%" };
+
+    let historyList = [];
+    let currentSearch = "";
+    let currentSignal = "";
+
+    // Set default date ke hari ini
+    document.getElementById("datePicker").value = new Date().toISOString().slice(0, 10);
+
+    function formatValue(val) {
+      if (val == null) return "-";
+      const n = Number(val);
+      if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+      return n.toLocaleString("id-ID");
+    }
+
+    function formatVolume(vol) {
+      if (vol == null) return "-";
+      return Number(vol).toLocaleString("id-ID");
+    }
+
+    function formatTime(iso) {
+      try {
+        return iso.split("T")[1].split("+")[0].substring(0, 8);
+      } catch {
+        return iso;
+      }
+    }
+
+    function getMeta(item) {
+      const sig = SIGNAL_MAP[item.signal] || { format: "value" };
+      const opt = item.signalOption;
+      switch (sig.format) {
+        case "volume":      return formatVolume(item.volume);
+        case "value":       return formatValue(item.value);
+        case "period":      return PERIOD_MAP[opt] || "1 Month";
+        case "option_buy":  return INTENSIVE_BUY[opt] || "";
+        case "option_sell": return INTENSIVE_SELL[opt] || "";
+        case "option_lot":  return LOT_THRESHOLD[opt] || "";
+        case "rebound":     return REBOUND_MAP[opt] || "";
+        case "reject":      return REJECT_MAP[opt] || "";
+        default:            return formatValue(item.value);
+      }
+    }
+
+    function getSignalName(item) {
+      return SIGNAL_MAP[item.signal]?.name || `Signal ${item.signal}`;
+    }
+
+    function isUp(item) {
+      const sig = SIGNAL_MAP[item.signal];
+      if (sig) return sig.dir === "up";
+      return (item.changePercentage || "").startsWith("+");
+    }
+
+    function filterList(list) {
+      return list.filter(item => {
+        if (currentSearch) {
+          const code = (item.secCode || "").toLowerCase();
+          if (!code.includes(currentSearch.toLowerCase().trim())) return false;
+        }
+        if (currentSignal && String(item.signal) !== currentSignal) return false;
+        return true;
+      });
+    }
+
+    function renderList(list) {
+      const el = document.getElementById("timeline");
+      const filtered = filterList(list);
+      const isFiltered = currentSearch || currentSignal;
+      const badge = document.getElementById("countBadge");
+
+      if (isFiltered && filtered.length !== list.length) {
+        badge.textContent = `(${filtered.length} / ${list.length})`;
+      } else {
+        badge.textContent = list.length ? `(${list.length})` : "";
+      }
+
+      if (!filtered.length) {
+        let msg = "Tidak ada data";
+        if (isFiltered) {
+          const parts = [];
+          if (currentSearch) parts.push(`kode "${currentSearch}"`);
+          if (currentSignal) parts.push(`signal "${SIGNAL_MAP[currentSignal]?.name || currentSignal}"`);
+          msg = `Tidak ditemukan untuk ${parts.join(" + ")}`;
+        }
+        el.innerHTML = `<div class="empty">${msg}</div>`;
+        return;
+      }
+
+      el.innerHTML = filtered.map(item => {
+        const up = isUp(item);
+        const dirClass = up ? "up" : "down";
+        const cardClass = up ? "buy" : "sell";
+        const arrow = up ? "↑" : "↓";
+        const pct = item.changePercentage || "0.00%";
+        const pctClass = pct.startsWith("-") ? "down" : "up";
+        const meta = getMeta(item);
+        const time = formatTime(item.timestamp);
+        const name = getSignalName(item);
+        const logo = item.logo || "";
+
+        return `
+          <div class="item">
+            <div class="time">${time}</div>
+            <div class="dot-line"><span></span></div>
+            <div class="card ${cardClass}">
+              <div class="logo-wrap">
+                <img src="${logo}" alt="${item.secCode || ''}"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                <div class="logo-fallback" style="display:none">${(item.secCode || '--').substring(0,2)}</div>
+              </div>
+              <div class="info">
+                <div class="row1">
+                  <span class="sec-code">${item.secCode || '-'}</span>
+                  <span class="signal-name ${dirClass}">${name} <span class="arrow">${arrow}</span></span>
+                </div>
+                <div class="row2">
+                  <span class="price">${item.lastPrice || '-'}</span>
+                  <span class="pct ${pctClass}">${pct}</span>
+                  <span class="meta">${meta}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function applySearch() {
+      currentSearch = document.getElementById("searchInput").value || "";
+      currentSignal = document.getElementById("signalFilter").value || "";
+      renderList(historyList);
+    }
+
+    async function loadData() {
+      const date = document.getElementById("datePicker").value;
+      if (!date) {
+        alert("Pilih tanggal dulu");
+        return;
+      }
+
+      const statusDot  = document.getElementById("statusDot");
+      const statusText = document.getElementById("statusText");
+      const timeline   = document.getElementById("timeline");
+
+      statusText.textContent = "Loading...";
+      statusDot.classList.remove("error");
+      timeline.innerHTML = `<div class="loading">Mengambil data ${date}...</div>`;
+      document.getElementById("dateLabel").textContent = date;
+      document.getElementById("countBadge").textContent = "";
+
+      try {
+        const url = `${BASE_URL}radar_${date}.json?t=${Date.now()}`;
+        const res = await fetch(url);
+
+        if (!res.ok) {
+          throw new Error("File tidak ditemukan");
+        }
+
+        let data = await res.json();
+
+        // Pastikan array
+        if (!Array.isArray(data)) {
+          data = data.list || [];
+        }
+
+        // Hapus duplikat berdasarkan id
+        const seen = {};
+        const unique = [];
+        data.forEach(item => {
+          const id = item.id;
+          if (id && !seen[id]) {
+            seen[id] = true;
+            unique.push(item);
+          }
+        });
+
+        // Urutkan terbaru di atas
+        unique.sort((a, b) => {
+          return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+        });
+
+        historyList = unique;
+        renderList(historyList);
+
+        statusText.textContent = `Total ${historyList.length}`;
+        statusDot.classList.remove("error");
+
+      } catch (err) {
+        console.error(err);
+        timeline.innerHTML = `<div class="empty">Data tidak ditemukan untuk tanggal ${date}</div>`;
+        statusText.textContent = "Error";
+        statusDot.classList.add("error");
+        historyList = [];
+      }
+    }
+
+    // Event listeners
+    document.getElementById("searchInput").addEventListener("input", applySearch);
+    document.getElementById("signalFilter").addEventListener("change", applySearch);
+
+    // Load data hari ini saat pertama kali dibuka (opsional)
+    // loadData();
+  </script>
+</body>
+</html>

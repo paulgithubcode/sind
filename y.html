@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Pluang Order Book + Trades</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 1100px;
+      margin: 20px auto;
+      padding: 0 16px;
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+    h2 { margin-bottom: 12px; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    input[type="text"] {
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 14px;
+      width: 120px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .btn-connect { background: #2563eb; color: white; }
+    .btn-disconnect { background: #dc2626; color: white; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #status {
+      font-size: 13px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .online { background: #dcfce7; color: #166534; }
+    .offline { background: #fee2e2; color: #991b1b; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 340px;
+      gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+    th {
+      background: #f8fafc;
+      padding: 8px 10px;
+      text-align: right;
+      font-weight: 600;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    td {
+      padding: 5px 10px;
+      text-align: right;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .asks th { color: #dc2626; }
+    .bids th { color: #16a34a; }
+    .price-ask { color: #dc2626; font-weight: 600; }
+    .price-bid { color: #16a34a; font-weight: 600; }
+    .lot { color: #64748b; }
+
+    .header-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .percent { font-size: 13px; color: #64748b; }
+    .last-update { font-size: 12px; color: #94a3b8; }
+
+    .trade-buy { color: #16a34a; font-weight: 600; }
+    .trade-sell { color: #dc2626; font-weight: 600; }
+    #tradesBody tr:first-child td { background: #f0fdf4; }
+  </style>
+</head>
+<body>
+
+  <h2>Pluang Order Book + Trades</h2>
+
+  <div class="card">
+    <div class="row">
+      <label><strong>Emiten:</strong></label>
+      <input type="text" id="symbolInput" value="BBCA" placeholder="BBCA" maxlength="10">
+      
+      <span id="status" class="offline">Offline</span>
+      <button id="btnConnect" class="btn-connect">Connect + Subscribe</button>
+      <button id="btnDisconnect" class="btn-disconnect" disabled>Disconnect</button>
+    </div>
+    <div style="font-size:13px; color:#64748b; margin-top:4px;">
+      Contoh: BBCA, BBRI, TLKM, ASII, BMRI, BREN, dll.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="header-info">
+      <div>
+        <strong style="font-size:18px" id="symbolTitle">BBCA</strong>
+        <span class="percent" id="percentInfo"></span>
+      </div>
+      <div class="last-update" id="lastUpdate">-</div>
+    </div>
+
+    <div class="grid">
+      <!-- ASKS -->
+      <div>
+        <table class="asks">
+          <thead>
+            <tr>
+              <th>Lot</th>
+              <th>Ask</th>
+            </tr>
+          </thead>
+          <tbody id="asksBody">
+            <tr><td colspan="2" style="text-align:center;color:#94a3b8">Menunggu data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- BIDS -->
+      <div>
+        <table class="bids">
+          <thead>
+            <tr>
+              <th>Bid</th>
+              <th>Lot</th>
+            </tr>
+          </thead>
+          <tbody id="bidsBody">
+            <tr><td colspan="2" style="text-align:center;color:#94a3b8">Menunggu data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- RECENT TRADES -->
+      <div>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left">Time</th>
+              <th>Action</th>
+              <th>Price</th>
+              <th>Lot</th>
+            </tr>
+          </thead>
+          <tbody id="tradesBody">
+            <tr><td colspan="4" style="text-align:center;color:#94a3b8">Menunggu trade...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const WS_URL = "wss://socket.pluang.com/socket.io/?EIO=4&transport=websocket";
+  let ws = null;
+  let subscribed = false;
+  let currentSymbol = "BBCA";
+  const recentTrades = [];
+
+  function setOnline(online) {
+    const el = document.getElementById("status");
+    el.textContent = online ? "Online" : "Offline";
+    el.className = online ? "online" : "offline";
+    document.getElementById("btnConnect").disabled = online;
+    document.getElementById("btnDisconnect").disabled = !online;
+    document.getElementById("symbolInput").disabled = online; // kunci saat online
+  }
+
+  function clearTables() {
+    document.getElementById("asksBody").innerHTML =
+      `<tr><td colspan="2" style="text-align:center;color:#94a3b8">Menunggu data...</td></tr>`;
+    document.getElementById("bidsBody").innerHTML =
+      `<tr><td colspan="2" style="text-align:center;color:#94a3b8">Menunggu data...</td></tr>`;
+    document.getElementById("tradesBody").innerHTML =
+      `<tr><td colspan="4" style="text-align:center;color:#94a3b8">Menunggu trade...</td></tr>`;
+    document.getElementById("percentInfo").textContent = "";
+    document.getElementById("lastUpdate").textContent = "-";
+    recentTrades.length = 0;
+  }
+
+  function renderOrderBook(data) {
+    const asks = [...data.asks].reverse();
+    document.getElementById("asksBody").innerHTML = asks.map(item => `
+      <tr>
+        <td class="lot">${item.l.toLocaleString()}</td>
+        <td class="price-ask">${item.p.toLocaleString()}</td>
+      </tr>
+    `).join("");
+
+    document.getElementById("bidsBody").innerHTML = data.bids.map(item => `
+      <tr>
+        <td class="price-bid">${item.p.toLocaleString()}</td>
+        <td class="lot">${item.l.toLocaleString()}</td>
+      </tr>
+    `).join("");
+
+    document.getElementById("percentInfo").textContent =
+      ` · Bid ${data.bidPercent}% · Ask ${data.askPercent}%`;
+    document.getElementById("lastUpdate").textContent =
+      "Update: " + new Date().toLocaleTimeString();
+  }
+
+  function renderTrades() {
+    const tbody = document.getElementById("tradesBody");
+    if (recentTrades.length === 0) return;
+
+    tbody.innerHTML = recentTrades.map(t => {
+      const sideClass = t.action === "BUY" ? "trade-buy" : "trade-sell";
+      return `
+        <tr>
+          <td style="text-align:left; color:#64748b">${t.time}</td>
+          <td class="${sideClass}">${t.action}</td>
+          <td class="${sideClass}">${t.price.toLocaleString()}</td>
+          <td>${t.lot.toLocaleString()}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function doSubscribe() {
+    if (subscribed) return;
+    subscribed = true;
+
+    const sym = currentSymbol;
+    const msgs = [
+      `42["subscribe",{"topics":["indo_stock:v2:order_book:${sym}"]}]`,
+      `42["subscribe",{"topics":["indo_stock:v2:trade:${sym}"]}]`,
+      `42["subscribe",{"topics":["indo_stock:v2:price:${sym}"]}]`
+    ];
+    msgs.forEach(m => ws.send(m));
+  }
+
+  function connect() {
+    if (ws) return;
+
+    // Ambil symbol dari input
+    currentSymbol = document.getElementById("symbolInput").value.trim().toUpperCase();
+    if (!currentSymbol) {
+      alert("Masukkan kode emiten terlebih dahulu");
+      return;
+    }
+
+    document.getElementById("symbolTitle").textContent = currentSymbol;
+    clearTables();
+    subscribed = false;
+
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => setOnline(true);
+
+    ws.onmessage = (e) => {
+      const data = e.data;
+
+      if (data.startsWith("0")) {
+        ws.send("40");
+        return;
+      }
+      if (data === "2") {
+        ws.send("3");
+        return;
+      }
+      if (data.startsWith("40")) {
+        doSubscribe();
+        return;
+      }
+
+      if (data.startsWith("42")) {
+        try {
+          const parsed = JSON.parse(data.slice(2));
+          const topic = parsed[0];
+          const payload = parsed[1];
+
+          if (!payload) return;
+
+          // Order Book
+          if (topic === `indo_stock:v2:order_book:${currentSymbol}`) {
+            renderOrderBook(payload);
+          }
+
+          // Trade
+          if (topic === `indo_stock:v2:trade:${currentSymbol}`) {
+            const trade = {
+              action: payload.action || "-",
+              price: payload.price || 0,
+              lot: payload.lot || 0,
+              time: payload.time || new Date().toLocaleTimeString()
+            };
+
+            recentTrades.unshift(trade);
+            if (recentTrades.length > 20) recentTrades.pop();
+            renderTrades();
+          }
+
+        } catch (err) {
+          console.error("Parse error", err, data);
+        }
+      }
+    };
+
+    ws.onerror = () => console.error("WebSocket error");
+    ws.onclose = () => {
+      ws = null;
+      subscribed = false;
+      setOnline(false);
+    };
+  }
+
+  function disconnect() {
+    if (ws) ws.close();
+  }
+
+  // Enter di input symbol = connect
+  document.getElementById("symbolInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") connect();
+  });
+
+  document.getElementById("btnConnect").onclick = connect;
+  document.getElementById("btnDisconnect").onclick = disconnect;
+</script>
+</body>
+</html>

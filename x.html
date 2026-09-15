@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Pluang · Multi WS (40 emiten / koneksi)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 20px auto; padding: 0 16px; background: #f8fafc; }
+    h1 { margin-bottom: 4px; }
+    .subtitle { color: #64748b; margin-bottom: 16px; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    button {
+      background: #2563eb; color: white; border: none; padding: 10px 16px;
+      border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    button.stop { background: #dc2626; }
+    button.secondary { background: #0f766e; }
+    #status {
+      padding: 12px 16px; border-radius: 8px; margin-bottom: 12px;
+      display: none; font-weight: 500;
+    }
+    #status.loading { display: block; background: #e0f2fe; color: #0369a1; }
+    #status.success { display: block; background: #dcfce7; color: #15803d; }
+    #status.error { display: block; background: #fee2e2; color: #b91c1c; }
+    .info {
+      background: white; border: 1px solid #e2e8f0; border-radius: 10px;
+      padding: 12px; margin-bottom: 12px; display: none;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;
+    }
+    .info div span { display: block; font-size: 12px; color: #64748b; }
+    .info div strong { font-size: 16px; }
+    #log {
+      background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 10px;
+      height: 420px; overflow-y: auto; font-family: monospace; font-size: 12.5px;
+      white-space: pre-wrap; line-height: 1.4;
+    }
+    .sent { color: #60a5fa; }
+    .recv { color: #4ade80; }
+    .error { color: #f87171; }
+    .info-log { color: #fbbf24; }
+  </style>
+</head>
+<body>
+
+  <h1>Pluang · Multi Koneksi (40 emiten / koneksi)</h1>
+  <p class="subtitle">
+    1. Load semua emiten → 2. Bagi ke beberapa koneksi (maks 40 emiten per koneksi)
+  </p>
+
+  <div class="controls">
+    <button id="btnLoad" onclick="startLoadAssets()">1. Load Semua Emiten</button>
+    <button id="btnStartWS" onclick="startMultiWS()" disabled>2. Start Multi WS</button>
+    <button id="btnStop" class="stop" onclick="stopAllWS()" disabled>Stop Semua</button>
+    <button class="secondary" id="btnDownload" onclick="downloadSymbols()" disabled>Download Symbols</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="info" id="info">
+    <div><span>Total Emiten</span><strong id="assetCount">0</strong></div>
+    <div><span>Koneksi Aktif</span><strong id="connCount">0</strong></div>
+    <div><span>Emiten Aktif</span><strong id="activeSymbols">0</strong></div>
+    <div><span>Status</span><strong id="stage">-</strong></div>
+  </div>
+
+  <div id="log"></div>
+
+<script>
+  // ===================== CONFIG =====================
+  const SYMBOLS_PER_CONN = 2;          // maksimal emiten per koneksi
+  const WS_URL = "wss://socket.pluang.com/socket.io/?EIO=4&transport=websocket";
+
+  // ===================== STATE =====================
+  let allSymbols = [];
+  let connections = [];                 // { ws, symbols, id, subscribed }
+  let shouldStop = false;
+
+  const assetHeaders = {
+    'x-device-id': 'web-ae613eb2-a8e2-4d90-9070-7a1443b36458',
+    'x-language-code': 'id',
+    'x-platform': 'desktop-web',
+    'x-request-id': crypto.randomUUID(),
+    'Accept': 'application/json'
+  };
+
+  // ===================== UI =====================
+  function setStatus(type, text) {
+    const el = document.getElementById('status');
+    el.className = type;
+    el.textContent = text;
+  }
+
+  function log(msg, type = "info-log") {
+    const el = document.getElementById("log");
+    const line = document.createElement("div");
+    line.className = type;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function updateInfo() {
+    document.getElementById("info").style.display = "grid";
+    document.getElementById("assetCount").textContent = allSymbols.length;
+    document.getElementById("connCount").textContent = connections.length;
+    document.getElementById("activeSymbols").textContent = connections.reduce((s, c) => s + c.symbols.length, 0);
+  }
+
+  // ===================== 1. LOAD EMITEN =====================
+  async function fetchAssetPage(page) {
+    const url = `https://api-pluang.pluang.com/api/v4/mobile-app/explore/assets?page=${page}&pageSize=10&category=indo_stock&sortBy=market_cap_desc&viewBy=both`;
+    assetHeaders['x-request-id'] = crypto.randomUUID();
+    const res = await fetch(url, { method: 'GET', headers: assetHeaders });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function startLoadAssets() {
+    document.getElementById("btnLoad").disabled = true;
+    document.getElementById("btnStartWS").disabled = true;
+    document.getElementById("btnDownload").disabled = true;
+    allSymbols = [];
+    setStatus("loading", "Mengambil daftar emiten...");
+    log("Mulai load emiten...", "info-log");
+
+    try {
+      let page = 1;
+      let totalPageCount = null;
+
+      while (true) {
+        setStatus("loading", `Halaman ${page}...`);
+        const json = await fetchAssetPage(page);
+        const data = json.data;
+
+        if (totalPageCount === null) totalPageCount = data.totalPageCount || 1;
+
+        const categories = data.assetCategories || [];
+        let assets = [];
+        if (categories.length > 0) {
+          const catData = categories[0].assetCategoryData || [];
+          if (catData.length > 0) assets = catData[0].assets || [];
+        }
+
+        if (assets.length === 0) break;
+
+        for (const item of assets) {
+          const info = item.tileInfo;
+          if (!info || !info.symbol) continue;
+          const sym = info.symbol.toUpperCase();
+          if (sym.startsWith("X")) continue;
+          if (!allSymbols.includes(sym)) allSymbols.push(sym);
+        }
+
+        log(`Halaman ${page}/${totalPageCount} → ${allSymbols.length} emiten`, "info-log");
+        updateInfo();
+
+        if (totalPageCount && page >= totalPageCount) break;
+        page++;
+        await new Promise(r => setTimeout(r, 280));
+      }
+
+      if (allSymbols.length === 0) {
+        setStatus("error", "Tidak ada emiten");
+        return;
+      }
+
+      setStatus("success", `Berhasil ambil ${allSymbols.length} emiten`);
+      document.getElementById("btnStartWS").disabled = false;
+      document.getElementById("btnDownload").disabled = false;
+      log(`Load selesai: ${allSymbols.length} emiten`, "info-log");
+
+    } catch (err) {
+      setStatus("error", err.message);
+      log("Error: " + err.message, "error");
+    } finally {
+      document.getElementById("btnLoad").disabled = false;
+    }
+  }
+
+  // ===================== 2. MULTI WEBSOCKET =====================
+  function createConnection(symbols, id) {
+    return new Promise((resolve) => {
+      const ws = new WebSocket(WS_URL);
+      const conn = { ws, symbols, id, subscribed: false };
+
+      ws.onopen = () => {
+        log(`[Conn ${id}] Opened (${symbols.length} emiten)`, "info-log");
+      };
+
+      ws.onmessage = (e) => {
+        const data = e.data;
+
+        if (data.startsWith("0")) {
+          ws.send("40");
+          return;
+        }
+        if (data === "2") {
+          ws.send("3");
+          return;
+        }
+
+        // Namespace connected → subscribe
+        if (data.startsWith("40") && !conn.subscribed) {
+          conn.subscribed = true;
+
+          symbols.forEach(sym => {
+            ws.send(`42["subscribe",{"topics":["indo_stock:v2:order_book:${sym}"]}]`);
+            ws.send(`42["subscribe",{"topics":["indo_stock:v2:trade:${sym}"]}]`);
+            ws.send(`42["subscribe",{"topics":["indo_stock:v2:price:${sym}"]}]`);
+          });
+
+          log(`[Conn ${id}] Subscribed ${symbols.length} emiten`, "sent");
+          resolve(conn);
+          return;
+        }
+
+        // Data trade (ringkas)
+        if (data.startsWith("42")) {
+          try {
+            const parsed = JSON.parse(data.slice(2));
+            const topic = parsed[0] || "";
+            if (topic.includes(":trade:")) {
+              const p = parsed[1];
+              const sym = topic.split(":").pop();
+              log(`[TRADE] ${sym} ${p?.action} ${p?.price} x ${p?.lot}`, "recv");
+            }
+            // Rate limit warning
+            if (topic === "rateLimitExceeded") {
+              log(`[Conn ${id}] RATE LIMIT: ${parsed[1]?.message}`, "error");
+            }
+          } catch {}
+        }
+      };
+
+      ws.onerror = () => log(`[Conn ${id}] Error`, "error");
+      ws.onclose = () => {
+        log(`[Conn ${id}] Closed`, "info-log");
+        connections = connections.filter(c => c.id !== id);
+        updateInfo();
+      };
+
+      connections.push(conn);
+      updateInfo();
+    });
+  }
+
+  async function startMultiWS() {
+    if (allSymbols.length === 0) return;
+
+    document.getElementById("btnStartWS").disabled = true;
+    document.getElementById("btnStop").disabled = false;
+    shouldStop = false;
+    connections = [];
+
+    const totalConn = Math.ceil(allSymbols.length / SYMBOLS_PER_CONN);
+    log(`Akan membuat ${totalConn} koneksi (masing-masing max ${SYMBOLS_PER_CONN} emiten)`, "info-log");
+    setStatus("loading", `Membuat ${totalConn} koneksi...`);
+
+    for (let i = 0; i < totalConn; i++) {
+      if (shouldStop) break;
+
+      const start = i * SYMBOLS_PER_CONN;
+      const chunk = allSymbols.slice(start, start + SYMBOLS_PER_CONN);
+      if (chunk.length === 0) break;
+
+      await createConnection(chunk, i + 1);
+
+      // jeda antar koneksi biar tidak banjir
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    setStatus("success", `Aktif: ${connections.length} koneksi · ${connections.reduce((s,c)=>s+c.symbols.length,0)} emiten`);
+    updateInfo();
+  }
+
+  function stopAllWS() {
+    shouldStop = true;
+    connections.forEach(c => {
+      try { c.ws.close(); } catch {}
+    });
+    connections = [];
+    document.getElementById("btnStop").disabled = true;
+    document.getElementById("btnStartWS").disabled = false;
+    setStatus("error", "Semua koneksi dihentikan");
+    updateInfo();
+    log("Semua koneksi di-stop", "info-log");
+  }
+
+  function downloadSymbols() {
+    const blob = new Blob([JSON.stringify(allSymbols, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `pluang-symbols-${allSymbols.length}.json`;
+    a.click();
+  }
+</script>
+</body>
+</html>
