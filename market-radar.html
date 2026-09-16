@@ -209,7 +209,6 @@
       border-color: var(--blue);
       color: var(--text);
     }
-
     /* ===== Stats UI Upgrade ===== */
     .stats-toolbar {
       display: flex;
@@ -237,7 +236,6 @@
     }
     .signal-dot.up { background: var(--green); }
     .signal-dot.down { background: var(--red); }
-
     .chip-list {
       display: flex;
       flex-wrap: wrap;
@@ -304,12 +302,10 @@
         <span id="statusText">Ready</span>
       </div>
     </header>
-
     <div class="tabs">
       <div class="tab active" onclick="switchTab('timeline', this)">Timeline</div>
       <div class="tab" onclick="switchTab('stats', this)">Statistik</div>
     </div>
-
     <!-- ===================== TAB TIMELINE ===================== -->
     <div id="panel-timeline" class="panel active">
       <div class="controls">
@@ -344,7 +340,6 @@
         <div class="loading">Pilih tanggal lalu klik Tampilkan</div>
       </div>
     </div>
-
     <!-- ===================== TAB STATISTIK ===================== -->
     <div id="panel-stats" class="panel">
       <div class="controls">
@@ -353,12 +348,10 @@
         <input type="date" id="statsTo" />
         <button onclick="loadStats()">Hitung</button>
       </div>
-
       <div class="sub-tabs">
         <div class="sub-tab active" onclick="switchStatsView('signal', this)">Per Signal</div>
         <div class="sub-tab" onclick="switchStatsView('stock', this)">Per Saham</div>
       </div>
-
       <!-- Toolbar search + sort -->
       <div class="stats-toolbar" id="statsToolbar" style="display:none">
         <input type="text" id="statsSearch" placeholder="Cari kode / nama signal..." />
@@ -368,13 +361,11 @@
           <option value="name-asc">A → Z</option>
         </select>
       </div>
-
       <div id="statsResult">
         <div class="empty">Pilih rentang tanggal lalu klik Hitung</div>
       </div>
     </div>
   </div>
-
   <script>
     const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/market_radar_by_day/";
     const SIGNAL_MAP = {
@@ -387,25 +378,22 @@
       7:  { name: "Large Best Bid (Lot)",  dir: "up" },
       8:  { name: "Large Best Offer (Lot)",dir: "down" },
       9:  { name: "Nego Spike (IDR)",      dir: "up" },
-      10: { name: "Nego Active (IDR)",     dir: "down" },
+      10: { name: "Nego Active (IDR)",     dir: "up" },
       11: { name: "Breakout High",         dir: "up" },
       12: { name: "Breakout Low",          dir: "down" },
       13: { name: "Quick Rebound",         dir: "up" },
-      14: { name: "Quick Reject",          dir: "up" }
+      14: { name: "Quick Reject",          dir: "down" }
     };
-
     let historyList = [];
     let currentSearch = "";
     let currentSignal = "";
     let statsCache = null;
     let statsView = "signal";
     let statsExpanded = {};
-
     const today = new Date().toISOString().slice(0, 10);
     document.getElementById("datePicker").value = today;
     document.getElementById("statsFrom").value = today;
     document.getElementById("statsTo").value = today;
-
     // ===================== HELPERS =====================
     function formatTime(iso) {
       try { return iso.split("T")[1].split("+")[0].substring(0, 8); }
@@ -449,7 +437,6 @@
         return [];
       }
     }
-
     // ===================== TAB SWITCH =====================
     function switchTab(name, el) {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -457,7 +444,6 @@
       el.classList.add("active");
       document.getElementById("panel-" + name).classList.add("active");
     }
-
     function switchStatsView(view, el) {
       document.querySelectorAll(".sub-tab").forEach(t => t.classList.remove("active"));
       el.classList.add("active");
@@ -465,7 +451,6 @@
       statsExpanded = {};
       if (statsCache) renderStats();
     }
-
     // ===================== TIMELINE =====================
     function filterList(list) {
       return list.filter(item => {
@@ -538,19 +523,16 @@
       currentSignal = e.target.value;
       renderTimeline(historyList);
     });
-
     // ===================== STATISTIK =====================
     async function loadStats() {
       const from = document.getElementById("statsFrom").value;
       const to   = document.getElementById("statsTo").value;
       if (!from || !to) return alert("Pilih rentang tanggal");
       if (from > to) return alert("Tanggal 'dari' tidak boleh lebih besar dari 'sampai'");
-
       const el = document.getElementById("statsResult");
       el.innerHTML = `<div class="loading">Mengambil data ${from} s/d ${to}...</div>`;
       document.getElementById("statusText").textContent = "Loading stats...";
       document.getElementById("statsToolbar").style.display = "none";
-
       const dates = getDatesInRange(from, to);
       const allData = [];
       for (const d of dates) {
@@ -560,7 +542,6 @@
           allData.push(item);
         });
       }
-
       // Agregasi per Signal
       const bySignal = {};
       allData.forEach(item => {
@@ -574,7 +555,6 @@
         bySignal[sig].stocks[code].count++;
         bySignal[sig].stocks[code].dates.add(item._date);
       });
-
       // Agregasi per Saham
       const byStock = {};
       allData.forEach(item => {
@@ -588,23 +568,19 @@
         byStock[code].signals[sig].count++;
         byStock[code].signals[sig].dates.add(item._date);
       });
-
       statsCache = { bySignal, byStock, total: allData.length, from, to };
       statsExpanded = {};
       renderStats();
       document.getElementById("statusText").textContent = `Stats: ${allData.length} data`;
     }
-
     function renderStats() {
       if (!statsCache) return;
       const el = document.getElementById("statsResult");
       const toolbar = document.getElementById("statsToolbar");
       toolbar.style.display = "flex";
-
       const { bySignal, byStock, total, from, to } = statsCache;
       const search = (document.getElementById("statsSearch")?.value || "").toLowerCase();
       const sortMode = document.getElementById("statsSort")?.value || "count-desc";
-
       let html = `
         <div class="stat-card summary-card">
           <h3>
@@ -616,10 +592,8 @@
           </div>
         </div>
       `;
-
       if (statsView === "signal") {
         let entries = Object.entries(bySignal);
-
         // Filter
         if (search) {
           entries = entries.filter(([sig, info]) => {
@@ -628,24 +602,20 @@
             return name.includes(search) || hasStock;
           });
         }
-
         // Sort
         entries.sort((a, b) => {
           if (sortMode === "count-desc") return b[1].total - a[1].total;
           if (sortMode === "count-asc") return a[1].total - b[1].total;
           return getSignalName(a[0]).localeCompare(getSignalName(b[0]));
         });
-
         entries.forEach(([sig, info]) => {
           const dir = getSignalDir(sig);
           const stocks = Object.entries(info.stocks)
             .sort((a, b) => b[1].count - a[1].count);
-
           const isExpanded = statsExpanded[`sig-${sig}`];
           const limit = 8;
           const show = isExpanded ? stocks : stocks.slice(0, limit);
           const hasMore = stocks.length > limit;
-
           const chips = show.map(([code, s]) => {
             const dates = [...s.dates].sort().join(", ");
             return `
@@ -656,7 +626,6 @@
               </div>
             `;
           }).join("");
-
           html += `
             <div class="stat-card">
               <h3>
@@ -678,26 +647,21 @@
       } else {
         // ===== PER SAHAM =====
         let entries = Object.entries(byStock);
-
         if (search) {
           entries = entries.filter(([code]) => code.toLowerCase().includes(search));
         }
-
         entries.sort((a, b) => {
           if (sortMode === "count-desc") return b[1].total - a[1].total;
           if (sortMode === "count-asc") return a[1].total - b[1].total;
           return a[0].localeCompare(b[0]);
         });
-
         entries.forEach(([code, info]) => {
           const signals = Object.entries(info.signals)
             .sort((a, b) => b[1].count - a[1].count);
-
           const isExpanded = statsExpanded[`stk-${code}`];
           const limit = 6;
           const show = isExpanded ? signals : signals.slice(0, limit);
           const hasMore = signals.length > limit;
-
           const chips = show.map(([sig, s]) => {
             const dir = getSignalDir(sig);
             return `
@@ -708,7 +672,6 @@
               </div>
             `;
           }).join("");
-
           html += `
             <div class="stat-card">
               <h3>
@@ -725,15 +688,12 @@
           `;
         });
       }
-
       el.innerHTML = html || `<div class="empty">Tidak ada data</div>`;
     }
-
     function toggleExpand(key) {
       statsExpanded[key] = !statsExpanded[key];
       renderStats();
     }
-
     // Event listeners search & sort
     document.getElementById("statsSearch").addEventListener("input", () => {
       if (statsCache) renderStats();
