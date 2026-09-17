@@ -263,7 +263,6 @@
       border: 1px solid #2a3a4a;
     }
     .summary-card h3 { color: var(--blue); }
-
     /* ===== MATRIX SIGNAL ===== */
     .matrix-controls {
       display: flex;
@@ -358,12 +357,10 @@
         <span id="statusText">Ready</span>
       </div>
     </header>
-
     <div class="tabs">
       <div class="tab active" onclick="switchTab('timeline', this)">Timeline</div>
       <div class="tab" onclick="switchTab('stats', this)">Statistik</div>
     </div>
-
     <!-- ===================== TAB TIMELINE ===================== -->
     <div id="panel-timeline" class="panel active">
       <div class="controls">
@@ -398,7 +395,6 @@
         <div class="loading">Pilih tanggal lalu klik Tampilkan</div>
       </div>
     </div>
-
     <!-- ===================== TAB STATISTIK ===================== -->
     <div id="panel-stats" class="panel">
       <div class="sub-tabs">
@@ -406,7 +402,6 @@
         <div class="sub-tab" onclick="switchStatsView('stock', this)">Per Saham</div>
         <div class="sub-tab" onclick="switchStatsView('matrix', this)">Matrix Signal</div>
       </div>
-
       <!-- Controls untuk Per Signal / Per Saham -->
       <div id="statsNormalControls" class="show">
         <div class="controls">
@@ -424,7 +419,6 @@
           </select>
         </div>
       </div>
-
       <!-- Controls untuk Matrix Signal -->
       <div id="statsMatrixControls">
         <div class="matrix-controls">
@@ -446,16 +440,15 @@
             <option value="14">Quick Reject</option>
           </select>
           <button onclick="loadMatrix()">Tampilkan</button>
+          <button onclick="downloadMatrixJSON()" id="btnDownloadMatrix" style="display:none">Download JSON</button>
         </div>
         <div id="matrixInfo" class="matrix-info" style="display:none"></div>
       </div>
-
       <div id="statsResult">
         <div class="empty">Pilih rentang tanggal lalu klik Hitung</div>
       </div>
     </div>
   </div>
-
   <script>
     const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/market_radar_by_day/";
     const SIGNAL_MAP = {
@@ -474,14 +467,13 @@
       13: { name: "Quick Rebound",         dir: "up" },
       14: { name: "Quick Reject",          dir: "down" }
     };
-
     let historyList = [];
     let currentSearch = "";
     let currentSignal = "";
     let statsCache = null;
     let statsView = "signal";
     let statsExpanded = {};
-
+    let matrixData = null; // untuk download JSON
     // ===== FIX DATEPICKER: pakai tanggal lokal =====
     function getLocalDateString(d = new Date()) {
       const y = d.getFullYear();
@@ -489,12 +481,10 @@
       const day = String(d.getDate()).padStart(2, "0");
       return `${y}-${m}-${day}`;
     }
-
     const today = getLocalDateString();
     document.getElementById("datePicker").value = today;
     document.getElementById("statsFrom").value = today;
     document.getElementById("statsTo").value = today;
-
     // ===================== HELPERS =====================
     function formatTime(iso) {
       try { return iso.split("T")[1].split("+")[0].substring(0, 8); }
@@ -551,7 +541,6 @@
         return [];
       }
     }
-
     // ===================== TAB SWITCH =====================
     function switchTab(name, el) {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -559,17 +548,14 @@
       el.classList.add("active");
       document.getElementById("panel-" + name).classList.add("active");
     }
-
     function switchStatsView(view, el) {
       document.querySelectorAll(".sub-tab").forEach(t => t.classList.remove("active"));
       el.classList.add("active");
       statsView = view;
       statsExpanded = {};
-
       const normal = document.getElementById("statsNormalControls");
       const matrix = document.getElementById("statsMatrixControls");
       const result = document.getElementById("statsResult");
-
       if (view === "matrix") {
         normal.classList.remove("show");
         matrix.classList.add("show");
@@ -586,7 +572,6 @@
         }
       }
     }
-
     // ===================== TIMELINE =====================
     function filterList(list) {
       return list.filter(item => {
@@ -659,7 +644,6 @@
       currentSignal = e.target.value;
       renderTimeline(historyList);
     });
-
     // ===================== STATISTIK =====================
     async function loadStats() {
       const from = document.getElementById("statsFrom").value;
@@ -830,21 +814,19 @@
     document.getElementById("statsSort").addEventListener("change", () => {
       if (statsCache) renderStats();
     });
-
     // ===================== MATRIX SIGNAL (20 hari kerja) =====================
     async function loadMatrix() {
       const sig = document.getElementById("matrixSignal").value;
       if (!sig) return alert("Pilih signal terlebih dahulu");
-
       const el = document.getElementById("statsResult");
       const info = document.getElementById("matrixInfo");
+      const btnDownload = document.getElementById("btnDownloadMatrix");
       el.innerHTML = `<div class="loading">Mengambil data 20 hari kerja terakhir...</div>`;
       info.style.display = "none";
+      if (btnDownload) btnDownload.style.display = "none";
       document.getElementById("statusText").textContent = "Loading matrix...";
-
       const dates = getLastNWeekdays(20); // hanya Senin–Jumat
       const matrix = {}; // { stockCode: { date: true } }
-
       for (const d of dates) {
         const data = await fetchDay(d);
         data.forEach(item => {
@@ -854,19 +836,33 @@
           matrix[code][d] = true;
         });
       }
-
       const stocks = Object.keys(matrix).sort();
       if (!stocks.length) {
         el.innerHTML = `<div class="empty">Tidak ada emiten dengan signal ini dalam 20 hari kerja terakhir</div>`;
         document.getElementById("statusText").textContent = "Matrix: 0 data";
+        matrixData = null;
         return;
       }
-
+      // Simpan data untuk download JSON
+      matrixData = {
+        signal: Number(sig),
+        signalName: getSignalName(sig),
+        generatedAt: new Date().toISOString(),
+        days: dates.length,
+        dates: dates,
+        totalStocks: stocks.length,
+        stocks: stocks.map(code => ({
+          secCode: code,
+          appearances: dates.filter(d => matrix[code][d]).length,
+          dates: dates.filter(d => matrix[code][d])
+        })),
+        matrix: matrix
+      };
+      if (btnDownload) btnDownload.style.display = "inline-block";
       const headerDates = dates.map(d => {
         const [y, m, day] = d.split("-");
         return `${day}/${m}`;
       });
-
       let table = `
         <div class="matrix-wrap">
           <table class="matrix-table">
@@ -878,7 +874,6 @@
             </thead>
             <tbody>
       `;
-
       stocks.forEach(code => {
         table += `<tr><td>${code}</td>`;
         dates.forEach(d => {
@@ -887,9 +882,7 @@
         });
         table += `</tr>`;
       });
-
       table += `</tbody></table></div>`;
-
       el.innerHTML = table;
       info.style.display = "flex";
       info.innerHTML = `
@@ -897,6 +890,25 @@
         <span>${stocks.length} emiten · 20 hari kerja terakhir (geser →)</span>
       `;
       document.getElementById("statusText").textContent = `Matrix: ${stocks.length} emiten`;
+    }
+    // ===== DOWNLOAD JSON =====
+    function downloadMatrixJSON() {
+      if (!matrixData) {
+        alert("Belum ada data matrix. Klik Tampilkan dulu.");
+        return;
+      }
+      const jsonStr = JSON.stringify(matrixData, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const sigName = (matrixData.signalName || "signal").replace(/[^a-zA-Z0-9]/g, "_");
+      const dateStr = getLocalDateString();
+      a.href = url;
+      a.download = `matrix_${sigName}_${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
   </script>
 </body>
