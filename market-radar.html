@@ -81,10 +81,12 @@
       padding: 9px 12px;
       border-radius: 8px;
       font-size: 13px;
+      color-scheme: dark;
     }
     button { cursor: pointer; }
     button:hover { background: var(--card-hover); }
     input[type="text"] { flex: 1; min-width: 100px; }
+    input[type="date"] { min-width: 140px; }
     .section-title {
       font-size: 14px;
       color: var(--text-dim);
@@ -148,9 +150,7 @@
       margin-bottom: 12px;
       transition: border-color 0.15s;
     }
-    .stat-card:hover {
-      border-color: #3a3a3a;
-    }
+    .stat-card:hover { border-color: #3a3a3a; }
     .stat-card h3 {
       font-size: 14px;
       margin-bottom: 10px;
@@ -178,12 +178,6 @@
       font-weight: 600;
       white-space: nowrap;
     }
-    .stock-list {
-      font-size: 12px;
-      color: var(--text-dim);
-      line-height: 1.6;
-    }
-    .stock-list b { color: var(--text); }
     .loading, .empty {
       text-align: center;
       padding: 40px 20px;
@@ -194,6 +188,7 @@
       display: flex;
       gap: 6px;
       margin-bottom: 14px;
+      flex-wrap: wrap;
     }
     .sub-tab {
       padding: 7px 14px;
@@ -209,30 +204,21 @@
       border-color: var(--blue);
       color: var(--text);
     }
-    /* ===== Stats UI Upgrade ===== */
     .stats-toolbar {
       display: flex;
       gap: 8px;
       margin-bottom: 14px;
       flex-wrap: wrap;
     }
-    .stats-toolbar input {
-      flex: 1;
-      min-width: 140px;
-    }
-    .stats-toolbar select {
-      min-width: 130px;
-    }
+    .stats-toolbar input { flex: 1; min-width: 140px; }
+    .stats-toolbar select { min-width: 130px; }
     .signal-title {
       display: flex;
       align-items: center;
       gap: 8px;
     }
     .signal-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
     }
     .signal-dot.up { background: var(--green); }
     .signal-dot.down { background: var(--red); }
@@ -253,22 +239,10 @@
       color: var(--text);
       transition: background 0.12s;
     }
-    .chip:hover {
-      background: #2e2e2e;
-    }
-    .chip b {
-      font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-    .chip .cnt {
-      color: var(--blue);
-      font-weight: 600;
-      font-size: 11px;
-    }
-    .chip .dates {
-      color: var(--text-dim);
-      font-size: 10px;
-    }
+    .chip:hover { background: #2e2e2e; }
+    .chip b { font-weight: 600; letter-spacing: 0.3px; }
+    .chip .cnt { color: var(--blue); font-weight: 600; font-size: 11px; }
+    .chip .dates { color: var(--text-dim); font-size: 10px; }
     .expand-btn {
       margin-top: 10px;
       background: transparent;
@@ -288,9 +262,91 @@
       background: linear-gradient(135deg, #1a2332 0%, #1a1a1a 100%);
       border: 1px solid #2a3a4a;
     }
-    .summary-card h3 {
-      color: var(--blue);
+    .summary-card h3 { color: var(--blue); }
+
+    /* ===== MATRIX SIGNAL ===== */
+    .matrix-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      align-items: center;
     }
+    .matrix-controls select {
+      flex: 1;
+      min-width: 180px;
+    }
+    .matrix-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+    .matrix-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .matrix-table th,
+    .matrix-table td {
+      padding: 8px 6px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      min-width: 42px;
+    }
+    .matrix-table th {
+      background: #151515;
+      color: var(--text-dim);
+      font-weight: 500;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .matrix-table th:first-child,
+    .matrix-table td:first-child {
+      text-align: left;
+      padding-left: 12px;
+      padding-right: 12px;
+      position: sticky;
+      left: 0;
+      background: var(--card);
+      z-index: 1;
+      font-weight: 600;
+      min-width: 72px;
+    }
+    .matrix-table th:first-child {
+      background: #151515;
+      z-index: 3;
+    }
+    .matrix-table tr:hover td { background: #222; }
+    .matrix-table tr:hover td:first-child { background: #222; }
+    .check {
+      color: var(--green);
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .no-check { color: #333; }
+    .matrix-info {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .matrix-info .signal-label {
+      color: var(--text);
+      font-weight: 500;
+    }
+    #statsNormalControls, #statsMatrixControls { display: none; }
+    #statsNormalControls.show, #statsMatrixControls.show { display: block; }
   </style>
 </head>
 <body>
@@ -302,10 +358,12 @@
         <span id="statusText">Ready</span>
       </div>
     </header>
+
     <div class="tabs">
       <div class="tab active" onclick="switchTab('timeline', this)">Timeline</div>
       <div class="tab" onclick="switchTab('stats', this)">Statistik</div>
     </div>
+
     <!-- ===================== TAB TIMELINE ===================== -->
     <div id="panel-timeline" class="panel active">
       <div class="controls">
@@ -340,32 +398,64 @@
         <div class="loading">Pilih tanggal lalu klik Tampilkan</div>
       </div>
     </div>
+
     <!-- ===================== TAB STATISTIK ===================== -->
     <div id="panel-stats" class="panel">
-      <div class="controls">
-        <input type="date" id="statsFrom" />
-        <span style="color:#666">s/d</span>
-        <input type="date" id="statsTo" />
-        <button onclick="loadStats()">Hitung</button>
-      </div>
       <div class="sub-tabs">
         <div class="sub-tab active" onclick="switchStatsView('signal', this)">Per Signal</div>
         <div class="sub-tab" onclick="switchStatsView('stock', this)">Per Saham</div>
+        <div class="sub-tab" onclick="switchStatsView('matrix', this)">Matrix Signal</div>
       </div>
-      <!-- Toolbar search + sort -->
-      <div class="stats-toolbar" id="statsToolbar" style="display:none">
-        <input type="text" id="statsSearch" placeholder="Cari kode / nama signal..." />
-        <select id="statsSort">
-          <option value="count-desc">Terbanyak</option>
-          <option value="count-asc">Tersedikit</option>
-          <option value="name-asc">A → Z</option>
-        </select>
+
+      <!-- Controls untuk Per Signal / Per Saham -->
+      <div id="statsNormalControls" class="show">
+        <div class="controls">
+          <input type="date" id="statsFrom" />
+          <span style="color:#666">s/d</span>
+          <input type="date" id="statsTo" />
+          <button onclick="loadStats()">Hitung</button>
+        </div>
+        <div class="stats-toolbar" id="statsToolbar" style="display:none">
+          <input type="text" id="statsSearch" placeholder="Cari kode / nama signal..." />
+          <select id="statsSort">
+            <option value="count-desc">Terbanyak</option>
+            <option value="count-asc">Tersedikit</option>
+            <option value="name-asc">A → Z</option>
+          </select>
+        </div>
       </div>
+
+      <!-- Controls untuk Matrix Signal -->
+      <div id="statsMatrixControls">
+        <div class="matrix-controls">
+          <select id="matrixSignal">
+            <option value="">-- Pilih Signal --</option>
+            <option value="1">Huge Buy (Lot)</option>
+            <option value="2">Huge Sell (Lot)</option>
+            <option value="3">Intensive Buy</option>
+            <option value="4">Intensive Sell</option>
+            <option value="5">Rapid Buy (IDR)</option>
+            <option value="6">Rapid Sell (IDR)</option>
+            <option value="7">Large Best Bid</option>
+            <option value="8">Large Best Offer</option>
+            <option value="9">Nego Spike</option>
+            <option value="10">Nego Active</option>
+            <option value="11">Breakout High</option>
+            <option value="12">Breakout Low</option>
+            <option value="13">Quick Rebound</option>
+            <option value="14">Quick Reject</option>
+          </select>
+          <button onclick="loadMatrix()">Tampilkan</button>
+        </div>
+        <div id="matrixInfo" class="matrix-info" style="display:none"></div>
+      </div>
+
       <div id="statsResult">
         <div class="empty">Pilih rentang tanggal lalu klik Hitung</div>
       </div>
     </div>
   </div>
+
   <script>
     const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/market_radar_by_day/";
     const SIGNAL_MAP = {
@@ -384,16 +474,27 @@
       13: { name: "Quick Rebound",         dir: "up" },
       14: { name: "Quick Reject",          dir: "down" }
     };
+
     let historyList = [];
     let currentSearch = "";
     let currentSignal = "";
     let statsCache = null;
     let statsView = "signal";
     let statsExpanded = {};
-    const today = new Date().toISOString().slice(0, 10);
+
+    // ===== FIX DATEPICKER: pakai tanggal lokal =====
+    function getLocalDateString(d = new Date()) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    const today = getLocalDateString();
     document.getElementById("datePicker").value = today;
     document.getElementById("statsFrom").value = today;
     document.getElementById("statsTo").value = today;
+
     // ===================== HELPERS =====================
     function formatTime(iso) {
       try { return iso.split("T")[1].split("+")[0].substring(0, 8); }
@@ -418,13 +519,26 @@
     }
     function getDatesInRange(from, to) {
       const dates = [];
-      let current = new Date(from);
-      const end = new Date(to);
+      let current = new Date(from + "T00:00:00");
+      const end = new Date(to + "T00:00:00");
       while (current <= end) {
-        dates.push(current.toISOString().slice(0, 10));
+        dates.push(getLocalDateString(current));
         current.setDate(current.getDate() + 1);
       }
       return dates;
+    }
+    // Ambil N hari kerja terakhir (skip Sabtu & Minggu)
+    function getLastNWeekdays(n) {
+      const dates = [];
+      const d = new Date();
+      while (dates.length < n) {
+        const day = d.getDay(); // 0 = Minggu, 6 = Sabtu
+        if (day !== 0 && day !== 6) {
+          dates.push(getLocalDateString(d));
+        }
+        d.setDate(d.getDate() - 1);
+      }
+      return dates; // newest first
     }
     async function fetchDay(date) {
       try {
@@ -437,6 +551,7 @@
         return [];
       }
     }
+
     // ===================== TAB SWITCH =====================
     function switchTab(name, el) {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -444,13 +559,34 @@
       el.classList.add("active");
       document.getElementById("panel-" + name).classList.add("active");
     }
+
     function switchStatsView(view, el) {
       document.querySelectorAll(".sub-tab").forEach(t => t.classList.remove("active"));
       el.classList.add("active");
       statsView = view;
       statsExpanded = {};
-      if (statsCache) renderStats();
+
+      const normal = document.getElementById("statsNormalControls");
+      const matrix = document.getElementById("statsMatrixControls");
+      const result = document.getElementById("statsResult");
+
+      if (view === "matrix") {
+        normal.classList.remove("show");
+        matrix.classList.add("show");
+        if (!result.querySelector(".matrix-wrap")) {
+          result.innerHTML = `<div class="empty">Pilih signal lalu klik Tampilkan</div>`;
+        }
+      } else {
+        matrix.classList.remove("show");
+        normal.classList.add("show");
+        if (statsCache) {
+          renderStats();
+        } else {
+          result.innerHTML = `<div class="empty">Pilih rentang tanggal lalu klik Hitung</div>`;
+        }
+      }
     }
+
     // ===================== TIMELINE =====================
     function filterList(list) {
       return list.filter(item => {
@@ -523,6 +659,7 @@
       currentSignal = e.target.value;
       renderTimeline(historyList);
     });
+
     // ===================== STATISTIK =====================
     async function loadStats() {
       const from = document.getElementById("statsFrom").value;
@@ -542,7 +679,6 @@
           allData.push(item);
         });
       }
-      // Agregasi per Signal
       const bySignal = {};
       allData.forEach(item => {
         const sig = item.signal;
@@ -555,7 +691,6 @@
         bySignal[sig].stocks[code].count++;
         bySignal[sig].stocks[code].dates.add(item._date);
       });
-      // Agregasi per Saham
       const byStock = {};
       allData.forEach(item => {
         const code = item.secCode || "UNKNOWN";
@@ -574,7 +709,7 @@
       document.getElementById("statusText").textContent = `Stats: ${allData.length} data`;
     }
     function renderStats() {
-      if (!statsCache) return;
+      if (!statsCache || statsView === "matrix") return;
       const el = document.getElementById("statsResult");
       const toolbar = document.getElementById("statsToolbar");
       toolbar.style.display = "flex";
@@ -594,7 +729,6 @@
       `;
       if (statsView === "signal") {
         let entries = Object.entries(bySignal);
-        // Filter
         if (search) {
           entries = entries.filter(([sig, info]) => {
             const name = getSignalName(sig).toLowerCase();
@@ -602,7 +736,6 @@
             return name.includes(search) || hasStock;
           });
         }
-        // Sort
         entries.sort((a, b) => {
           if (sortMode === "count-desc") return b[1].total - a[1].total;
           if (sortMode === "count-asc") return a[1].total - b[1].total;
@@ -610,8 +743,7 @@
         });
         entries.forEach(([sig, info]) => {
           const dir = getSignalDir(sig);
-          const stocks = Object.entries(info.stocks)
-            .sort((a, b) => b[1].count - a[1].count);
+          const stocks = Object.entries(info.stocks).sort((a, b) => b[1].count - a[1].count);
           const isExpanded = statsExpanded[`sig-${sig}`];
           const limit = 8;
           const show = isExpanded ? stocks : stocks.slice(0, limit);
@@ -645,7 +777,6 @@
           `;
         });
       } else {
-        // ===== PER SAHAM =====
         let entries = Object.entries(byStock);
         if (search) {
           entries = entries.filter(([code]) => code.toLowerCase().includes(search));
@@ -656,8 +787,7 @@
           return a[0].localeCompare(b[0]);
         });
         entries.forEach(([code, info]) => {
-          const signals = Object.entries(info.signals)
-            .sort((a, b) => b[1].count - a[1].count);
+          const signals = Object.entries(info.signals).sort((a, b) => b[1].count - a[1].count);
           const isExpanded = statsExpanded[`stk-${code}`];
           const limit = 6;
           const show = isExpanded ? signals : signals.slice(0, limit);
@@ -694,13 +824,80 @@
       statsExpanded[key] = !statsExpanded[key];
       renderStats();
     }
-    // Event listeners search & sort
     document.getElementById("statsSearch").addEventListener("input", () => {
       if (statsCache) renderStats();
     });
     document.getElementById("statsSort").addEventListener("change", () => {
       if (statsCache) renderStats();
     });
+
+    // ===================== MATRIX SIGNAL (20 hari kerja) =====================
+    async function loadMatrix() {
+      const sig = document.getElementById("matrixSignal").value;
+      if (!sig) return alert("Pilih signal terlebih dahulu");
+
+      const el = document.getElementById("statsResult");
+      const info = document.getElementById("matrixInfo");
+      el.innerHTML = `<div class="loading">Mengambil data 20 hari kerja terakhir...</div>`;
+      info.style.display = "none";
+      document.getElementById("statusText").textContent = "Loading matrix...";
+
+      const dates = getLastNWeekdays(20); // hanya Senin–Jumat
+      const matrix = {}; // { stockCode: { date: true } }
+
+      for (const d of dates) {
+        const data = await fetchDay(d);
+        data.forEach(item => {
+          if (String(item.signal) !== String(sig)) return;
+          const code = item.secCode || "UNKNOWN";
+          if (!matrix[code]) matrix[code] = {};
+          matrix[code][d] = true;
+        });
+      }
+
+      const stocks = Object.keys(matrix).sort();
+      if (!stocks.length) {
+        el.innerHTML = `<div class="empty">Tidak ada emiten dengan signal ini dalam 20 hari kerja terakhir</div>`;
+        document.getElementById("statusText").textContent = "Matrix: 0 data";
+        return;
+      }
+
+      const headerDates = dates.map(d => {
+        const [y, m, day] = d.split("-");
+        return `${day}/${m}`;
+      });
+
+      let table = `
+        <div class="matrix-wrap">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Emiten</th>
+                ${headerDates.map(h => `<th>${h}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      stocks.forEach(code => {
+        table += `<tr><td>${code}</td>`;
+        dates.forEach(d => {
+          const has = matrix[code][d];
+          table += `<td class="${has ? 'check' : 'no-check'}">${has ? '✓' : '·'}</td>`;
+        });
+        table += `</tr>`;
+      });
+
+      table += `</tbody></table></div>`;
+
+      el.innerHTML = table;
+      info.style.display = "flex";
+      info.innerHTML = `
+        <span class="signal-label">${getSignalName(sig)}</span>
+        <span>${stocks.length} emiten · 20 hari kerja terakhir (geser →)</span>
+      `;
+      document.getElementById("statusText").textContent = `Matrix: ${stocks.length} emiten`;
+    }
   </script>
 </body>
 </html>
