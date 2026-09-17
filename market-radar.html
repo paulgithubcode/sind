@@ -271,10 +271,7 @@
       flex-wrap: wrap;
       align-items: center;
     }
-    .matrix-controls select {
-      flex: 1;
-      min-width: 180px;
-    }
+    .matrix-controls select { flex: 1; min-width: 180px; }
     .matrix-wrap {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
@@ -290,8 +287,7 @@
       border-collapse: collapse;
       font-size: 12px;
     }
-    .matrix-table th,
-    .matrix-table td {
+    .matrix-table th, .matrix-table td {
       padding: 8px 6px;
       text-align: center;
       border-bottom: 1px solid var(--border);
@@ -324,11 +320,7 @@
     }
     .matrix-table tr:hover td { background: #222; }
     .matrix-table tr:hover td:first-child { background: #222; }
-    .check {
-      color: var(--green);
-      font-weight: 700;
-      font-size: 14px;
-    }
+    .check { color: var(--green); font-weight: 700; font-size: 14px; }
     .no-check { color: #333; }
     .matrix-info {
       font-size: 12px;
@@ -340,12 +332,71 @@
       gap: 8px;
       flex-wrap: wrap;
     }
-    .matrix-info .signal-label {
-      color: var(--text);
-      font-weight: 500;
-    }
+    .matrix-info .signal-label { color: var(--text); font-weight: 500; }
     #statsNormalControls, #statsMatrixControls { display: none; }
     #statsNormalControls.show, #statsMatrixControls.show { display: block; }
+
+    /* ===== RECOMMEND ===== */
+    .rec-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      margin-bottom: 16px;
+    }
+    .rec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      min-width: 480px;
+    }
+    .rec-table th, .rec-table td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .rec-table th {
+      background: #151515;
+      color: var(--text-dim);
+      font-weight: 500;
+      position: sticky;
+      top: 0;
+    }
+    .rec-table tr:hover td { background: #222; }
+    .rec-table .code { font-weight: 600; color: var(--text); }
+    .rec-table .score { color: var(--blue); font-weight: 600; }
+    .rec-table .ratio-good { color: var(--green); }
+    .rec-table .ratio-mid { color: #ffb74d; }
+    .rec-table .ratio-bad { color: var(--red); }
+    .rec-section { margin-bottom: 20px; }
+    .rec-section h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: var(--blue);
+    }
+    .rec-conclusion {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .rec-conclusion ul { margin: 8px 0 0 18px; }
+    .rec-conclusion li { margin-bottom: 6px; }
+    .rec-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .rec-badge.hot { background: #1b3a1b; color: var(--green); }
+    .rec-badge.ok { background: #3a2e1b; color: #ffb74d; }
+    .rec-badge.weak { background: #3a1b1b; color: var(--red); }
   </style>
 </head>
 <body>
@@ -357,10 +408,13 @@
         <span id="statusText">Ready</span>
       </div>
     </header>
+
     <div class="tabs">
       <div class="tab active" onclick="switchTab('timeline', this)">Timeline</div>
       <div class="tab" onclick="switchTab('stats', this)">Statistik</div>
+      <div class="tab" onclick="switchTab('recommend', this)">Recommend</div>
     </div>
+
     <!-- ===================== TAB TIMELINE ===================== -->
     <div id="panel-timeline" class="panel active">
       <div class="controls">
@@ -395,6 +449,7 @@
         <div class="loading">Pilih tanggal lalu klik Tampilkan</div>
       </div>
     </div>
+
     <!-- ===================== TAB STATISTIK ===================== -->
     <div id="panel-stats" class="panel">
       <div class="sub-tabs">
@@ -402,7 +457,6 @@
         <div class="sub-tab" onclick="switchStatsView('stock', this)">Per Saham</div>
         <div class="sub-tab" onclick="switchStatsView('matrix', this)">Matrix Signal</div>
       </div>
-      <!-- Controls untuk Per Signal / Per Saham -->
       <div id="statsNormalControls" class="show">
         <div class="controls">
           <input type="date" id="statsFrom" />
@@ -419,7 +473,6 @@
           </select>
         </div>
       </div>
-      <!-- Controls untuk Matrix Signal -->
       <div id="statsMatrixControls">
         <div class="matrix-controls">
           <select id="matrixSignal">
@@ -448,7 +501,25 @@
         <div class="empty">Pilih rentang tanggal lalu klik Hitung</div>
       </div>
     </div>
+
+    <!-- ===================== TAB RECOMMEND ===================== -->
+    <div id="panel-recommend" class="panel">
+      <div class="sub-tabs">
+        <div class="sub-tab active" onclick="switchRecMode('matrix', this)">Matrix Style</div>
+        <div class="sub-tab" onclick="switchRecMode('raw', this)">Raw Data</div>
+      </div>
+      <div class="controls">
+        <input type="date" id="recFrom" />
+        <span style="color:#666">s/d</span>
+        <input type="date" id="recTo" />
+        <button onclick="loadRecommend()">Hitung</button>
+      </div>
+      <div id="recResult">
+        <div class="empty">Pilih rentang tanggal lalu klik Hitung</div>
+      </div>
+    </div>
   </div>
+
   <script>
     const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/market_radar_by_day/";
     const SIGNAL_MAP = {
@@ -467,14 +538,21 @@
       13: { name: "Quick Rebound",         dir: "up" },
       14: { name: "Quick Reject",          dir: "down" }
     };
+
+    const BULLISH_WEIGHT = {
+      1: 3, 3: 2, 5: 2, 7: 2, 9: 1.5, 10: 1, 11: 3, 13: 1.5
+    };
+    const BEARISH_SIGNALS = new Set([2, 4, 6, 8, 12, 14]);
+
     let historyList = [];
     let currentSearch = "";
     let currentSignal = "";
     let statsCache = null;
     let statsView = "signal";
     let statsExpanded = {};
-    let matrixData = null; // untuk download JSON
-    // ===== FIX DATEPICKER: pakai tanggal lokal =====
+    let matrixData = null;
+    let recMode = "matrix"; // "matrix" | "raw"
+
     function getLocalDateString(d = new Date()) {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -485,7 +563,9 @@
     document.getElementById("datePicker").value = today;
     document.getElementById("statsFrom").value = today;
     document.getElementById("statsTo").value = today;
-    // ===================== HELPERS =====================
+    document.getElementById("recFrom").value = today;
+    document.getElementById("recTo").value = today;
+
     function formatTime(iso) {
       try { return iso.split("T")[1].split("+")[0].substring(0, 8); }
       catch { return iso; }
@@ -517,18 +597,15 @@
       }
       return dates;
     }
-    // Ambil N hari kerja terakhir (skip Sabtu & Minggu)
     function getLastNWeekdays(n) {
       const dates = [];
       const d = new Date();
       while (dates.length < n) {
-        const day = d.getDay(); // 0 = Minggu, 6 = Sabtu
-        if (day !== 0 && day !== 6) {
-          dates.push(getLocalDateString(d));
-        }
+        const day = d.getDay();
+        if (day !== 0 && day !== 6) dates.push(getLocalDateString(d));
         d.setDate(d.getDate() - 1);
       }
-      return dates; // newest first
+      return dates;
     }
     async function fetchDay(date) {
       try {
@@ -537,11 +614,9 @@
         let data = await res.json();
         if (!Array.isArray(data)) data = data.list || [];
         return data;
-      } catch {
-        return [];
-      }
+      } catch { return []; }
     }
-    // ===================== TAB SWITCH =====================
+
     function switchTab(name, el) {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
       document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
@@ -549,7 +624,7 @@
       document.getElementById("panel-" + name).classList.add("active");
     }
     function switchStatsView(view, el) {
-      document.querySelectorAll(".sub-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll("#panel-stats .sub-tab").forEach(t => t.classList.remove("active"));
       el.classList.add("active");
       statsView = view;
       statsExpanded = {};
@@ -565,13 +640,17 @@
       } else {
         matrix.classList.remove("show");
         normal.classList.add("show");
-        if (statsCache) {
-          renderStats();
-        } else {
-          result.innerHTML = `<div class="empty">Pilih rentang tanggal lalu klik Hitung</div>`;
-        }
+        if (statsCache) renderStats();
+        else result.innerHTML = `<div class="empty">Pilih rentang tanggal lalu klik Hitung</div>`;
       }
     }
+    function switchRecMode(mode, el) {
+      document.querySelectorAll("#panel-recommend .sub-tab").forEach(t => t.classList.remove("active"));
+      el.classList.add("active");
+      recMode = mode;
+      document.getElementById("recResult").innerHTML = `<div class="empty">Pilih rentang tanggal lalu klik Hitung</div>`;
+    }
+
     // ===================== TIMELINE =====================
     function filterList(list) {
       return list.filter(item => {
@@ -644,6 +723,7 @@
       currentSignal = e.target.value;
       renderTimeline(historyList);
     });
+
     // ===================== STATISTIK =====================
     async function loadStats() {
       const from = document.getElementById("statsFrom").value;
@@ -658,10 +738,7 @@
       const allData = [];
       for (const d of dates) {
         const data = await fetchDay(d);
-        data.forEach(item => {
-          item._date = d;
-          allData.push(item);
-        });
+        data.forEach(item => { item._date = d; allData.push(item); });
       }
       const bySignal = {};
       allData.forEach(item => {
@@ -669,9 +746,7 @@
         const code = item.secCode || "UNKNOWN";
         if (!bySignal[sig]) bySignal[sig] = { total: 0, stocks: {} };
         bySignal[sig].total++;
-        if (!bySignal[sig].stocks[code]) {
-          bySignal[sig].stocks[code] = { count: 0, dates: new Set() };
-        }
+        if (!bySignal[sig].stocks[code]) bySignal[sig].stocks[code] = { count: 0, dates: new Set() };
         bySignal[sig].stocks[code].count++;
         bySignal[sig].stocks[code].dates.add(item._date);
       });
@@ -681,9 +756,7 @@
         const sig = item.signal;
         if (!byStock[code]) byStock[code] = { total: 0, signals: {} };
         byStock[code].total++;
-        if (!byStock[code].signals[sig]) {
-          byStock[code].signals[sig] = { count: 0, dates: new Set() };
-        }
+        if (!byStock[code].signals[sig]) byStock[code].signals[sig] = { count: 0, dates: new Set() };
         byStock[code].signals[sig].count++;
         byStock[code].signals[sig].dates.add(item._date);
       });
@@ -702,15 +775,12 @@
       const sortMode = document.getElementById("statsSort")?.value || "count-desc";
       let html = `
         <div class="stat-card summary-card">
-          <h3>
-            <span>Ringkasan ${from} s/d ${to}</span>
-            <span class="stat-count">${total.toLocaleString("id-ID")}</span>
-          </h3>
+          <h3><span>Ringkasan ${from} s/d ${to}</span>
+          <span class="stat-count">${total.toLocaleString("id-ID")}</span></h3>
           <div class="stat-row" style="border:none;padding:0">
             <span style="color:var(--text-dim);font-size:13px">Total sinyal</span>
           </div>
-        </div>
-      `;
+        </div>`;
       if (statsView === "signal") {
         let entries = Object.entries(bySignal);
         if (search) {
@@ -732,39 +802,24 @@
           const limit = 8;
           const show = isExpanded ? stocks : stocks.slice(0, limit);
           const hasMore = stocks.length > limit;
-          const chips = show.map(([code, s]) => {
-            const dates = [...s.dates].sort().join(", ");
-            return `
-              <div class="chip" title="${dates}">
-                <b>${code}</b>
-                <span class="cnt">${s.count}×</span>
-                ${s.dates.size > 1 ? `<span class="dates">${s.dates.size} hari</span>` : ""}
-              </div>
-            `;
-          }).join("");
+          const chips = show.map(([code, s]) => `
+            <div class="chip" title="${[...s.dates].sort().join(", ")}">
+              <b>${code}</b><span class="cnt">${s.count}×</span>
+              ${s.dates.size > 1 ? `<span class="dates">${s.dates.size} hari</span>` : ""}
+            </div>`).join("");
           html += `
             <div class="stat-card">
               <h3>
-                <div class="signal-title">
-                  <span class="signal-dot ${dir}"></span>
-                  <span>${getSignalName(sig)}</span>
-                </div>
+                <div class="signal-title"><span class="signal-dot ${dir}"></span><span>${getSignalName(sig)}</span></div>
                 <span class="stat-count">${info.total.toLocaleString("id-ID")}</span>
               </h3>
               <div class="chip-list">${chips}</div>
-              ${hasMore ? `
-                <button class="expand-btn" onclick="toggleExpand('sig-${sig}')">
-                  ${isExpanded ? "Tampilkan lebih sedikit" : `Tampilkan ${stocks.length - limit} lainnya`}
-                </button>
-              ` : ""}
-            </div>
-          `;
+              ${hasMore ? `<button class="expand-btn" onclick="toggleExpand('sig-${sig}')">${isExpanded ? "Tampilkan lebih sedikit" : `Tampilkan ${stocks.length - limit} lainnya`}</button>` : ""}
+            </div>`;
         });
       } else {
         let entries = Object.entries(byStock);
-        if (search) {
-          entries = entries.filter(([code]) => code.toLowerCase().includes(search));
-        }
+        if (search) entries = entries.filter(([code]) => code.toLowerCase().includes(search));
         entries.sort((a, b) => {
           if (sortMode === "count-desc") return b[1].total - a[1].total;
           if (sortMode === "count-asc") return a[1].total - b[1].total;
@@ -776,30 +831,19 @@
           const limit = 6;
           const show = isExpanded ? signals : signals.slice(0, limit);
           const hasMore = signals.length > limit;
-          const chips = show.map(([sig, s]) => {
-            const dir = getSignalDir(sig);
-            return `
-              <div class="chip" title="${[...s.dates].sort().join(", ")}">
-                <span class="signal-dot ${dir}" style="width:6px;height:6px"></span>
-                <b style="font-weight:500">${getSignalName(sig)}</b>
-                <span class="cnt">${s.count}×</span>
-              </div>
-            `;
-          }).join("");
+          const chips = show.map(([sig, s]) => `
+            <div class="chip" title="${[...s.dates].sort().join(", ")}">
+              <span class="signal-dot ${getSignalDir(sig)}" style="width:6px;height:6px"></span>
+              <b style="font-weight:500">${getSignalName(sig)}</b>
+              <span class="cnt">${s.count}×</span>
+            </div>`).join("");
           html += `
             <div class="stat-card">
-              <h3>
-                <span style="font-weight:600;letter-spacing:0.4px">${code}</span>
-                <span class="stat-count">${info.total.toLocaleString("id-ID")}</span>
-              </h3>
+              <h3><span style="font-weight:600;letter-spacing:0.4px">${code}</span>
+              <span class="stat-count">${info.total.toLocaleString("id-ID")}</span></h3>
               <div class="chip-list">${chips}</div>
-              ${hasMore ? `
-                <button class="expand-btn" onclick="toggleExpand('stk-${code}')">
-                  ${isExpanded ? "Tampilkan lebih sedikit" : `Tampilkan ${signals.length - limit} lainnya`}
-                </button>
-              ` : ""}
-            </div>
-          `;
+              ${hasMore ? `<button class="expand-btn" onclick="toggleExpand('stk-${code}')">${isExpanded ? "Tampilkan lebih sedikit" : `Tampilkan ${signals.length - limit} lainnya`}</button>` : ""}
+            </div>`;
         });
       }
       el.innerHTML = html || `<div class="empty">Tidak ada data</div>`;
@@ -808,13 +852,10 @@
       statsExpanded[key] = !statsExpanded[key];
       renderStats();
     }
-    document.getElementById("statsSearch").addEventListener("input", () => {
-      if (statsCache) renderStats();
-    });
-    document.getElementById("statsSort").addEventListener("change", () => {
-      if (statsCache) renderStats();
-    });
-    // ===================== MATRIX SIGNAL (20 hari kerja) =====================
+    document.getElementById("statsSearch").addEventListener("input", () => { if (statsCache) renderStats(); });
+    document.getElementById("statsSort").addEventListener("change", () => { if (statsCache) renderStats(); });
+
+    // ===================== MATRIX SIGNAL =====================
     async function loadMatrix() {
       const sig = document.getElementById("matrixSignal").value;
       if (!sig) return alert("Pilih signal terlebih dahulu");
@@ -825,8 +866,8 @@
       info.style.display = "none";
       if (btnDownload) btnDownload.style.display = "none";
       document.getElementById("statusText").textContent = "Loading matrix...";
-      const dates = getLastNWeekdays(20); // hanya Senin–Jumat
-      const matrix = {}; // { stockCode: { date: true } }
+      const dates = getLastNWeekdays(20);
+      const matrix = {};
       for (const d of dates) {
         const data = await fetchDay(d);
         data.forEach(item => {
@@ -843,37 +884,26 @@
         matrixData = null;
         return;
       }
-      // Simpan data untuk download JSON
       matrixData = {
         signal: Number(sig),
         signalName: getSignalName(sig),
         generatedAt: new Date().toISOString(),
         days: dates.length,
-        dates: dates,
+        dates,
         totalStocks: stocks.length,
         stocks: stocks.map(code => ({
           secCode: code,
           appearances: dates.filter(d => matrix[code][d]).length,
           dates: dates.filter(d => matrix[code][d])
         })),
-        matrix: matrix
+        matrix
       };
       if (btnDownload) btnDownload.style.display = "inline-block";
       const headerDates = dates.map(d => {
         const [y, m, day] = d.split("-");
         return `${day}/${m}`;
       });
-      let table = `
-        <div class="matrix-wrap">
-          <table class="matrix-table">
-            <thead>
-              <tr>
-                <th>Emiten</th>
-                ${headerDates.map(h => `<th>${h}</th>`).join("")}
-              </tr>
-            </thead>
-            <tbody>
-      `;
+      let table = `<div class="matrix-wrap"><table class="matrix-table"><thead><tr><th>Emiten</th>${headerDates.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>`;
       stocks.forEach(code => {
         table += `<tr><td>${code}</td>`;
         dates.forEach(d => {
@@ -885,30 +915,212 @@
       table += `</tbody></table></div>`;
       el.innerHTML = table;
       info.style.display = "flex";
-      info.innerHTML = `
-        <span class="signal-label">${getSignalName(sig)}</span>
-        <span>${stocks.length} emiten · 20 hari kerja terakhir (geser →)</span>
-      `;
+      info.innerHTML = `<span class="signal-label">${getSignalName(sig)}</span><span>${stocks.length} emiten · 20 hari kerja terakhir (geser →)</span>`;
       document.getElementById("statusText").textContent = `Matrix: ${stocks.length} emiten`;
     }
-    // ===== DOWNLOAD JSON =====
     function downloadMatrixJSON() {
-      if (!matrixData) {
-        alert("Belum ada data matrix. Klik Tampilkan dulu.");
-        return;
-      }
+      if (!matrixData) return alert("Belum ada data matrix. Klik Tampilkan dulu.");
       const jsonStr = JSON.stringify(matrixData, null, 2);
       const blob = new Blob([jsonStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const sigName = (matrixData.signalName || "signal").replace(/[^a-zA-Z0-9]/g, "_");
-      const dateStr = getLocalDateString();
       a.href = url;
-      a.download = `matrix_${sigName}_${dateStr}.json`;
+      a.download = `matrix_${sigName}_${getLocalDateString()}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+
+    // ===================== RECOMMEND =====================
+    async function loadRecommend() {
+      const from = document.getElementById("recFrom").value;
+      const to   = document.getElementById("recTo").value;
+      if (!from || !to) return alert("Pilih rentang tanggal");
+      if (from > to) return alert("Tanggal 'dari' tidak boleh lebih besar dari 'sampai'");
+
+      const el = document.getElementById("recResult");
+      el.innerHTML = `<div class="loading">Mengambil data ${from} s/d ${to} (${recMode === "matrix" ? "Matrix Style" : "Raw Data"})...</div>`;
+      document.getElementById("statusText").textContent = "Loading recommend...";
+
+      const dates = getDatesInRange(from, to);
+      const allData = [];
+      for (const d of dates) {
+        const data = await fetchDay(d);
+        data.forEach(item => { item._date = d; allData.push(item); });
+      }
+
+      if (!allData.length) {
+        el.innerHTML = `<div class="empty">Tidak ada data di rentang tanggal ini</div>`;
+        document.getElementById("statusText").textContent = "Recommend: 0 data";
+        return;
+      }
+
+      let ranked = [];
+
+      if (recMode === "matrix") {
+        // ===== MATRIX STYLE: unik per hari =====
+        const stockMap = {};
+        allData.forEach(item => {
+          const code = item.secCode || "UNKNOWN";
+          const sig = Number(item.signal);
+          const date = item._date;
+          if (!stockMap[code]) stockMap[code] = { bullish: {}, bearish: new Set() };
+          if (BULLISH_WEIGHT[sig]) {
+            if (!stockMap[code].bullish[sig]) stockMap[code].bullish[sig] = new Set();
+            stockMap[code].bullish[sig].add(date);
+          } else if (BEARISH_SIGNALS.has(sig)) {
+            stockMap[code].bearish.add(date);
+          }
+        });
+
+        ranked = Object.entries(stockMap).map(([code, info]) => {
+          let buyScore = 0, buyDays = 0;
+          const signalList = [];
+          const allBuyDates = new Set();
+          Object.entries(info.bullish).forEach(([sig, dateSet]) => {
+            const days = dateSet.size;
+            const weight = BULLISH_WEIGHT[sig] || 1;
+            buyScore += days * weight;
+            buyDays += days;
+            signalList.push({ name: getSignalName(sig), days });
+            dateSet.forEach(d => allBuyDates.add(d));
+          });
+          signalList.sort((a, b) => b.days - a.days);
+          const sellDays = info.bearish.size;
+          return {
+            code, score: buyScore, buy: buyDays, sell: sellDays,
+            ratio: buyDays / Math.max(sellDays, 1),
+            days: allBuyDates.size,
+            signals: signalList.map(s => `${s.name}(${s.days}x)`)
+          };
+        });
+      } else {
+        // ===== RAW DATA: setiap event =====
+        const stockMap = {};
+        allData.forEach(item => {
+          const code = item.secCode || "UNKNOWN";
+          const sig = Number(item.signal);
+          if (!stockMap[code]) stockMap[code] = { buyScore: 0, buyCount: 0, sellCount: 0, signals: {}, dates: new Set() };
+          const s = stockMap[code];
+          s.dates.add(item._date);
+          if (BULLISH_WEIGHT[sig]) {
+            s.buyScore += BULLISH_WEIGHT[sig];
+            s.buyCount += 1;
+            s.signals[sig] = (s.signals[sig] || 0) + 1;
+          } else if (BEARISH_SIGNALS.has(sig)) {
+            s.sellCount += 1;
+          }
+        });
+
+        ranked = Object.entries(stockMap).map(([code, info]) => {
+          const signalList = Object.entries(info.signals)
+            .sort((a, b) => b[1] - a[1])
+            .map(([sig, cnt]) => `${getSignalName(sig)}(${cnt}x)`);
+          return {
+            code, score: info.buyScore, buy: info.buyCount, sell: info.sellCount,
+            ratio: info.buyCount / Math.max(info.sellCount, 1),
+            days: info.dates.size,
+            signals: signalList
+          };
+        });
+      }
+
+      ranked = ranked.filter(r => r.score >= (recMode === "matrix" ? 3 : 10));
+      ranked.sort((a, b) => b.score - a.score || b.ratio - a.ratio);
+      const top = ranked.slice(0, 15);
+      const modeLabel = recMode === "matrix" ? "Matrix Style" : "Raw Data";
+
+      // Render
+      let html = `
+        <div class="rec-section">
+          <h3>🔥 Top Kandidat (${from} s/d ${to}) — ${modeLabel}</h3>
+          <div class="rec-table-wrap">
+            <table class="rec-table">
+              <thead>
+                <tr><th>#</th><th>Kode</th><th>Skor</th><th>Buy</th><th>Sell</th><th>Rasio</th><th>Hari</th><th>Signal Utama</th></tr>
+              </thead>
+              <tbody>`;
+      top.forEach((r, i) => {
+        let ratioClass = "ratio-mid";
+        if (r.ratio >= 2.5) ratioClass = "ratio-good";
+        else if (r.ratio < 1.3) ratioClass = "ratio-bad";
+        html += `<tr>
+          <td>${i+1}</td>
+          <td class="code">${r.code}</td>
+          <td class="score">${r.score.toFixed(1)}</td>
+          <td>${r.buy}</td>
+          <td>${r.sell}</td>
+          <td class="${ratioClass}">${r.ratio.toFixed(1)}x</td>
+          <td>${r.days}</td>
+          <td style="font-size:11px;color:#aaa">${r.signals.slice(0,3).join(", ")}</td>
+        </tr>`;
+      });
+      html += `</tbody></table></div></div>`;
+
+      // Perbandingan Cepat
+      html += `
+        <div class="rec-section">
+          <h3>⚡ Perbandingan Cepat</h3>
+          <div class="rec-table-wrap">
+            <table class="rec-table">
+              <thead>
+                <tr><th>Kode</th><th>Skor</th><th>Rasio</th><th>Kualitas</th><th>Potensi Pump</th><th>Stabilitas</th></tr>
+              </thead>
+              <tbody>`;
+      top.slice(0, 10).forEach(r => {
+        let kualitas = "Sedang", pump = "Sedang", stabil = "Sedang", badge = "ok";
+        const highScore = recMode === "matrix" ? 25 : 200;
+        const midScore = recMode === "matrix" ? 20 : 150;
+        if (r.score >= highScore && r.ratio >= 2) {
+          kualitas = "Tinggi"; pump = "Tinggi"; stabil = "Baik"; badge = "hot";
+        } else if (r.score >= midScore && r.ratio >= 2.5) {
+          kualitas = "Tinggi"; pump = "Tinggi"; stabil = "Baik"; badge = "hot";
+        } else if (r.score >= highScore && r.ratio < 1.5) {
+          kualitas = "Tinggi"; pump = "Tinggi"; stabil = "Rendah"; badge = "ok";
+        } else if (r.ratio >= 2.5) {
+          kualitas = "Baik"; pump = "Sedang-Tinggi"; stabil = "Baik"; badge = "hot";
+        } else if (r.ratio < 1.3) {
+          kualitas = "Sedang"; pump = "Sedang"; stabil = "Rendah"; badge = "weak";
+        }
+        html += `<tr>
+          <td class="code">${r.code}</td>
+          <td class="score">${r.score.toFixed(1)}</td>
+          <td>${r.ratio.toFixed(1)}x</td>
+          <td><span class="rec-badge ${badge}">${kualitas}</span></td>
+          <td>${pump}</td>
+          <td>${stabil}</td>
+        </tr>`;
+      });
+      html += `</tbody></table></div></div>`;
+
+      // Kesimpulan
+      const top1 = top[0];
+      const cleanThreshold = recMode === "matrix" ? 12 : 80;
+      const aggThreshold = recMode === "matrix" ? 25 : 200;
+      const bestClean = ranked.filter(r => r.ratio >= 2.5 && r.score >= cleanThreshold).slice(0, 4);
+      const bestAggressive = ranked.filter(r => r.score >= aggThreshold).slice(0, 4);
+
+      html += `
+        <div class="rec-section">
+          <h3>📌 Kesimpulan Realistis</h3>
+          <div class="rec-conclusion">
+            <p><b>Periode:</b> ${from} s/d ${to} · Metode: <b>${modeLabel}</b></p>
+            <ul>
+              <li><b>Skor tertinggi:</b> ${top1 ? top1.code + " (" + top1.score.toFixed(1) + ")" : "-"}.</li>
+              <li><b>Paling “bersih” (rasio tinggi):</b> ${bestClean.length ? bestClean.map(r => r.code).join(", ") : "Tidak ada yang menonjol"}.</li>
+              <li><b>Agresif / momentum:</b> ${bestAggressive.length ? bestAggressive.map(r => r.code).join(", ") : "-"}.</li>
+              <li>${recMode === "matrix"
+                ? "Skor dihitung dari <b>berapa hari</b> signal muncul → lebih mencerminkan konsistensi."
+                : "Skor dihitung dari <b>setiap kali</b> signal muncul → lebih mencerminkan intensitas/volume."}</li>
+              <li>Prioritaskan yang <b>rasio Buy/Sell ≥ 2x</b> + ada signal kuat (Huge Buy / Breakout High).</li>
+            </ul>
+          </div>
+        </div>`;
+
+      el.innerHTML = html;
+      document.getElementById("statusText").textContent = `Recommend (${modeLabel}): ${ranked.length} emiten`;
     }
   </script>
 </body>
