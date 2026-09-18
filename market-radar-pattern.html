@@ -6,222 +6,186 @@
   <title>Pattern Predictor – Market Radar</title>
   <style>
     :root {
-      --bg: #0d0d0d;
-      --card: #1a1a1a;
-      --card-hover: #222;
-      --border: #2a2a2a;
-      --text: #e0e0e0;
-      --text-dim: #888;
-      --green: #00c853;
-      --red: #ff5252;
-      --blue: #42a5f5;
-      --orange: #ffb74d;
+      --bg: #0d0d0d; --card: #1a1a1a; --card-hover: #222; --border: #2a2a2a;
+      --text: #e0e0e0; --text-dim: #888; --green: #00c853; --red: #ff5252;
+      --blue: #42a5f5; --orange: #ffb74d;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 16px;
-    }
-    .container { max-width: 720px; margin: 0 auto; }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 16px; }
+    .container { max-width: 860px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     header h1 { font-size: 18px; font-weight: 600; }
-    .status {
-      font-size: 12px;
-      color: var(--text-dim);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .status .dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--green);
-    }
-    .controls {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    button, input[type="date"], select {
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 9px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      color-scheme: dark;
-    }
+    .status { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+    .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    button, input[type="date"] { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 13px; color-scheme: dark; }
     button { cursor: pointer; }
     button:hover { background: var(--card-hover); }
-    button.primary {
-      background: #1e3a5f;
-      border-color: var(--blue);
-      color: var(--text);
-    }
-    .loading, .empty {
-      text-align: center;
-      padding: 40px 20px;
-      color: var(--text-dim);
-      font-size: 14px;
-    }
-    .section {
-      margin-bottom: 24px;
-    }
-    .section h2 {
-      font-size: 15px;
-      color: var(--blue);
-      margin-bottom: 10px;
-    }
-    .section h3 {
-      font-size: 13px;
-      color: var(--text-dim);
-      margin: 14px 0 8px;
-    }
-    .table-wrap {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: var(--card);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-      min-width: 520px;
-    }
-    th, td {
-      padding: 8px 10px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-    th {
-      background: #151515;
-      color: var(--text-dim);
-      font-weight: 500;
-      position: sticky;
-      top: 0;
-    }
+    button.primary { background: #1e3a5f; border-color: var(--blue); color: var(--text); }
+    .loading, .empty { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 14px; }
+    .section { margin-bottom: 24px; }
+    .section h2 { font-size: 15px; color: var(--blue); margin-bottom: 10px; }
+    .section h3 { font-size: 13px; color: var(--text-dim); margin: 14px 0 8px; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid var(--border); background: var(--card); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 560px; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { background: #151515; color: var(--text-dim); font-weight: 500; position: sticky; top: 0; }
     tr:hover td { background: #222; }
     .code { font-weight: 600; }
     .good { color: var(--green); font-weight: 600; }
     .mid { color: var(--orange); }
     .bad { color: var(--red); }
     .lift-high { color: var(--green); font-weight: 700; }
-    .summary-box {
-      background: linear-gradient(135deg, #1a2332 0%, #1a1a1a 100%);
-      border: 1px solid #2a3a4a;
-      border-radius: 12px;
-      padding: 14px 16px;
-      font-size: 13px;
-      line-height: 1.6;
-      margin-bottom: 16px;
-    }
+    .summary-box { background: linear-gradient(135deg, #1a2332 0%, #1a1a1a 100%); border: 1px solid #2a3a4a; border-radius: 12px; padding: 14px 16px; font-size: 13px; line-height: 1.6; margin-bottom: 16px; }
     .summary-box ul { margin: 8px 0 0 18px; }
     .summary-box li { margin-bottom: 4px; }
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 11px;
-      font-weight: 600;
-    }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
     .badge.best { background: #1b3a1b; color: var(--green); }
-    .badge.good { background: #1b2a3a; color: var(--blue); }
-    .badge.warn { background: #3a2e1b; color: var(--orange); }
     .badge.bad { background: #3a1b1b; color: var(--red); }
-    .note {
-      font-size: 11px;
-      color: var(--text-dim);
-      margin-top: 8px;
-    }
+    .note { font-size: 11px; color: var(--text-dim); margin-top: 8px; line-height: 1.5; }
+    .formula-box { background: #121820; border: 1px solid #2a3a4a; border-radius: 12px; padding: 14px 16px; font-size: 12px; line-height: 1.7; margin-bottom: 16px; color: #b0c0d0; }
+    .formula-box h3 { color: var(--blue); font-size: 13px; margin: 0 0 8px 0; }
+    .formula-box ul { margin: 6px 0 0 16px; }
+    .formula-box li { margin-bottom: 3px; }
+    .clk { cursor: pointer; color: var(--blue); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
+    .clk:hover { color: #90caf9; }
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; padding: 16px; }
+    .modal-bg.open { display: flex; }
+    .modal { background: #151515; border: 1px solid #2a3a4a; border-radius: 14px; width: 100%; max-width: 680px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.55); }
+    .modal-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .modal-header h3 { font-size: 14px; color: var(--blue); margin: 0; line-height: 1.4; }
+    .modal-header .sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+    .modal-close { background: transparent; border: 1px solid var(--border); color: var(--text-dim); width: 32px; height: 32px; border-radius: 8px; font-size: 18px; cursor: pointer; flex-shrink: 0; line-height: 1; }
+    .modal-close:hover { background: #222; color: #fff; }
+    .modal-body { padding: 12px 16px; overflow-y: auto; font-size: 12px; }
+    .modal-body .rumus { background: #1a2332; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.55; color: #b0c8e0; }
+    .modal-body .rumus code { background: #0d1520; padding: 1px 5px; border-radius: 4px; color: #9ecbff; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; }
+    .modal-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .modal-table th, .modal-table td { padding: 6px 8px; border-bottom: 1px solid #252525; text-align: left; }
+    .modal-table th { color: var(--text-dim); background: #111; position: sticky; top: 0; }
+    .modal-table .up { color: var(--green); }
+    .modal-table .dn { color: var(--red); }
+    .modal-footer { padding: 10px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim); }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>Pattern Predictor</h1>
-      <div class="status">
-        <span class="dot" id="statusDot"></span>
-        <span id="statusText">Ready</span>
-      </div>
+      <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Ready</span></div>
     </header>
-
     <div class="controls">
       <input type="date" id="fromDate" />
       <span style="color:#666">s/d</span>
       <input type="date" id="toDate" />
       <button class="primary" onclick="runAnalysis()">Analisis Pola</button>
     </div>
+    <div id="result"><div class="empty">Pilih rentang tanggal lalu klik Analisis Pola</div></div>
+  </div>
 
-    <div id="result">
-      <div class="empty">Pilih rentang tanggal lalu klik Analisis Pola</div>
+  <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <div><h3 id="modalTitle">Detail</h3><div class="sub" id="modalSub"></div></div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
     </div>
   </div>
 
   <script>
     const BASE_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/market_radar_by_day/";
-
     const SIGNAL_NAMES = {
-      1: "Huge Buy", 2: "Huge Sell", 3: "Intensive Buy", 4: "Intensive Sell",
-      5: "Rapid Buy", 6: "Rapid Sell", 7: "Large Best Bid", 8: "Large Best Offer",
-      9: "Nego Spike", 10: "Nego Active", 11: "Breakout High", 12: "Breakout Low",
-      13: "Quick Rebound", 14: "Quick Reject"
+      1:"Huge Buy",2:"Huge Sell",3:"Intensive Buy",4:"Intensive Sell",
+      5:"Rapid Buy",6:"Rapid Sell",7:"Large Best Bid",8:"Large Best Offer",
+      9:"Nego Spike",10:"Nego Active",11:"Breakout High",12:"Breakout Low",
+      13:"Quick Rebound",14:"Quick Reject"
     };
-    const BULLISH = new Set([1, 3, 5, 7, 9, 10, 11, 13]);
-    const BEARISH = new Set([2, 4, 6, 8, 12, 14]);
+    const BULLISH = new Set([1,3,5,7,9,10,11,13]);
+    const BEARISH = new Set([2,4,6,8,12,14]);
+    const detailStore = {};
+    let detailSeq = 0;
+    const MAX_ROWS = 200;
 
-    function getLocalDateString(d = new Date()) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
+    function storeDetail(payload) {
+      const id = "d" + (++detailSeq);
+      detailStore[id] = payload;
+      return id;
     }
-
+    function openDetail(id) {
+      const d = detailStore[id];
+      if (!d) return;
+      document.getElementById("modalTitle").textContent = d.title;
+      document.getElementById("modalSub").textContent = d.sub || "";
+      let body = "";
+      if (d.rumus) body += '<div class="rumus">' + d.rumus + '</div>';
+      if (d.rows && d.rows.length) {
+        body += '<div style="overflow-x:auto"><table class="modal-table"><thead><tr>' +
+          '<th>#</th><th>Saham</th><th>Hari sinyal</th><th>Hari hasil</th>' +
+          '<th>Return</th><th>Naik?</th><th>≥2%?</th></tr></thead><tbody>';
+        d.rows.forEach((r, i) => {
+          const pctCls = r.pctA > 0 ? "up" : r.pctA < 0 ? "dn" : "";
+          body += '<tr><td>'+(i+1)+'</td><td class="code">'+r.code+'</td>' +
+            '<td>'+r.dayPrev+'</td><td>'+r.dayA+'</td>' +
+            '<td class="'+pctCls+'">'+(r.pctA>=0?'+':'')+r.pctA.toFixed(2)+'%</td>' +
+            '<td class="'+(r.upA?'up':'dn')+'">'+(r.upA?'Ya':'Tidak')+'</td>' +
+            '<td class="'+(r.strongUpA?'up':'')+'">'+(r.strongUpA?'Ya':'Tidak')+'</td></tr>';
+        });
+        body += '</tbody></table></div>';
+      } else body += '<p style="color:#888">Tidak ada sample.</p>';
+      document.getElementById("modalBody").innerHTML = body;
+      document.getElementById("modalFooter").textContent = d.footer || "";
+      document.getElementById("modalBg").classList.add("open");
+    }
+    function closeModal() { document.getElementById("modalBg").classList.remove("open"); }
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+    function clk(id, label) {
+      return '<span class="clk" onclick="openDetail(\''+id+'\')">'+label+'</span>';
+    }
+    function getLocalDateString(d) {
+      d = d || new Date();
+      return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    }
     const today = getLocalDateString();
     document.getElementById("fromDate").value = today;
     document.getElementById("toDate").value = today;
 
     function getDatesInRange(from, to) {
       const dates = [];
-      let current = new Date(from + "T00:00:00");
-      const end = new Date(to + "T00:00:00");
-      while (current <= end) {
-        dates.push(getLocalDateString(current));
-        current.setDate(current.getDate() + 1);
-      }
+      let current = new Date(from+"T00:00:00");
+      const end = new Date(to+"T00:00:00");
+      while (current <= end) { dates.push(getLocalDateString(current)); current.setDate(current.getDate()+1); }
       return dates;
     }
-
     async function fetchDay(date) {
       try {
-        const res = await fetch(`${BASE_URL}radar_${date}.json?t=${Date.now()}`);
+        const res = await fetch(BASE_URL+"radar_"+date+".json?t="+Date.now());
         if (!res.ok) return [];
         let data = await res.json();
         if (!Array.isArray(data)) data = data.list || [];
         return data;
-      } catch {
-        return [];
-      }
+      } catch { return []; }
     }
-
     function parsePct(s) {
       if (s == null) return 0;
-      try {
-        return parseFloat(String(s).replace("%", "").replace(",", "."));
-      } catch {
-        return 0;
-      }
+      try { return parseFloat(String(s).replace("%","").replace(",",".")); } catch { return 0; }
+    }
+    function pairsToRows(subset) {
+      return subset.map(r => ({ code:r.code, dayPrev:r.dayPrev, dayA:r.dayA, pctA:r.pctA, upA:r.upA, strongUpA:r.strongUpA }));
+    }
+    function makeDetail(title, sub, rumus, subset, extraFooter) {
+      const rows = pairsToRows(subset).slice(0, MAX_ROWS);
+      const n = subset.length;
+      const nUp = subset.filter(r => r.upA).length;
+      const nStrong = subset.filter(r => r.strongUpA).length;
+      const avg = n ? subset.reduce((a,r)=>a+r.pctA,0)/n : 0;
+      let footer = "Total "+n+" pasangan"+(n>MAX_ROWS?" (tampil "+MAX_ROWS+" pertama)":"") +
+        " · Naik: "+nUp+" ("+(n?((nUp/n)*100).toFixed(1):0)+"%)" +
+        " · ≥2%: "+nStrong+" ("+(n?((nStrong/n)*100).toFixed(1):0)+"%)" +
+        " · Avg: "+(avg>=0?"+":"")+avg.toFixed(2)+"%";
+      if (extraFooter) footer += " · "+extraFooter;
+      return storeDetail({ title, sub, rumus, rows, footer });
     }
 
     async function runAnalysis() {
@@ -229,13 +193,13 @@
       const to = document.getElementById("toDate").value;
       if (!from || !to) return alert("Pilih rentang tanggal");
       if (from > to) return alert("Tanggal dari tidak boleh lebih besar dari sampai");
-
+      for (const k of Object.keys(detailStore)) delete detailStore[k];
+      detailSeq = 0;
       const el = document.getElementById("result");
-      el.innerHTML = `<div class="loading">Mengambil & menganalisis data ${from} s/d ${to}...</div>`;
+      el.innerHTML = '<div class="loading">Mengambil & menganalisis data '+from+' s/d '+to+'...</div>';
       document.getElementById("statusText").textContent = "Loading...";
 
       const allDates = getDatesInRange(from, to);
-      // keep only dates that have data
       const dayData = {};
       for (const d of allDates) {
         const data = await fetchDay(d);
@@ -243,12 +207,11 @@
       }
       const dates = Object.keys(dayData).sort();
       if (dates.length < 2) {
-        el.innerHTML = `<div class="empty">Butuh minimal 2 hari data yang tersedia untuk analisis lag.<br>Data yang ditemukan: ${dates.join(", ") || "tidak ada"}</div>`;
+        el.innerHTML = '<div class="empty">Butuh minimal 2 hari data.<br>Ditemukan: '+(dates.join(", ")||"tidak ada")+'</div>';
         document.getElementById("statusText").textContent = "Data kurang";
         return;
       }
 
-      // Build stock_day: (code, date) -> { signals: Set, lastPct, up, strongUp }
       const stockDay = {};
       for (const date of dates) {
         const byStock = {};
@@ -258,29 +221,20 @@
           byStock[code].push(item);
         }
         for (const [code, events] of Object.entries(byStock)) {
-          events.sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
-          const last = events[events.length - 1];
+          events.sort((a,b)=>(a.timestamp||"").localeCompare(b.timestamp||""));
+          const last = events[events.length-1];
           const pct = parsePct(last.changePercentage);
           const signals = new Set();
-          events.forEach(e => {
-            if (e.signal != null) signals.add(Number(e.signal));
-          });
-          stockDay[`${code}|${date}`] = {
-            signals,
-            lastPct: pct,
-            up: pct > 0,
-            strongUp: pct >= 2
-          };
+          events.forEach(e => { if (e.signal != null) signals.add(Number(e.signal)); });
+          stockDay[code+"|"+date] = { signals, lastPct: pct, up: pct>0, strongUp: pct>=2 };
         }
       }
 
       function getPairs(lag) {
         const res = [];
         for (let i = lag; i < dates.length; i++) {
-          const dayA = dates[i];
-          const dayPrev = dates[i - lag];
-          const codesA = new Set();
-          const codesPrev = new Set();
+          const dayA = dates[i], dayPrev = dates[i-lag];
+          const codesA = new Set(), codesPrev = new Set();
           for (const key of Object.keys(stockDay)) {
             const [code, d] = key.split("|");
             if (d === dayA) codesA.add(code);
@@ -288,257 +242,223 @@
           }
           for (const code of codesA) {
             if (!codesPrev.has(code)) continue;
-            const prev = stockDay[`${code}|${dayPrev}`];
-            const curr = stockDay[`${code}|${dayA}`];
-            res.push({
-              code,
-              dayA,
-              dayPrev,
-              signalsPrev: prev.signals,
-              upA: curr.up,
-              strongUpA: curr.strongUp,
-              pctA: curr.lastPct
-            });
+            const prev = stockDay[code+"|"+dayPrev];
+            const curr = stockDay[code+"|"+dayA];
+            res.push({ code, dayA, dayPrev, signalsPrev: prev.signals, upA: curr.up, strongUpA: curr.strongUp, pctA: curr.lastPct });
           }
         }
         return res;
       }
 
-      // ===== Analyze each lag =====
       const lagResults = {};
-      for (const lag of [1, 2, 3]) {
+      for (const lag of [1,2,3]) {
         const pairs = getPairs(lag);
         if (pairs.length < 30) continue;
+        const baseUp = pairs.filter(r=>r.upA).length / pairs.length;
+        const baseStrong = pairs.filter(r=>r.strongUpA).length / pairs.length;
+        const baseDetailId = makeDetail("Base rate — Lag "+lag, "Semua pasangan tanpa filter signal",
+          "<b>Base naik</b> = count(upA) / total pairs<br>Total = <code>"+pairs.length+"</code> · Naik = <code>"+pairs.filter(r=>r.upA).length+"</code>", pairs);
 
-        const baseUp = pairs.filter(r => r.upA).length / pairs.length;
-        const baseStrong = pairs.filter(r => r.strongUpA).length / pairs.length;
-
-        // Individual signals
         const sigStats = {};
         for (let s = 1; s <= 14; s++) {
           const subset = pairs.filter(r => r.signalsPrev.has(s));
           if (subset.length < 15) continue;
-          const up = subset.filter(r => r.upA).length / subset.length;
-          const strong = subset.filter(r => r.strongUpA).length / subset.length;
-          const avgPct = subset.reduce((a, r) => a + r.pctA, 0) / subset.length;
-          sigStats[s] = {
-            n: subset.length,
-            upRate: up,
-            strongRate: strong,
-            avgPct,
-            lift: baseUp > 0 ? up / baseUp : 0
-          };
+          const up = subset.filter(r=>r.upA).length / subset.length;
+          const strong = subset.filter(r=>r.strongUpA).length / subset.length;
+          const avgPct = subset.reduce((a,r)=>a+r.pctA,0) / subset.length;
+          const lift = baseUp > 0 ? up / baseUp : 0;
+          const name = SIGNAL_NAMES[s] || ("Sig "+s);
+          const idN = makeDetail("N — "+name+" (Lag "+lag+")", "Saham dengan signal "+name+" di hari A−"+lag,
+            "<b>N</b> = jumlah pasangan signal <code>"+name+"</code> = <code>"+subset.length+"</code>", subset);
+          const idUp = makeDetail("% Naik — "+name+" (Lag "+lag+")", "Hanya return hari A > 0",
+            "<b>% Naik</b> = count(upA)/N = <code>"+subset.filter(r=>r.upA).length+"</code>/<code>"+subset.length+"</code> = <code>"+(up*100).toFixed(1)+"%</code>",
+            subset.filter(r=>r.upA), "dari N="+subset.length);
+          const idStrong = makeDetail("% ≥2% — "+name+" (Lag "+lag+")", "Hanya return ≥ 2%",
+            "<b>% ≥2%</b> = count(strongUpA)/N = <code>"+subset.filter(r=>r.strongUpA).length+"</code>/<code>"+subset.length+"</code> = <code>"+(strong*100).toFixed(1)+"%</code>",
+            subset.filter(r=>r.strongUpA), "dari N="+subset.length);
+          const idAvg = makeDetail("Avg Return — "+name+" (Lag "+lag+")", "Semua pasangan",
+            "<b>Avg Return</b> = mean(pctA) = <code>"+(avgPct>=0?"+":"")+avgPct.toFixed(2)+"%</code>", subset);
+          const idLift = makeDetail("Lift — "+name+" (Lag "+lag+")", "vs base rate",
+            "<b>Lift</b> = upRate/baseUp = <code>"+(up*100).toFixed(1)+"%</code>/<code>"+(baseUp*100).toFixed(1)+"%</code> = <code>"+lift.toFixed(2)+"x</code>", subset);
+          sigStats[s] = { n:subset.length, upRate:up, strongRate:strong, avgPct, lift, idN, idUp, idStrong, idAvg, idLift };
         }
 
-        // Formulas
         const formulas = [
-          { name: "Breakout High", fn: r => r.signalsPrev.has(11) },
-          { name: "Breakout High (tanpa Breakout Low)", fn: r => r.signalsPrev.has(11) && !r.signalsPrev.has(12) },
-          { name: "Breakout High + Intensive Buy", fn: r => r.signalsPrev.has(11) && r.signalsPrev.has(3) },
-          { name: "Breakout High + Rapid Buy", fn: r => r.signalsPrev.has(11) && r.signalsPrev.has(5) },
-          { name: "Intensive Buy", fn: r => r.signalsPrev.has(3) },
-          { name: "Intensive Buy (tanpa Intensive Sell)", fn: r => r.signalsPrev.has(3) && !r.signalsPrev.has(4) },
-          { name: "Huge Buy", fn: r => r.signalsPrev.has(1) },
-          { name: "Rapid Buy", fn: r => r.signalsPrev.has(5) },
-          { name: "Large Best Bid", fn: r => r.signalsPrev.has(7) },
-          { name: "Quick Rebound", fn: r => r.signalsPrev.has(13) },
-          { name: "≥2 Bullish & 0 Bearish", fn: r => {
-            let b = 0, e = 0;
-            r.signalsPrev.forEach(s => { if (BULLISH.has(s)) b++; if (BEARISH.has(s)) e++; });
-            return b >= 2 && e === 0;
-          }},
-          { name: "≥3 Bullish & ≤1 Bearish", fn: r => {
-            let b = 0, e = 0;
-            r.signalsPrev.forEach(s => { if (BULLISH.has(s)) b++; if (BEARISH.has(s)) e++; });
-            return b >= 3 && e <= 1;
-          }},
-          { name: "Hanya Bearish", fn: r => {
-            let b = 0, e = 0;
-            r.signalsPrev.forEach(s => { if (BULLISH.has(s)) b++; if (BEARISH.has(s)) e++; });
-            return b === 0 && e >= 1;
-          }},
-          { name: "Breakout Low", fn: r => r.signalsPrev.has(12) },
-          { name: "Huge Sell", fn: r => r.signalsPrev.has(2) },
+          { name:"Breakout High", fn:r=>r.signalsPrev.has(11) },
+          { name:"Breakout High (tanpa Breakout Low)", fn:r=>r.signalsPrev.has(11)&&!r.signalsPrev.has(12) },
+          { name:"Breakout High + Intensive Buy", fn:r=>r.signalsPrev.has(11)&&r.signalsPrev.has(3) },
+          { name:"Breakout High + Rapid Buy", fn:r=>r.signalsPrev.has(11)&&r.signalsPrev.has(5) },
+          { name:"Intensive Buy", fn:r=>r.signalsPrev.has(3) },
+          { name:"Intensive Buy (tanpa Intensive Sell)", fn:r=>r.signalsPrev.has(3)&&!r.signalsPrev.has(4) },
+          { name:"Huge Buy", fn:r=>r.signalsPrev.has(1) },
+          { name:"Rapid Buy", fn:r=>r.signalsPrev.has(5) },
+          { name:"Large Best Bid", fn:r=>r.signalsPrev.has(7) },
+          { name:"Quick Rebound", fn:r=>r.signalsPrev.has(13) },
+          { name:"≥2 Bullish & 0 Bearish", fn:r=>{ let b=0,e=0; r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;}); return b>=2&&e===0; }},
+          { name:"≥3 Bullish & ≤1 Bearish", fn:r=>{ let b=0,e=0; r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;}); return b>=3&&e<=1; }},
+          { name:"Hanya Bearish", fn:r=>{ let b=0,e=0; r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;}); return b===0&&e>=1; }},
+          { name:"Breakout Low", fn:r=>r.signalsPrev.has(12) },
+          { name:"Huge Sell", fn:r=>r.signalsPrev.has(2) },
         ];
-
         const formulaStats = [];
         for (const f of formulas) {
           const subset = pairs.filter(f.fn);
           if (subset.length < 15) continue;
-          const up = subset.filter(r => r.upA).length / subset.length;
-          const strong = subset.filter(r => r.strongUpA).length / subset.length;
-          const avgPct = subset.reduce((a, r) => a + r.pctA, 0) / subset.length;
-          formulaStats.push({
-            name: f.name,
-            n: subset.length,
-            upRate: up,
-            strongRate: strong,
-            avgPct,
-            lift: baseUp > 0 ? up / baseUp : 0
-          });
+          const up = subset.filter(r=>r.upA).length / subset.length;
+          const strong = subset.filter(r=>r.strongUpA).length / subset.length;
+          const avgPct = subset.reduce((a,r)=>a+r.pctA,0) / subset.length;
+          const lift = baseUp > 0 ? up / baseUp : 0;
+          const idN = makeDetail("N — "+f.name+" (Lag "+lag+")", "Saham memenuhi pola di hari A−"+lag,
+            "<b>N</b> = pasangan pola <code>"+f.name+"</code> = <code>"+subset.length+"</code>", subset);
+          const idUp = makeDetail("% Naik — "+f.name+" (Lag "+lag+")", "Hanya yang naik",
+            "<b>% Naik</b> = count(upA)/N = <code>"+subset.filter(r=>r.upA).length+"</code>/<code>"+subset.length+"</code> = <code>"+(up*100).toFixed(1)+"%</code>",
+            subset.filter(r=>r.upA), "dari N="+subset.length);
+          const idStrong = makeDetail("% ≥2% — "+f.name+" (Lag "+lag+")", "Hanya ≥2%",
+            "<b>% ≥2%</b> = count(strongUpA)/N = <code>"+subset.filter(r=>r.strongUpA).length+"</code>/<code>"+subset.length+"</code> = <code>"+(strong*100).toFixed(1)+"%</code>",
+            subset.filter(r=>r.strongUpA), "dari N="+subset.length);
+          const idAvg = makeDetail("Avg Return — "+f.name+" (Lag "+lag+")", "Semua pasangan",
+            "<b>Avg Return</b> = mean(pctA) = <code>"+(avgPct>=0?"+":"")+avgPct.toFixed(2)+"%</code>", subset);
+          const idLift = makeDetail("Lift — "+f.name+" (Lag "+lag+")", "vs base rate",
+            "<b>Lift</b> = upRate/baseUp = <code>"+(up*100).toFixed(1)+"%</code>/<code>"+(baseUp*100).toFixed(1)+"%</code> = <code>"+lift.toFixed(2)+"x</code>", subset);
+          formulaStats.push({ name:f.name, n:subset.length, upRate:up, strongRate:strong, avgPct, lift, idN, idUp, idStrong, idAvg, idLift });
         }
-        formulaStats.sort((a, b) => b.lift - a.lift || b.upRate - a.upRate);
+        formulaStats.sort((a,b)=>b.lift-a.lift||b.upRate-a.upRate);
 
-        // Day-by-day stability for best signal (Breakout High if available)
-        const dayEdges = [];
-        for (let i = lag; i < dates.length; i++) {
-          const dayA = dates[i];
-          const dayPrev = dates[i - lag];
-          const dayPairs = pairs.filter(r => r.dayA === dayA);
-          if (!dayPairs.length) continue;
-          const dayBase = dayPairs.filter(r => r.upA).length / dayPairs.length;
-          const bh = dayPairs.filter(r => r.signalsPrev.has(11));
-          if (bh.length < 5) continue;
-          const bhUp = bh.filter(r => r.upA).length / bh.length;
-          dayEdges.push({
-            from: dayPrev,
-            to: dayA,
-            n: bh.length,
-            upRate: bhUp,
-            base: dayBase,
-            edge: bhUp - dayBase
-          });
+        const topSigIds = Object.entries(sigStats).sort((a,b)=>b[1].lift-a[1].lift).slice(0,6).map(([id])=>Number(id));
+        const worstSig = Object.entries(sigStats).sort((a,b)=>a[1].lift-b[1].lift)[0];
+        if (worstSig && !topSigIds.includes(Number(worstSig[0]))) topSigIds.push(Number(worstSig[0]));
+
+        const dayEdgesBySig = {};
+        for (const sigId of topSigIds) {
+          dayEdgesBySig[sigId] = [];
+          for (let i = lag; i < dates.length; i++) {
+            const dayA = dates[i], dayPrev = dates[i-lag];
+            const dayPairs = pairs.filter(r=>r.dayA===dayA);
+            if (!dayPairs.length) continue;
+            const dayBase = dayPairs.filter(r=>r.upA).length / dayPairs.length;
+            const subset = dayPairs.filter(r=>r.signalsPrev.has(sigId));
+            if (subset.length < 5) continue;
+            const upRate = subset.filter(r=>r.upA).length / subset.length;
+            const edge = upRate - dayBase;
+            const name = SIGNAL_NAMES[sigId] || ("Sig "+sigId);
+            const idEdge = makeDetail("Edge "+name+" · "+dayPrev.slice(5)+" → "+dayA.slice(5), "Lag "+lag,
+              "<b>Edge</b> = upRate − base = <code>"+(upRate*100).toFixed(1)+"%</code> − <code>"+(dayBase*100).toFixed(1)+"%</code> = <code>"+(edge*100).toFixed(1)+"%</code><br>N = "+subset.length, subset);
+            dayEdgesBySig[sigId].push({ from:dayPrev, to:dayA, n:subset.length, upRate, base:dayBase, edge, idEdge });
+          }
         }
-
-        lagResults[lag] = {
-          pairs: pairs.length,
-          baseUp,
-          baseStrong,
-          sigStats,
-          formulaStats,
-          dayEdges
-        };
+        lagResults[lag] = { pairs:pairs.length, baseUp, baseStrong, baseDetailId, sigStats, formulaStats, topSigIds, dayEdgesBySig };
       }
 
       if (!Object.keys(lagResults).length) {
-        el.innerHTML = `<div class="empty">Data tidak cukup untuk analisis lag</div>`;
+        el.innerHTML = '<div class="empty">Data tidak cukup untuk analisis lag</div>';
         return;
       }
 
-      // ===== RENDER =====
-      let html = "";
+      let html = '<div class="formula-box"><h3>📌 Cara pakai</h3><ul>' +
+        '<li>Angka <span class="clk">bergaris biru putus-putus</span> = bisa diklik.</li>' +
+        '<li>Klik → muncul <b>rumus</b> + <b>daftar saham</b> yang membentuk angka itu.</li>' +
+        '<li>Contoh: klik <b>N = 139</b> di Breakout High → lihat 139 saham yang punya signal itu.</li>' +
+        '<li>Klik <b>% Naik</b> → hanya saham yang naik di hari A.</li></ul></div>';
 
-      // Summary best overall
       const lag1 = lagResults[1];
       if (lag1 && lag1.formulaStats.length) {
         const best = lag1.formulaStats[0];
-        const worst = lag1.formulaStats[lag1.formulaStats.length - 1];
-        html += `
-          <div class="summary-box">
-            <b>Ringkasan (${from} s/d ${to})</b>
-            <ul>
-              <li>Hari data tersedia: <b>${dates.length}</b> (${dates.join(", ")})</li>
-              <li>Base rate naik (lag-1): <b>${(lag1.baseUp * 100).toFixed(1)}%</b></li>
-              <li>Pola terbaik (lag-1): <span class="badge best">${best.name}</span>
-                  → naik <b>${(best.upRate * 100).toFixed(1)}%</b> (lift ${best.lift.toFixed(2)}x), avg return <b>${best.avgPct >= 0 ? "+" : ""}${best.avgPct.toFixed(2)}%</b></li>
-              <li>Pola terlemah: <span class="badge bad">${worst.name}</span>
-                  → naik ${(worst.upRate * 100).toFixed(1)}% (lift ${worst.lift.toFixed(2)}x)</li>
-            </ul>
-          </div>
-        `;
+        const worst = lag1.formulaStats[lag1.formulaStats.length-1];
+        html += '<div class="summary-box"><b>Ringkasan ('+from+' s/d '+to+')</b><ul>' +
+          '<li>Hari data: <b>'+dates.length+'</b> ('+dates.join(", ")+')</li>' +
+          '<li>'+clk(lag1.baseDetailId,"Base rate naik (lag-1)")+': <b>'+(lag1.baseUp*100).toFixed(1)+'%</b></li>' +
+          '<li>Pola terbaik: <span class="badge best">'+best.name+'</span> → naik <b>'+(best.upRate*100).toFixed(1)+'%</b> ('+
+          clk(best.idLift,"lift")+' '+best.lift.toFixed(2)+'x), avg <b>'+(best.avgPct>=0?"+":"")+best.avgPct.toFixed(2)+'%</b> · '+
+          clk(best.idN,"lihat "+best.n+" saham")+'</li>' +
+          '<li>Pola terlemah: <span class="badge bad">'+worst.name+'</span> → naik '+(worst.upRate*100).toFixed(1)+'% (lift '+worst.lift.toFixed(2)+'x)</li></ul></div>';
       }
 
-      // For each lag
-      for (const lag of [1, 2, 3]) {
+      for (const lag of [1,2,3]) {
         const L = lagResults[lag];
         if (!L) continue;
+        html += '<div class="section"><h2>Lag '+lag+' — Signal hari A−'+lag+' → arah hari A</h2>';
+        html += '<p class="note">Sample: '+L.pairs+' pasangan · '+clk(L.baseDetailId,"Base naik")+': '+(L.baseUp*100).toFixed(1)+'% · Base ≥2%: '+(L.baseStrong*100).toFixed(1)+'%</p>';
 
-        html += `<div class="section"><h2>Lag ${lag} — Signal hari A-${lag} → arah hari A</h2>`;
-        html += `<p class="note">Sample: ${L.pairs} pasangan stock-day · Base naik: ${(L.baseUp * 100).toFixed(1)}% · Base naik ≥2%: ${(L.baseStrong * 100).toFixed(1)}%</p>`;
-
-        // Individual signals table
-        const sigRows = Object.entries(L.sigStats)
-          .map(([sig, st]) => ({ sig: Number(sig), ...st }))
-          .sort((a, b) => b.lift - a.lift);
-
-        html += `<h3>Signal Individu</h3><div class="table-wrap"><table>
-          <thead><tr>
-            <th>Signal</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th>
-          </tr></thead><tbody>`;
+        const sigRows = Object.entries(L.sigStats).map(([sig,st])=>({sig:Number(sig),...st})).sort((a,b)=>b.lift-a.lift);
+        html += '<h3>Signal Individu</h3><div class="table-wrap"><table><thead><tr><th>Signal</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th></tr></thead><tbody>';
         sigRows.forEach(r => {
-          const cls = r.lift >= 1.2 ? "good" : r.lift <= 0.8 ? "bad" : "mid";
-          const liftCls = r.lift >= 1.3 ? "lift-high" : cls;
-          html += `<tr>
-            <td class="code">${SIGNAL_NAMES[r.sig] || "Sig " + r.sig}</td>
-            <td>${r.n}</td>
-            <td class="${cls}">${(r.upRate * 100).toFixed(1)}%</td>
-            <td>${(r.strongRate * 100).toFixed(1)}%</td>
-            <td class="${r.avgPct >= 0 ? "good" : "bad"}">${r.avgPct >= 0 ? "+" : ""}${r.avgPct.toFixed(2)}%</td>
-            <td class="${liftCls}">${r.lift.toFixed(2)}x</td>
-          </tr>`;
+          const cls = r.lift>=1.2?"good":r.lift<=0.8?"bad":"mid";
+          const liftCls = r.lift>=1.3?"lift-high":cls;
+          html += '<tr><td class="code">'+(SIGNAL_NAMES[r.sig]||("Sig "+r.sig))+'</td>' +
+            '<td>'+clk(r.idN,r.n)+'</td>' +
+            '<td class="'+cls+'">'+clk(r.idUp,(r.upRate*100).toFixed(1)+"%")+'</td>' +
+            '<td>'+clk(r.idStrong,(r.strongRate*100).toFixed(1)+"%")+'</td>' +
+            '<td class="'+(r.avgPct>=0?"good":"bad")+'">'+clk(r.idAvg,(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+"%")+'</td>' +
+            '<td class="'+liftCls+'">'+clk(r.idLift,r.lift.toFixed(2)+"x")+'</td></tr>';
         });
-        html += `</tbody></table></div>`;
+        html += '</tbody></table></div>';
 
-        // Formula table
-        html += `<h3>Formula / Kombinasi</h3><div class="table-wrap"><table>
-          <thead><tr>
-            <th>Pola</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th>
-          </tr></thead><tbody>`;
-        L.formulaStats.forEach((r, i) => {
-          const cls = r.lift >= 1.2 ? "good" : r.lift <= 0.8 ? "bad" : "mid";
-          const liftCls = r.lift >= 1.3 ? "lift-high" : cls;
-          const badge = i === 0 && r.lift >= 1.2 ? '<span class="badge best">BEST</span> ' : "";
-          html += `<tr>
-            <td class="code">${badge}${r.name}</td>
-            <td>${r.n}</td>
-            <td class="${cls}">${(r.upRate * 100).toFixed(1)}%</td>
-            <td>${(r.strongRate * 100).toFixed(1)}%</td>
-            <td class="${r.avgPct >= 0 ? "good" : "bad"}">${r.avgPct >= 0 ? "+" : ""}${r.avgPct.toFixed(2)}%</td>
-            <td class="${liftCls}">${r.lift.toFixed(2)}x</td>
-          </tr>`;
+        html += '<h3>Formula / Kombinasi</h3><div class="table-wrap"><table><thead><tr><th>Pola</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th></tr></thead><tbody>';
+        L.formulaStats.forEach((r,i) => {
+          const cls = r.lift>=1.2?"good":r.lift<=0.8?"bad":"mid";
+          const liftCls = r.lift>=1.3?"lift-high":cls;
+          const badge = i===0&&r.lift>=1.2?'<span class="badge best">BEST</span> ':"";
+          html += '<tr><td class="code">'+badge+r.name+'</td>' +
+            '<td>'+clk(r.idN,r.n)+'</td>' +
+            '<td class="'+cls+'">'+clk(r.idUp,(r.upRate*100).toFixed(1)+"%")+'</td>' +
+            '<td>'+clk(r.idStrong,(r.strongRate*100).toFixed(1)+"%")+'</td>' +
+            '<td class="'+(r.avgPct>=0?"good":"bad")+'">'+clk(r.idAvg,(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+"%")+'</td>' +
+            '<td class="'+liftCls+'">'+clk(r.idLift,r.lift.toFixed(2)+"x")+'</td></tr>';
         });
-        html += `</tbody></table></div>`;
+        html += '</tbody></table></div>';
 
-        // Stability of Breakout High
-        if (L.dayEdges.length) {
-          html += `<h3>Stabilitas edge Breakout High per hari</h3><div class="table-wrap"><table>
-            <thead><tr>
-              <th>A-${lag} → A</th><th>N</th><th>% Naik BH</th><th>Base hari itu</th><th>Edge</th>
-            </tr></thead><tbody>`;
-          L.dayEdges.forEach(e => {
-            const edgeCls = e.edge > 0.05 ? "good" : e.edge < -0.05 ? "bad" : "mid";
-            html += `<tr>
-              <td>${e.from} → ${e.to}</td>
-              <td>${e.n}</td>
-              <td>${(e.upRate * 100).toFixed(1)}%</td>
-              <td>${(e.base * 100).toFixed(1)}%</td>
-              <td class="${edgeCls}">${e.edge >= 0 ? "+" : ""}${(e.edge * 100).toFixed(1)}%</td>
-            </tr>`;
-          });
-          html += `</tbody></table></div>`;
+        if (L.topSigIds.length) {
+          html += '<h3>Stabilitas Edge per Signal</h3><p class="note">Klik angka edge untuk melihat saham di hari itu.</p>';
+          const allDayPairs = new Set();
+          for (const sigId of L.topSigIds) (L.dayEdgesBySig[sigId]||[]).forEach(e => allDayPairs.add(e.from+"|"+e.to));
+          const dayPairList = [...allDayPairs].sort();
+          if (dayPairList.length) {
+            html += '<div class="table-wrap"><table><thead><tr><th>Signal</th>';
+            dayPairList.forEach(dp => { const [a,b]=dp.split("|"); html += '<th>'+a.slice(5)+'→'+b.slice(5)+'</th>'; });
+            html += '<th>Rata Edge</th><th>#hari +</th></tr></thead><tbody>';
+            for (const sigId of L.topSigIds) {
+              const edges = L.dayEdgesBySig[sigId]||[];
+              const edgeMap = {}; edges.forEach(e => { edgeMap[e.from+"|"+e.to]=e; });
+              let sumEdge=0, cntEdge=0, posDays=0;
+              html += '<tr><td class="code">'+(SIGNAL_NAMES[sigId]||("Sig "+sigId))+'</td>';
+              dayPairList.forEach(dp => {
+                const e = edgeMap[dp];
+                if (!e) { html += '<td style="color:#444">—</td>'; return; }
+                sumEdge += e.edge; cntEdge++; if (e.edge>0) posDays++;
+                const cls = e.edge>0.05?"good":e.edge<-0.05?"bad":"mid";
+                const label = (e.edge>=0?"+":"")+(e.edge*100).toFixed(0)+'% <span style="color:#666;font-size:10px">('+e.n+')</span>';
+                html += '<td class="'+cls+'">'+clk(e.idEdge,label)+'</td>';
+              });
+              const avgEdge = cntEdge ? sumEdge/cntEdge : 0;
+              const avgCls = avgEdge>0.05?"good":avgEdge<-0.05?"bad":"mid";
+              html += '<td class="'+avgCls+'">'+(avgEdge>=0?"+":"")+(avgEdge*100).toFixed(1)+'%</td>';
+              html += '<td>'+posDays+'/'+cntEdge+'</td></tr>';
+            }
+            html += '</tbody></table></div>';
+          }
         }
-
-        html += `</div>`;
+        html += '</div>';
       }
 
-      // Final recommendation
       if (lag1 && lag1.formulaStats.length) {
-        const top3 = lag1.formulaStats.slice(0, 3);
-        const avoid = lag1.formulaStats.filter(r => r.lift <= 0.7).slice(0, 3);
-        html += `
-          <div class="section">
-            <h2>📌 Rekomendasi Pola</h2>
-            <div class="summary-box">
-              <b>Pola yang layak dipakai (berdasarkan data ini):</b>
-              <ul>
-                ${top3.map((r, i) => `<li><b>${i + 1}. ${r.name}</b> — naik ${(r.upRate * 100).toFixed(1)}%, lift ${r.lift.toFixed(2)}x, avg ${r.avgPct >= 0 ? "+" : ""}${r.avgPct.toFixed(2)}%</li>`).join("")}
-              </ul>
-              ${avoid.length ? `
-              <b style="margin-top:10px;display:block">Pola yang sebaiknya dihindari:</b>
-              <ul>
-                ${avoid.map(r => `<li><b>${r.name}</b> — naik ${(r.upRate * 100).toFixed(1)}%, lift ${r.lift.toFixed(2)}x</li>`).join("")}
-              </ul>` : ""}
-              <p class="note" style="margin-top:12px">
-                Catatan: “Naik” dihitung dari changePercentage terakhir signal di hari A (aproksimasi close).
-                Sample terbatas pada rentang tanggal yang dipilih. Edge bisa berubah di periode lain.
-              </p>
-            </div>
-          </div>
-        `;
+        const top3 = lag1.formulaStats.slice(0,3);
+        const avoid = lag1.formulaStats.filter(r=>r.lift<=0.7).slice(0,3);
+        html += '<div class="section"><h2>📌 Rekomendasi Pola</h2><div class="summary-box">';
+        html += '<b>Pola layak dipakai (lag-1):</b><ul>';
+        top3.forEach((r,i) => {
+          html += '<li><b>'+(i+1)+'. '+r.name+'</b> — naik '+(r.upRate*100).toFixed(1)+'%, lift '+r.lift.toFixed(2)+'x · '+clk(r.idN,"lihat "+r.n+" saham")+'</li>';
+        });
+        html += '</ul>';
+        if (avoid.length) {
+          html += '<b style="margin-top:10px;display:block">Sebaiknya dihindari:</b><ul>';
+          avoid.forEach(r => { html += '<li><b>'+r.name+'</b> — naik '+(r.upRate*100).toFixed(1)+'%, lift '+r.lift.toFixed(2)+'x</li>'; });
+          html += '</ul>';
+        }
+        html += '<p class="note" style="margin-top:12px">Klik angka biru untuk melihat daftar saham + rumus.</p></div></div>';
       }
 
       el.innerHTML = html;
-      document.getElementById("statusText").textContent = `Done · ${dates.length} hari`;
+      document.getElementById("statusText").textContent = "Done · "+dates.length+" hari";
     }
   </script>
 </body>
