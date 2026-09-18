@@ -99,7 +99,6 @@
     </div>
     <div id="result"><div class="empty">Pilih rentang tanggal lalu klik Analisis Pola<br><span style="font-size:12px">Signal dari radar · Return dari Close OHLCV</span></div></div>
   </div>
-
   <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div class="modal-header">
@@ -110,11 +109,9 @@
       <div class="modal-footer" id="modalFooter"></div>
     </div>
   </div>
-
 <script>
 const RADAR_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/refs/heads/main/market_radar_by_day/";
 const OHLCV_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/refs/heads/main/market_radar_ohlcv_by_day/";
-
 const SIGNAL_NAMES = {
   1:"Huge Buy",2:"Huge Sell",3:"Intensive Buy",4:"Intensive Sell",
   5:"Rapid Buy",6:"Rapid Sell",7:"Large Best Bid",8:"Large Best Offer",
@@ -123,11 +120,9 @@ const SIGNAL_NAMES = {
 };
 const BULLISH = new Set([1,3,5,7,9,10,11,13]);
 const BEARISH = new Set([2,4,6,8,12,14]);
-
 const detailStore = {};
 let detailSeq = 0;
 const MAX_ROWS = 250;
-
 function storeDetail(p){ const id="d"+(++detailSeq); detailStore[id]=p; return id; }
 function openDetail(id){
   const d=detailStore[id]; if(!d) return;
@@ -171,7 +166,6 @@ function closeModal(){ document.getElementById("modalBg").classList.remove("open
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 function clk(id,label){ return '<span class="clk" onclick="openDetail(\''+id+'\')">'+label+'</span>'; }
 function fmtPrice(v){ if(v==null||isNaN(v)) return "—"; return Number(v).toLocaleString("id-ID"); }
-
 function filterModalTable(input){
   const q=(input.value||"").toLowerCase().trim();
   const rows=document.querySelectorAll("#modalDataTable tbody tr");
@@ -180,8 +174,6 @@ function filterModalTable(input){
     tr.style.display = (!q || hay.indexOf(q)>=0) ? "" : "none";
   });
 }
-
-/* ========== Sortable + Searchable tables ========== */
 function initTableFeatures(root){
   root=root||document;
   root.querySelectorAll("table.sortable-table").forEach(table=>{
@@ -198,17 +190,14 @@ function initTableFeatures(root){
     });
   });
 }
-
 function sortTable(table, colIdx, th){
   const tbody=table.querySelector("tbody");
   if(!tbody) return;
   const rows=Array.from(tbody.querySelectorAll("tr"));
   const isAsc=th.classList.contains("sorted-asc");
-  // clear other headers
   table.querySelectorAll("th").forEach(h=>{ h.classList.remove("sorted-asc","sorted-desc"); });
   th.classList.add(isAsc?"sorted-desc":"sorted-asc");
   const dir=isAsc?-1:1;
-
   rows.sort((a,b)=>{
     const aCell=a.children[colIdx];
     const bCell=b.children[colIdx];
@@ -223,7 +212,6 @@ function sortTable(table, colIdx, th){
   });
   rows.forEach(r=>tbody.appendChild(r));
 }
-
 function filterTable(input, tableId){
   const q=(input.value||"").toLowerCase().trim();
   const table=document.getElementById(tableId);
@@ -234,7 +222,6 @@ function filterTable(input, tableId){
     else tr.classList.add("hidden-row");
   });
 }
-
 function getLocalDateString(d){
   d=d||new Date();
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -242,7 +229,6 @@ function getLocalDateString(d){
 const today=getLocalDateString();
 document.getElementById("fromDate").value="2026-09-11";
 document.getElementById("toDate").value=today;
-
 function getDatesInRange(from,to){
   const dates=[];
   let cur=new Date(from+"T00:00:00");
@@ -250,7 +236,6 @@ function getDatesInRange(from,to){
   while(cur<=end){ dates.push(getLocalDateString(cur)); cur.setDate(cur.getDate()+1); }
   return dates;
 }
-
 async function fetchRadar(date){
   try{
     const res=await fetch(RADAR_URL+"radar_"+date+".json?t="+Date.now());
@@ -260,7 +245,6 @@ async function fetchRadar(date){
     return data;
   }catch{ return null; }
 }
-
 async function fetchOHLCV(date){
   try{
     const res=await fetch(OHLCV_URL+"GetStockSummary_"+date+".json?t="+Date.now());
@@ -278,7 +262,6 @@ async function fetchOHLCV(date){
     return map;
   }catch{ return null; }
 }
-
 function makeDetail(title,sub,rumus,subset,extraFooter){
   const rows=subset.slice(0,MAX_ROWS).map(r=>({
     code:r.code, dayPrev:r.dayPrev, dayA:r.dayA,
@@ -296,31 +279,25 @@ function makeDetail(title,sub,rumus,subset,extraFooter){
   if(extraFooter) footer+=" · "+extraFooter;
   return storeDetail({title,sub,rumus,rows,footer});
 }
-
 function toolbarHtml(tableId, placeholder){
   return '<div class="table-toolbar">'+
     '<input type="search" placeholder="'+(placeholder||"Cari...")+'" oninput="filterTable(this,\''+tableId+'\')" />'+
     '<span class="hint">Klik header kolom untuk sort ▲▼</span></div>';
 }
-
 async function runAnalysis(){
   const from=document.getElementById("fromDate").value;
   const to=document.getElementById("toDate").value;
   if(!from||!to) return alert("Pilih rentang tanggal");
   if(from>to) return alert("Tanggal dari tidak boleh lebih besar dari sampai");
-
   for(const k of Object.keys(detailStore)) delete detailStore[k];
   detailSeq=0;
-
   const el=document.getElementById("result");
   el.innerHTML='<div class="loading">Mengambil radar + OHLCV '+from+' s/d '+to+'...</div>';
   document.getElementById("statusText").textContent="Loading...";
-
   const allDates=getDatesInRange(from,to);
   const radarByDay={};
   const ohlcvByDay={};
   let loaded=0;
-
   for(const d of allDates){
     document.getElementById("statusText").textContent="Loading "+d+" ("+(++loaded)+"/"+allDates.length+")";
     const [radar, ohlcv]=await Promise.all([fetchRadar(d), fetchOHLCV(d)]);
@@ -335,16 +312,13 @@ async function runAnalysis(){
       radarByDay[d]=byCode;
     }
   }
-
   const tradingDays=Object.keys(ohlcvByDay).sort();
   const signalDays=tradingDays.filter(d=>radarByDay[d]);
-
   if(tradingDays.length<2){
     el.innerHTML='<div class="empty">OHLCV kurang dari 2 hari di rentang ini.<br>Ditemukan: '+(tradingDays.join(", ")||"tidak ada")+'</div>';
     document.getElementById("statusText").textContent="Data kurang";
     return;
   }
-
   function getPairs(lag){
     const res=[];
     for(let i=lag;i<tradingDays.length;i++){
@@ -379,14 +353,31 @@ async function runAnalysis(){
     return res;
   }
 
+  // Formula definitions (shared for stats + edge stability)
+  const FORMULAS = [
+    {key:"bh", name:"Breakout High", fn:r=>r.signalsPrev.has(11)},
+    {key:"bh_nolow", name:"Breakout High (tanpa Breakout Low)", fn:r=>r.signalsPrev.has(11)&&!r.signalsPrev.has(12)},
+    {key:"bh_ib", name:"Breakout High + Intensive Buy", fn:r=>r.signalsPrev.has(11)&&r.signalsPrev.has(3)},
+    {key:"bh_rb", name:"Breakout High + Rapid Buy", fn:r=>r.signalsPrev.has(11)&&r.signalsPrev.has(5)},
+    {key:"ib", name:"Intensive Buy", fn:r=>r.signalsPrev.has(3)},
+    {key:"ib_clean", name:"Intensive Buy (tanpa Intensive Sell)", fn:r=>r.signalsPrev.has(3)&&!r.signalsPrev.has(4)},
+    {key:"hb", name:"Huge Buy", fn:r=>r.signalsPrev.has(1)},
+    {key:"rb", name:"Rapid Buy", fn:r=>r.signalsPrev.has(5)},
+    {key:"lbb", name:"Large Best Bid", fn:r=>r.signalsPrev.has(7)},
+    {key:"qr", name:"Quick Rebound", fn:r=>r.signalsPrev.has(13)},
+    {key:"clean2", name:"≥2 Bullish & 0 Bearish", fn:r=>{let b=0,e=0;r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;});return b>=2&&e===0;}},
+    {key:"strong3", name:"≥3 Bullish & ≤1 Bearish", fn:r=>{let b=0,e=0;r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;});return b>=3&&e<=1;}},
+    {key:"onlybear", name:"Hanya Bearish", fn:r=>{let b=0,e=0;r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;});return b===0&&e>=1;}},
+    {key:"bl", name:"Breakout Low", fn:r=>r.signalsPrev.has(12)},
+    {key:"hs", name:"Huge Sell", fn:r=>r.signalsPrev.has(2)},
+  ];
+
   const lagResults={};
   for(const lag of [1,2,3]){
     const pairs=getPairs(lag);
     if(pairs.length<20) continue;
-
     const baseUp=pairs.filter(r=>r.up).length/pairs.length;
     const baseStrong=pairs.filter(r=>r.strong).length/pairs.length;
-
     const baseDetailId=makeDetail("Base rate — Lag "+lag,"Semua saham dengan signal apa pun di A−"+lag+" + Close di A",
       "<b>Base naik</b> = count(return Close &gt; 0) / total pairs<br>Total = <code>"+pairs.length+"</code> · Naik = <code>"+pairs.filter(r=>r.up).length+"</code><br>Return = (Close_A − Close_A−1) / Close_A−1",pairs);
 
@@ -414,25 +405,8 @@ async function runAnalysis(){
       sigStats[s]={n:subset.length,upRate:up,strongRate:strong,avgPct,lift,idN,idUp,idStrong,idAvg,idLift};
     }
 
-    const formulas=[
-      {name:"Breakout High",fn:r=>r.signalsPrev.has(11)},
-      {name:"Breakout High (tanpa Breakout Low)",fn:r=>r.signalsPrev.has(11)&&!r.signalsPrev.has(12)},
-      {name:"Breakout High + Intensive Buy",fn:r=>r.signalsPrev.has(11)&&r.signalsPrev.has(3)},
-      {name:"Breakout High + Rapid Buy",fn:r=>r.signalsPrev.has(11)&&r.signalsPrev.has(5)},
-      {name:"Intensive Buy",fn:r=>r.signalsPrev.has(3)},
-      {name:"Intensive Buy (tanpa Intensive Sell)",fn:r=>r.signalsPrev.has(3)&&!r.signalsPrev.has(4)},
-      {name:"Huge Buy",fn:r=>r.signalsPrev.has(1)},
-      {name:"Rapid Buy",fn:r=>r.signalsPrev.has(5)},
-      {name:"Large Best Bid",fn:r=>r.signalsPrev.has(7)},
-      {name:"Quick Rebound",fn:r=>r.signalsPrev.has(13)},
-      {name:"≥2 Bullish & 0 Bearish",fn:r=>{let b=0,e=0;r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;});return b>=2&&e===0;}},
-      {name:"≥3 Bullish & ≤1 Bearish",fn:r=>{let b=0,e=0;r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;});return b>=3&&e<=1;}},
-      {name:"Hanya Bearish",fn:r=>{let b=0,e=0;r.signalsPrev.forEach(s=>{if(BULLISH.has(s))b++;if(BEARISH.has(s))e++;});return b===0&&e>=1;}},
-      {name:"Breakout Low",fn:r=>r.signalsPrev.has(12)},
-      {name:"Huge Sell",fn:r=>r.signalsPrev.has(2)},
-    ];
     const formulaStats=[];
-    for(const f of formulas){
+    for(const f of FORMULAS){
       const subset=pairs.filter(f.fn);
       if(subset.length<10) continue;
       const up=subset.filter(r=>r.up).length/subset.length;
@@ -451,14 +425,19 @@ async function runAnalysis(){
         "<b>Avg Return</b> = <code>"+(avgPct>=0?"+":"")+avgPct.toFixed(2)+"%</code>",subset);
       const idLift=makeDetail("Lift — "+f.name+" (Lag "+lag+")","vs base",
         "<b>Lift</b> = <code>"+(up*100).toFixed(1)+"%</code>/<code>"+(baseUp*100).toFixed(1)+"%</code> = <code>"+lift.toFixed(2)+"x</code>",subset);
-      formulaStats.push({name:f.name,n:subset.length,upRate:up,strongRate:strong,avgPct,lift,idN,idUp,idStrong,idAvg,idLift});
+      formulaStats.push({key:f.key,name:f.name,fn:f.fn,n:subset.length,upRate:up,strongRate:strong,avgPct,lift,idN,idUp,idStrong,idAvg,idLift});
     }
     formulaStats.sort((a,b)=>b.lift-a.lift||b.upRate-a.upRate);
 
-    const topSigIds=Object.entries(sigStats).sort((a,b)=>b[1].lift-a[1].lift).slice(0,6).map(([id])=>Number(id));
+    // ===== STABILITY: individual signals (top by lift) + formulas =====
+    const topSigIds=Object.entries(sigStats).sort((a,b)=>b[1].lift-a[1].lift).slice(0,5).map(([id])=>Number(id));
     const worst=Object.entries(sigStats).sort((a,b)=>a[1].lift-b[1].lift)[0];
     if(worst&&!topSigIds.includes(Number(worst[0]))) topSigIds.push(Number(worst[0]));
 
+    // top formulas for edge table (all with enough sample, max ~8)
+    const edgeFormulas = formulaStats.slice(0, 8);
+
+    // day edges for signals
     const dayEdgesBySig={};
     for(const sigId of topSigIds){
       dayEdgesBySig[sigId]=[];
@@ -478,7 +457,30 @@ async function runAnalysis(){
       }
     }
 
-    lagResults[lag]={pairs:pairs.length,baseUp,baseStrong,baseDetailId,sigStats,formulaStats,topSigIds,dayEdgesBySig};
+    // day edges for FORMULAS
+    const dayEdgesByFormula={};
+    for(const f of edgeFormulas){
+      dayEdgesByFormula[f.key]=[];
+      for(let i=lag;i<tradingDays.length;i++){
+        const dayA=tradingDays[i], dayPrev=tradingDays[i-lag];
+        const dayPairs=pairs.filter(r=>r.dayA===dayA);
+        if(!dayPairs.length) continue;
+        const dayBase=dayPairs.filter(r=>r.up).length/dayPairs.length;
+        const subset=dayPairs.filter(f.fn);
+        if(subset.length<5) continue;
+        const upRate=subset.filter(r=>r.up).length/subset.length;
+        const edge=upRate-dayBase;
+        const idEdge=makeDetail("Edge "+f.name+" · "+dayPrev.slice(5)+" → "+dayA.slice(5),"Lag "+lag+" · Formula",
+          "<b>Edge</b> = upRate − base = <code>"+(upRate*100).toFixed(1)+"%</code> − <code>"+(dayBase*100).toFixed(1)+"%</code> = <code>"+(edge*100).toFixed(1)+"%</code><br>N = "+subset.length+" · Pola: <code>"+f.name+"</code>",subset);
+        dayEdgesByFormula[f.key].push({from:dayPrev,to:dayA,n:subset.length,upRate,base:dayBase,edge,idEdge,name:f.name});
+      }
+    }
+
+    lagResults[lag]={
+      pairs:pairs.length,baseUp,baseStrong,baseDetailId,
+      sigStats,formulaStats,topSigIds,dayEdgesBySig,
+      edgeFormulas,dayEdgesByFormula
+    };
   }
 
   if(!Object.keys(lagResults).length){
@@ -512,6 +514,7 @@ async function runAnalysis(){
     html+='<div class="section"><h2>Lag '+lag+' — Signal A−'+lag+' → Close return hari A</h2>';
     html+='<p class="note">Sample: '+L.pairs+' pasangan · '+clk(L.baseDetailId,"Base naik")+': '+(L.baseUp*100).toFixed(1)+'% · Base ≥2%: '+(L.baseStrong*100).toFixed(1)+'%</p>';
 
+    // Signal individu
     const sigRows=Object.entries(L.sigStats).map(([sig,st])=>({sig:Number(sig),...st})).sort((a,b)=>b.lift-a.lift);
     const sigTid="tbl-sig-"+lag+"-"+(++tableSeq);
     html+='<h3>Signal Individu</h3>'+toolbarHtml(sigTid,"Cari signal...")+
@@ -531,6 +534,7 @@ async function runAnalysis(){
     });
     html+='</tbody></table></div>';
 
+    // Formula
     const formTid="tbl-form-"+lag+"-"+(++tableSeq);
     html+='<h3>Formula / Kombinasi</h3>'+toolbarHtml(formTid,"Cari pola...")+
       '<div class="table-wrap"><table class="sortable-table" id="'+formTid+'"><thead><tr>'+
@@ -549,14 +553,21 @@ async function runAnalysis(){
     });
     html+='</tbody></table></div>';
 
-    if(L.topSigIds.length){
-      html+='<h3>Stabilitas Edge per Signal</h3><p class="note">Klik edge untuk detail. Klik header untuk sort.</p>';
-      const allDayPairs=new Set();
-      for(const sigId of L.topSigIds) (L.dayEdgesBySig[sigId]||[]).forEach(e=>allDayPairs.add(e.from+"|"+e.to));
-      const dayPairList=[...allDayPairs].sort();
-      if(dayPairList.length){
-        const edgeTid="tbl-edge-"+lag+"-"+(++tableSeq);
-        html+=toolbarHtml(edgeTid,"Cari signal...")+
+    // ===== STABILITAS EDGE: Signal + Formula =====
+    html+='<h3>Stabilitas Edge (Signal + Formula)</h3>';
+    html+='<p class="note">Edge = (% naik pola) − (base rate hari itu). Minimal 5 sample per hari. Klik edge untuk detail.</p>';
+
+    // Collect all day pairs from both signals and formulas
+    const allDayPairs=new Set();
+    for(const sigId of L.topSigIds) (L.dayEdgesBySig[sigId]||[]).forEach(e=>allDayPairs.add(e.from+"|"+e.to));
+    for(const f of L.edgeFormulas) (L.dayEdgesByFormula[f.key]||[]).forEach(e=>allDayPairs.add(e.from+"|"+e.to));
+    const dayPairList=[...allDayPairs].sort();
+
+    if(dayPairList.length){
+      // --- Signal rows ---
+      if(L.topSigIds.length){
+        const edgeTid="tbl-edge-sig-"+lag+"-"+(++tableSeq);
+        html+='<h3 style="font-size:12px;margin-top:12px">▸ Signal individu</h3>'+toolbarHtml(edgeTid,"Cari signal...")+
           '<div class="table-wrap"><table class="sortable-table" id="'+edgeTid+'"><thead><tr><th>Signal</th>';
         dayPairList.forEach(dp=>{const [a,b]=dp.split("|");html+='<th>'+a.slice(5)+'→'+b.slice(5)+'</th>';});
         html+='<th>Rata Edge</th><th>#hari +</th></tr></thead><tbody>';
@@ -581,7 +592,38 @@ async function runAnalysis(){
         }
         html+='</tbody></table></div>';
       }
+
+      // --- Formula rows ---
+      if(L.edgeFormulas.length){
+        const edgeFTid="tbl-edge-form-"+lag+"-"+(++tableSeq);
+        html+='<h3 style="font-size:12px;margin-top:14px">▸ Formula / Kombinasi</h3>'+toolbarHtml(edgeFTid,"Cari pola...")+
+          '<div class="table-wrap"><table class="sortable-table" id="'+edgeFTid+'"><thead><tr><th>Pola</th>';
+        dayPairList.forEach(dp=>{const [a,b]=dp.split("|");html+='<th>'+a.slice(5)+'→'+b.slice(5)+'</th>';});
+        html+='<th>Rata Edge</th><th>#hari +</th></tr></thead><tbody>';
+        for(const f of L.edgeFormulas){
+          const edges=L.dayEdgesByFormula[f.key]||[];
+          const edgeMap={}; edges.forEach(e=>{edgeMap[e.from+"|"+e.to]=e;});
+          let sumEdge=0,cntEdge=0,posDays=0;
+          html+='<tr data-search="'+f.name.toLowerCase()+'"><td class="code" data-val="'+f.name+'">'+f.name+'</td>';
+          dayPairList.forEach(dp=>{
+            const e=edgeMap[dp];
+            if(!e){html+='<td style="color:#444" data-val="">—</td>';return;}
+            sumEdge+=e.edge;cntEdge++;if(e.edge>0)posDays++;
+            const cls=e.edge>0.05?"good":e.edge<-0.05?"bad":"mid";
+            const label=(e.edge>=0?"+":"")+(e.edge*100).toFixed(0)+'% <span style="color:#666;font-size:10px">('+e.n+')</span>';
+            html+='<td class="'+cls+'" data-val="'+e.edge+'">'+clk(e.idEdge,label)+'</td>';
+          });
+          const avgEdge=cntEdge?sumEdge/cntEdge:0;
+          const avgCls=avgEdge>0.05?"good":avgEdge<-0.05?"bad":"mid";
+          html+='<td class="'+avgCls+'" data-val="'+avgEdge+'">'+(avgEdge>=0?"+":"")+(avgEdge*100).toFixed(1)+'%</td>';
+          html+='<td data-val="'+posDays+'">'+posDays+'/'+cntEdge+'</td></tr>';
+        }
+        html+='</tbody></table></div>';
+      }
+    } else {
+      html+='<p class="note">Tidak ada pasangan hari dengan sample cukup (≥5).</p>';
     }
+
     html+='</div>';
   }
 
@@ -599,7 +641,7 @@ async function runAnalysis(){
       avoid.forEach(r=>{html+='<li><b>'+r.name+'</b> — naik '+(r.upRate*100).toFixed(1)+'%, lift '+r.lift.toFixed(2)+'x</li>';});
       html+='</ul>';
     }
-    html+='<p class="note" style="margin-top:12px">Return dari Close OHLCV. Klik angka biru untuk detail. Klik header tabel untuk sort.</p></div></div>';
+    html+='<p class="note" style="margin-top:12px">Return dari Close OHLCV. Klik angka biru untuk detail. Stabilitas edge mencakup signal + formula.</p></div></div>';
   }
 
   el.innerHTML=html;
