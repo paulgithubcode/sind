@@ -18,18 +18,29 @@
     .status{font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:6px}
     .status .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
     .controls{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
-    button,input[type="date"]{background:var(--card);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;color-scheme:dark}
+    button,input[type="date"],input[type="search"]{background:var(--card);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;color-scheme:dark}
     button{cursor:pointer} button:hover{background:var(--card-hover)}
     button.primary{background:#1e3a5f;border-color:var(--blue)}
     .loading,.empty{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:14px}
     .section{margin-bottom:24px}
     .section h2{font-size:15px;color:var(--blue);margin-bottom:10px}
     .section h3{font-size:13px;color:var(--text-dim);margin:14px 0 8px}
+    .table-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+    .table-toolbar input[type="search"]{flex:1;min-width:140px;max-width:280px;padding:7px 10px;font-size:12px}
+    .table-toolbar .hint{font-size:11px;color:var(--text-dim)}
     .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);background:var(--card)}
     table{width:100%;border-collapse:collapse;font-size:12px;min-width:560px}
     th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
-    th{background:#151515;color:var(--text-dim);font-weight:500;position:sticky;top:0}
+    th{background:#151515;color:var(--text-dim);font-weight:500;position:sticky;top:0;user-select:none}
+    th.sortable{cursor:pointer}
+    th.sortable:hover{color:var(--blue)}
+    th .sort-ind{margin-left:4px;font-size:10px;opacity:.5}
+    th.sorted-asc .sort-ind,th.sorted-desc .sort-ind{opacity:1;color:var(--blue)}
+    th.sorted-asc .sort-ind::after{content:"▲"}
+    th.sorted-desc .sort-ind::after{content:"▼"}
+    th:not(.sorted-asc):not(.sorted-desc) .sort-ind::after{content:"⇅"}
     tr:hover td{background:#222}
+    tr.hidden-row{display:none}
     .code{font-weight:600}
     .good{color:var(--green);font-weight:600}
     .mid{color:var(--orange)}
@@ -61,7 +72,14 @@
     .modal-body .rumus code{background:#0d1520;padding:1px 5px;border-radius:4px;color:#9ecbff;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px}
     .modal-table{width:100%;border-collapse:collapse;font-size:11.5px}
     .modal-table th,.modal-table td{padding:6px 8px;border-bottom:1px solid #252525;text-align:left}
-    .modal-table th{color:var(--text-dim);background:#111;position:sticky;top:0}
+    .modal-table th{color:var(--text-dim);background:#111;position:sticky;top:0;user-select:none}
+    .modal-table th.sortable{cursor:pointer}
+    .modal-table th.sortable:hover{color:var(--blue)}
+    .modal-table th .sort-ind{margin-left:4px;font-size:10px;opacity:.5}
+    .modal-table th.sorted-asc .sort-ind,.modal-table th.sorted-desc .sort-ind{opacity:1;color:var(--blue)}
+    .modal-table th.sorted-asc .sort-ind::after{content:"▲"}
+    .modal-table th.sorted-desc .sort-ind::after{content:"▼"}
+    .modal-table th:not(.sorted-asc):not(.sorted-desc) .sort-ind::after{content:"⇅"}
     .modal-table .up{color:var(--green)}
     .modal-table .dn{color:var(--red)}
     .modal-footer{padding:10px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--text-dim)}
@@ -118,28 +136,104 @@ function openDetail(id){
   let body="";
   if(d.rumus) body+='<div class="rumus">'+d.rumus+'</div>';
   if(d.rows&&d.rows.length){
-    body+='<div style="overflow-x:auto"><table class="modal-table"><thead><tr>'+
+    body+='<div class="table-toolbar"><input type="search" placeholder="Cari saham..." oninput="filterModalTable(this)" />'+
+      '<span class="hint">Klik header untuk sort ▲▼</span></div>';
+    body+='<div style="overflow-x:auto"><table class="modal-table sortable-table" id="modalDataTable"><thead><tr>'+
       '<th>#</th><th>Saham</th><th>Hari sinyal</th><th>Hari hasil</th>'+
+      '<th>Bullish</th><th>Bearish</th>'+
       '<th>Close A-1</th><th>Close A</th><th>Return</th><th>Naik?</th><th>≥2%?</th></tr></thead><tbody>';
     d.rows.forEach((r,i)=>{
       const pctCls=r.ret>0?"up":r.ret<0?"dn":"";
-      body+='<tr><td>'+(i+1)+'</td><td class="code">'+r.code+'</td>'+
-        '<td>'+r.dayPrev+'</td><td>'+r.dayA+'</td>'+
-        '<td>'+fmtPrice(r.closePrev)+'</td><td>'+fmtPrice(r.closeA)+'</td>'+
-        '<td class="'+pctCls+'">'+(r.ret>=0?"+":"")+r.ret.toFixed(2)+'%</td>'+
-        '<td class="'+(r.up?"up":"dn")+'">'+(r.up?"Ya":"Tidak")+'</td>'+
-        '<td class="'+(r.strong?"up":"")+'">'+(r.strong?"Ya":"Tidak")+'</td></tr>';
+      const bulls=(r.bullNames||[]).join(", ")||"—";
+      const bears=(r.bearNames||[]).join(", ")||"—";
+      const searchHay=(r.code+" "+r.dayPrev+" "+r.dayA+" "+bulls+" "+bears).toLowerCase();
+      body+='<tr data-search="'+searchHay+'">'+
+        '<td data-val="'+(i+1)+'">'+(i+1)+'</td>'+
+        '<td class="code" data-val="'+r.code+'">'+r.code+'</td>'+
+        '<td data-val="'+r.dayPrev+'">'+r.dayPrev+'</td>'+
+        '<td data-val="'+r.dayA+'">'+r.dayA+'</td>'+
+        '<td data-val="'+bulls+'" style="color:var(--green);max-width:180px;white-space:normal;font-size:11px">'+bulls+'</td>'+
+        '<td data-val="'+bears+'" style="color:var(--red);max-width:140px;white-space:normal;font-size:11px">'+bears+'</td>'+
+        '<td data-val="'+(r.closePrev||0)+'">'+fmtPrice(r.closePrev)+'</td>'+
+        '<td data-val="'+(r.closeA||0)+'">'+fmtPrice(r.closeA)+'</td>'+
+        '<td class="'+pctCls+'" data-val="'+r.ret+'">'+(r.ret>=0?"+":"")+r.ret.toFixed(2)+'%</td>'+
+        '<td class="'+(r.up?"up":"dn")+'" data-val="'+(r.up?1:0)+'">'+(r.up?"Ya":"Tidak")+'</td>'+
+        '<td class="'+(r.strong?"up":"")+'" data-val="'+(r.strong?1:0)+'">'+(r.strong?"Ya":"Tidak")+'</td></tr>';
     });
     body+='</tbody></table></div>';
   } else body+='<p style="color:#888">Tidak ada sample.</p>';
   document.getElementById("modalBody").innerHTML=body;
   document.getElementById("modalFooter").textContent=d.footer||"";
   document.getElementById("modalBg").classList.add("open");
+  initTableFeatures(document.getElementById("modalBody"));
 }
 function closeModal(){ document.getElementById("modalBg").classList.remove("open"); }
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 function clk(id,label){ return '<span class="clk" onclick="openDetail(\''+id+'\')">'+label+'</span>'; }
 function fmtPrice(v){ if(v==null||isNaN(v)) return "—"; return Number(v).toLocaleString("id-ID"); }
+
+function filterModalTable(input){
+  const q=(input.value||"").toLowerCase().trim();
+  const rows=document.querySelectorAll("#modalDataTable tbody tr");
+  rows.forEach(tr=>{
+    const hay=tr.getAttribute("data-search")||"";
+    tr.style.display = (!q || hay.indexOf(q)>=0) ? "" : "none";
+  });
+}
+
+/* ========== Sortable + Searchable tables ========== */
+function initTableFeatures(root){
+  root=root||document;
+  root.querySelectorAll("table.sortable-table").forEach(table=>{
+    const thead=table.querySelector("thead");
+    if(!thead) return;
+    thead.querySelectorAll("th").forEach((th,colIdx)=>{
+      th.classList.add("sortable");
+      if(!th.querySelector(".sort-ind")){
+        const ind=document.createElement("span");
+        ind.className="sort-ind";
+        th.appendChild(ind);
+      }
+      th.onclick=function(){ sortTable(table, colIdx, th); };
+    });
+  });
+}
+
+function sortTable(table, colIdx, th){
+  const tbody=table.querySelector("tbody");
+  if(!tbody) return;
+  const rows=Array.from(tbody.querySelectorAll("tr"));
+  const isAsc=th.classList.contains("sorted-asc");
+  // clear other headers
+  table.querySelectorAll("th").forEach(h=>{ h.classList.remove("sorted-asc","sorted-desc"); });
+  th.classList.add(isAsc?"sorted-desc":"sorted-asc");
+  const dir=isAsc?-1:1;
+
+  rows.sort((a,b)=>{
+    const aCell=a.children[colIdx];
+    const bCell=b.children[colIdx];
+    let av=aCell?aCell.getAttribute("data-val"):null;
+    let bv=bCell?bCell.getAttribute("data-val"):null;
+    if(av==null) av=aCell?aCell.textContent.trim():"";
+    if(bv==null) bv=bCell?bCell.textContent.trim():"";
+    const an=parseFloat(String(av).replace(/[%x+,]/g,""));
+    const bn=parseFloat(String(bv).replace(/[%x+,]/g,""));
+    if(!isNaN(an)&&!isNaN(bn)) return (an-bn)*dir;
+    return String(av).localeCompare(String(bv),"id",{sensitivity:"base"})*dir;
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+}
+
+function filterTable(input, tableId){
+  const q=(input.value||"").toLowerCase().trim();
+  const table=document.getElementById(tableId);
+  if(!table) return;
+  table.querySelectorAll("tbody tr").forEach(tr=>{
+    const hay=(tr.getAttribute("data-search")||tr.textContent||"").toLowerCase();
+    if(!q || hay.indexOf(q)>=0) tr.classList.remove("hidden-row");
+    else tr.classList.add("hidden-row");
+  });
+}
 
 function getLocalDateString(d){
   d=d||new Date();
@@ -178,7 +272,7 @@ async function fetchOHLCV(date){
       const code=r.StockCode||r.secCode;
       if(!code) continue;
       const close=Number(r.Close);
-      if(!close||close<=0) continue; // skip no trade / invalid
+      if(!close||close<=0) continue;
       map[code]={ close, previous:Number(r.Previous)||null, volume:Number(r.Volume)||0, change:Number(r.Change)||0 };
     }
     return map;
@@ -188,7 +282,8 @@ async function fetchOHLCV(date){
 function makeDetail(title,sub,rumus,subset,extraFooter){
   const rows=subset.slice(0,MAX_ROWS).map(r=>({
     code:r.code, dayPrev:r.dayPrev, dayA:r.dayA,
-    closePrev:r.closePrev, closeA:r.closeA, ret:r.ret, up:r.up, strong:r.strong
+    closePrev:r.closePrev, closeA:r.closeA, ret:r.ret, up:r.up, strong:r.strong,
+    bullNames:r.bullNames||[], bearNames:r.bearNames||[]
   }));
   const n=subset.length;
   const nUp=subset.filter(r=>r.up).length;
@@ -200,6 +295,12 @@ function makeDetail(title,sub,rumus,subset,extraFooter){
     " · Avg: "+(avg>=0?"+":"")+avg.toFixed(2)+"%";
   if(extraFooter) footer+=" · "+extraFooter;
   return storeDetail({title,sub,rumus,rows,footer});
+}
+
+function toolbarHtml(tableId, placeholder){
+  return '<div class="table-toolbar">'+
+    '<input type="search" placeholder="'+(placeholder||"Cari...")+'" oninput="filterTable(this,\''+tableId+'\')" />'+
+    '<span class="hint">Klik header kolom untuk sort ▲▼</span></div>';
 }
 
 async function runAnalysis(){
@@ -216,9 +317,8 @@ async function runAnalysis(){
   document.getElementById("statusText").textContent="Loading...";
 
   const allDates=getDatesInRange(from,to);
-  // Load both sources
-  const radarByDay={};  // date -> { code -> Set(signals) }
-  const ohlcvByDay={};  // date -> { code -> {close,...} }
+  const radarByDay={};
+  const ohlcvByDay={};
   let loaded=0;
 
   for(const d of allDates){
@@ -236,9 +336,7 @@ async function runAnalysis(){
     }
   }
 
-  // Trading days = days with OHLCV (authoritative calendar)
   const tradingDays=Object.keys(ohlcvByDay).sort();
-  // Days that have BOTH radar and ohlcv can be signal days
   const signalDays=tradingDays.filter(d=>radarByDay[d]);
 
   if(tradingDays.length<2){
@@ -247,27 +345,32 @@ async function runAnalysis(){
     return;
   }
 
-  // Build lag pairs using OHLCV calendar
   function getPairs(lag){
     const res=[];
     for(let i=lag;i<tradingDays.length;i++){
       const dayA=tradingDays[i];
       const dayPrev=tradingDays[i-lag];
-      // Need radar signals on dayPrev
       if(!radarByDay[dayPrev]) continue;
       const ohlcvPrev=ohlcvByDay[dayPrev];
       const ohlcvA=ohlcvByDay[dayA];
       if(!ohlcvPrev||!ohlcvA) continue;
-
       for(const code of Object.keys(radarByDay[dayPrev])){
         if(!ohlcvPrev[code]||!ohlcvA[code]) continue;
         const closePrev=ohlcvPrev[code].close;
         const closeA=ohlcvA[code].close;
         if(!closePrev||!closeA) continue;
         const ret=((closeA-closePrev)/closePrev)*100;
+        const sigSet = radarByDay[dayPrev][code];
+        const bullNames=[], bearNames=[];
+        sigSet.forEach(s=>{
+          const nm=SIGNAL_NAMES[s]||("Sig"+s);
+          if(BULLISH.has(s)) bullNames.push(nm);
+          if(BEARISH.has(s)) bearNames.push(nm);
+        });
         res.push({
           code, dayA, dayPrev,
-          signalsPrev: radarByDay[dayPrev][code],
+          signalsPrev: sigSet,
+          bullNames, bearNames,
           closePrev, closeA, ret,
           up: ret>0, strong: ret>=2
         });
@@ -297,7 +400,7 @@ async function runAnalysis(){
       const lift=baseUp>0?up/baseUp:0;
       const name=SIGNAL_NAMES[s]||("Sig "+s);
       const idN=makeDetail("N — "+name+" (Lag "+lag+")","Signal "+name+" di A−"+lag+", return dari Close OHLCV",
-        "<b>N</b> = pasangan dengan signal <code>"+name+"</code> di hari A−"+lag+" = <code>"+subset.length+"</code><br>Return dari Close, bukan changePercentage radar",subset);
+        "<b>N</b> = pasangan dengan signal <code>"+name+"</code> di hari A−"+lag+" = <code>"+subset.length+"</code>",subset);
       const idUp=makeDetail("% Naik — "+name+" (Lag "+lag+")","Return Close &gt; 0",
         "<b>% Naik</b> = count(ret&gt;0)/N = <code>"+subset.filter(r=>r.up).length+"</code>/<code>"+subset.length+"</code> = <code>"+(up*100).toFixed(1)+"%</code>",
         subset.filter(r=>r.up),"dari N="+subset.length);
@@ -352,7 +455,6 @@ async function runAnalysis(){
     }
     formulaStats.sort((a,b)=>b.lift-a.lift||b.upRate-a.upRate);
 
-    // Stability edges for top signals
     const topSigIds=Object.entries(sigStats).sort((a,b)=>b[1].lift-a[1].lift).slice(0,6).map(([id])=>Number(id));
     const worst=Object.entries(sigStats).sort((a,b)=>a[1].lift-b[1].lift)[0];
     if(worst&&!topSigIds.includes(Number(worst[0]))) topSigIds.push(Number(worst[0]));
@@ -384,12 +486,12 @@ async function runAnalysis(){
     return;
   }
 
-  // RENDER
   let html='<div class="formula-box"><h3>📌 Metode (Radar + OHLCV)</h3><ul>'+
-    '<li><b>Signal</b> = dari radar di hari A−lag (siapa yang Breakout High, dll.)</li>'+
+    '<li><b>Signal</b> = dari radar di hari A−lag</li>'+
     '<li><b>Return</b> = (Close_A − Close_A−1) / Close_A−1 dari OHLCV</li>'+
-    '<li><b>Pair</b> = punya signal di A−lag <b>dan</b> punya Close di A−lag serta A (tidak perlu signal di hari A)</li>'+
-    '<li>Angka <span class="clk">biru bergaris</span> = klik untuk lihat daftar saham + Close</li>'+
+    '<li><b>Pair</b> = signal di A−lag + Close di A−lag dan A</li>'+
+    '<li>Angka <span class="clk">biru bergaris</span> = klik untuk detail saham</li>'+
+    '<li>Tabel: <b>klik header</b> untuk sort ASC/DESC · kotak search untuk filter</li>'+
     '<li>Hari OHLCV: <b>'+tradingDays.length+'</b> · Hari radar: <b>'+signalDays.length+'</b></li></ul></div>';
 
   const lag1=lagResults[1];
@@ -404,65 +506,78 @@ async function runAnalysis(){
       '<li>Pola terlemah: <span class="badge bad">'+worst.name+'</span> → naik '+(worst.upRate*100).toFixed(1)+'% (lift '+worst.lift.toFixed(2)+'x)</li></ul></div>';
   }
 
+  let tableSeq=0;
   for(const lag of [1,2,3]){
     const L=lagResults[lag]; if(!L) continue;
     html+='<div class="section"><h2>Lag '+lag+' — Signal A−'+lag+' → Close return hari A</h2>';
     html+='<p class="note">Sample: '+L.pairs+' pasangan · '+clk(L.baseDetailId,"Base naik")+': '+(L.baseUp*100).toFixed(1)+'% · Base ≥2%: '+(L.baseStrong*100).toFixed(1)+'%</p>';
 
     const sigRows=Object.entries(L.sigStats).map(([sig,st])=>({sig:Number(sig),...st})).sort((a,b)=>b.lift-a.lift);
-    html+='<h3>Signal Individu</h3><div class="table-wrap"><table><thead><tr><th>Signal</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th></tr></thead><tbody>';
+    const sigTid="tbl-sig-"+lag+"-"+(++tableSeq);
+    html+='<h3>Signal Individu</h3>'+toolbarHtml(sigTid,"Cari signal...")+
+      '<div class="table-wrap"><table class="sortable-table" id="'+sigTid+'"><thead><tr>'+
+      '<th>Signal</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th></tr></thead><tbody>';
     sigRows.forEach(r=>{
       const cls=r.lift>=1.2?"good":r.lift<=0.8?"bad":"mid";
       const liftCls=r.lift>=1.3?"lift-high":cls;
-      html+='<tr><td class="code">'+(SIGNAL_NAMES[r.sig]||("Sig "+r.sig))+'</td>'+
-        '<td>'+clk(r.idN,r.n)+'</td>'+
-        '<td class="'+cls+'">'+clk(r.idUp,(r.upRate*100).toFixed(1)+"%")+'</td>'+
-        '<td>'+clk(r.idStrong,(r.strongRate*100).toFixed(1)+"%")+'</td>'+
-        '<td class="'+(r.avgPct>=0?"good":"bad")+'">'+clk(r.idAvg,(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+"%")+'</td>'+
-        '<td class="'+liftCls+'">'+clk(r.idLift,r.lift.toFixed(2)+"x")+'</td></tr>';
+      const name=SIGNAL_NAMES[r.sig]||("Sig "+r.sig);
+      html+='<tr data-search="'+name.toLowerCase()+'">'+
+        '<td class="code" data-val="'+name+'">'+name+'</td>'+
+        '<td data-val="'+r.n+'">'+clk(r.idN,r.n)+'</td>'+
+        '<td class="'+cls+'" data-val="'+r.upRate+'">'+clk(r.idUp,(r.upRate*100).toFixed(1)+"%")+'</td>'+
+        '<td data-val="'+r.strongRate+'">'+clk(r.idStrong,(r.strongRate*100).toFixed(1)+"%")+'</td>'+
+        '<td class="'+(r.avgPct>=0?"good":"bad")+'" data-val="'+r.avgPct+'">'+clk(r.idAvg,(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+"%")+'</td>'+
+        '<td class="'+liftCls+'" data-val="'+r.lift+'">'+clk(r.idLift,r.lift.toFixed(2)+"x")+'</td></tr>';
     });
     html+='</tbody></table></div>';
 
-    html+='<h3>Formula / Kombinasi</h3><div class="table-wrap"><table><thead><tr><th>Pola</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th></tr></thead><tbody>';
+    const formTid="tbl-form-"+lag+"-"+(++tableSeq);
+    html+='<h3>Formula / Kombinasi</h3>'+toolbarHtml(formTid,"Cari pola...")+
+      '<div class="table-wrap"><table class="sortable-table" id="'+formTid+'"><thead><tr>'+
+      '<th>Pola</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th></tr></thead><tbody>';
     L.formulaStats.forEach((r,i)=>{
       const cls=r.lift>=1.2?"good":r.lift<=0.8?"bad":"mid";
       const liftCls=r.lift>=1.3?"lift-high":cls;
       const badge=i===0&&r.lift>=1.2?'<span class="badge best">BEST</span> ':"";
-      html+='<tr><td class="code">'+badge+r.name+'</td>'+
-        '<td>'+clk(r.idN,r.n)+'</td>'+
-        '<td class="'+cls+'">'+clk(r.idUp,(r.upRate*100).toFixed(1)+"%")+'</td>'+
-        '<td>'+clk(r.idStrong,(r.strongRate*100).toFixed(1)+"%")+'</td>'+
-        '<td class="'+(r.avgPct>=0?"good":"bad")+'">'+clk(r.idAvg,(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+"%")+'</td>'+
-        '<td class="'+liftCls+'">'+clk(r.idLift,r.lift.toFixed(2)+"x")+'</td></tr>';
+      html+='<tr data-search="'+r.name.toLowerCase()+'">'+
+        '<td class="code" data-val="'+r.name+'">'+badge+r.name+'</td>'+
+        '<td data-val="'+r.n+'">'+clk(r.idN,r.n)+'</td>'+
+        '<td class="'+cls+'" data-val="'+r.upRate+'">'+clk(r.idUp,(r.upRate*100).toFixed(1)+"%")+'</td>'+
+        '<td data-val="'+r.strongRate+'">'+clk(r.idStrong,(r.strongRate*100).toFixed(1)+"%")+'</td>'+
+        '<td class="'+(r.avgPct>=0?"good":"bad")+'" data-val="'+r.avgPct+'">'+clk(r.idAvg,(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+"%")+'</td>'+
+        '<td class="'+liftCls+'" data-val="'+r.lift+'">'+clk(r.idLift,r.lift.toFixed(2)+"x")+'</td></tr>';
     });
     html+='</tbody></table></div>';
 
     if(L.topSigIds.length){
-      html+='<h3>Stabilitas Edge per Signal</h3><p class="note">Klik edge untuk lihat saham (return dari Close).</p>';
+      html+='<h3>Stabilitas Edge per Signal</h3><p class="note">Klik edge untuk detail. Klik header untuk sort.</p>';
       const allDayPairs=new Set();
       for(const sigId of L.topSigIds) (L.dayEdgesBySig[sigId]||[]).forEach(e=>allDayPairs.add(e.from+"|"+e.to));
       const dayPairList=[...allDayPairs].sort();
       if(dayPairList.length){
-        html+='<div class="table-wrap"><table><thead><tr><th>Signal</th>';
+        const edgeTid="tbl-edge-"+lag+"-"+(++tableSeq);
+        html+=toolbarHtml(edgeTid,"Cari signal...")+
+          '<div class="table-wrap"><table class="sortable-table" id="'+edgeTid+'"><thead><tr><th>Signal</th>';
         dayPairList.forEach(dp=>{const [a,b]=dp.split("|");html+='<th>'+a.slice(5)+'→'+b.slice(5)+'</th>';});
         html+='<th>Rata Edge</th><th>#hari +</th></tr></thead><tbody>';
         for(const sigId of L.topSigIds){
           const edges=L.dayEdgesBySig[sigId]||[];
           const edgeMap={}; edges.forEach(e=>{edgeMap[e.from+"|"+e.to]=e;});
           let sumEdge=0,cntEdge=0,posDays=0;
-          html+='<tr><td class="code">'+(SIGNAL_NAMES[sigId]||("Sig "+sigId))+'</td>';
+          const name=SIGNAL_NAMES[sigId]||("Sig "+sigId);
+          html+='<tr data-search="'+name.toLowerCase()+'"><td class="code" data-val="'+name+'">'+name+'</td>';
           dayPairList.forEach(dp=>{
             const e=edgeMap[dp];
-            if(!e){html+='<td style="color:#444">—</td>';return;}
+            if(!e){html+='<td style="color:#444" data-val="">—</td>';return;}
             sumEdge+=e.edge;cntEdge++;if(e.edge>0)posDays++;
             const cls=e.edge>0.05?"good":e.edge<-0.05?"bad":"mid";
             const label=(e.edge>=0?"+":"")+(e.edge*100).toFixed(0)+'% <span style="color:#666;font-size:10px">('+e.n+')</span>';
-            html+='<td class="'+cls+'">'+clk(e.idEdge,label)+'</td>';
+            html+='<td class="'+cls+'" data-val="'+e.edge+'">'+clk(e.idEdge,label)+'</td>';
           });
           const avgEdge=cntEdge?sumEdge/cntEdge:0;
           const avgCls=avgEdge>0.05?"good":avgEdge<-0.05?"bad":"mid";
-          html+='<td class="'+avgCls+'">'+(avgEdge>=0?"+":"")+(avgEdge*100).toFixed(1)+'%</td>';
-          html+='<td>'+posDays+'/'+cntEdge+'</td></tr>';
+          html+='<td class="'+avgCls+'" data-val="'+avgEdge+'">'+(avgEdge>=0?"+":"")+(avgEdge*100).toFixed(1)+'%</td>';
+          html+='<td data-val="'+posDays+'">'+posDays+'/'+cntEdge+'</td></tr>';
         }
         html+='</tbody></table></div>';
       }
@@ -484,10 +599,11 @@ async function runAnalysis(){
       avoid.forEach(r=>{html+='<li><b>'+r.name+'</b> — naik '+(r.upRate*100).toFixed(1)+'%, lift '+r.lift.toFixed(2)+'x</li>';});
       html+='</ul>';
     }
-    html+='<p class="note" style="margin-top:12px">Return dari Close OHLCV. Signal dari radar hari A−1. Klik angka biru untuk detail saham.</p></div></div>';
+    html+='<p class="note" style="margin-top:12px">Return dari Close OHLCV. Klik angka biru untuk detail. Klik header tabel untuk sort.</p></div></div>';
   }
 
   el.innerHTML=html;
+  initTableFeatures(el);
   document.getElementById("statusText").textContent="Done · "+tradingDays.length+" hari OHLCV · "+signalDays.length+" hari radar";
 }
 </script>
