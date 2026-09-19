@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pattern Predictor – OHLCV Local v2</title>
+  <style>
+    :root {
+      --bg:#0d0d0d; --card:#1a1a1a; --card-hover:#222; --border:#2a2a2a;
+      --text:#e0e0e0; --text-dim:#888; --green:#00c853; --red:#ff5252;
+      --blue:#42a5f5; --orange:#ffb74d; --purple:#ce93d8;
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:16px}
+    .container{max-width:1000px;margin:0 auto}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+    header h1{font-size:18px;font-weight:600}
+    .status{font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:6px}
+    .status .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+    .controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+    .controls2{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text-dim)}
+    button,input[type="date"],input[type="search"],input[type="number"],input[type="file"],select{
+      background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 11px;border-radius:8px;font-size:13px;color-scheme:dark
+    }
+    button{cursor:pointer} button:hover{background:var(--card-hover)}
+    button.primary{background:#1e3a5f;border-color:var(--blue)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .loading,.empty{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:14px}
+    .section{margin-bottom:28px}
+    .section h2{font-size:15px;color:var(--blue);margin-bottom:10px}
+    .section h3{font-size:13px;color:var(--text-dim);margin:14px 0 8px}
+    .table-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+    .table-toolbar input[type="search"]{flex:1;min-width:140px;max-width:280px;padding:7px 10px;font-size:12px}
+    .table-toolbar .hint{font-size:11px;color:var(--text-dim)}
+    .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);background:var(--card)}
+    table{width:100%;border-collapse:collapse;font-size:12px;min-width:560px}
+    th,td{padding:7px 9px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+    th{background:#151515;color:var(--text-dim);font-weight:500;position:sticky;top:0;user-select:none}
+    th.sortable{cursor:pointer}
+    th.sortable:hover{color:var(--blue)}
+    th .sort-ind{margin-left:4px;font-size:10px;opacity:.5}
+    th.sorted-asc .sort-ind,th.sorted-desc .sort-ind{opacity:1;color:var(--blue)}
+    th.sorted-asc .sort-ind::after{content:"▲"}
+    th.sorted-desc .sort-ind::after{content:"▼"}
+    th:not(.sorted-asc):not(.sorted-desc) .sort-ind::after{content:"⇅"}
+    tr:hover td{background:#222}
+    tr.hidden-row{display:none}
+    .code{font-weight:600}
+    .good{color:var(--green);font-weight:600}
+    .mid{color:var(--orange)}
+    .bad{color:var(--red)}
+    .lift-high{color:var(--green);font-weight:700}
+    .summary-box{background:linear-gradient(135deg,#1a2332 0%,#1a1a1a 100%);border:1px solid #2a3a4a;border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.6;margin-bottom:16px}
+    .summary-box ul{margin:8px 0 0 18px}
+    .summary-box li{margin-bottom:4px}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+    .badge.best{background:#1b3a1b;color:var(--green)}
+    .badge.bad{background:#3a1b1b;color:var(--red)}
+    .badge.year{background:#1a2a3a;color:var(--blue)}
+    .note{font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.5}
+    .formula-box{background:#121820;border:1px solid #2a3a4a;border-radius:12px;padding:14px 16px;font-size:12px;line-height:1.7;margin-bottom:16px;color:#b0c0d0}
+    .formula-box h3{color:var(--blue);font-size:13px;margin:0 0 8px}
+    .formula-box ul{margin:6px 0 0 16px}
+    .formula-box li{margin-bottom:3px}
+    .clk{cursor:pointer;color:var(--blue);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+    .clk:hover{color:#90caf9}
+    .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10000;align-items:center;justify-content:center;padding:16px}
+    .modal-bg.open{display:flex}
+    .modal{background:#151515;border:1px solid #2a3a4a;border-radius:14px;width:100%;max-width:760px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.55)}
+    .modal-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .modal-header h3{font-size:14px;color:var(--blue);margin:0;line-height:1.4}
+    .modal-header .sub{font-size:11px;color:var(--text-dim);margin-top:4px}
+    .modal-close{background:transparent;border:1px solid var(--border);color:var(--text-dim);width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer;flex-shrink:0;line-height:1}
+    .modal-close:hover{background:#222;color:#fff}
+    .modal-body{padding:12px 16px;overflow-y:auto;font-size:12px}
+    .modal-body .rumus{background:#1a2332;border-radius:8px;padding:10px 12px;margin-bottom:12px;line-height:1.55;color:#b0c8e0}
+    .modal-body .rumus code{background:#0d1520;padding:1px 5px;border-radius:4px;color:#9ecbff;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px}
+    .modal-table{width:100%;border-collapse:collapse;font-size:11.5px}
+    .modal-table th,.modal-table td{padding:6px 8px;border-bottom:1px solid #252525;text-align:left}
+    .modal-table th{color:var(--text-dim);background:#111;position:sticky;top:0}
+    .modal-table th.sortable{cursor:pointer}
+    .modal-table .up{color:var(--green)}
+    .modal-table .dn{color:var(--red)}
+    .modal-footer{padding:10px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--text-dim)}
+    .file-info{font-size:12px;color:var(--text-dim);margin-top:4px}
+    .progress{height:6px;background:#222;border-radius:3px;margin-top:8px;overflow:hidden;display:none}
+    .progress-bar{height:100%;background:var(--blue);width:0%;transition:width .15s}
+    .year-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:10px}
+    .year-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12px}
+    .year-card h4{color:var(--blue);margin-bottom:6px;font-size:13px}
+    .year-card .stat{margin:3px 0}
+    label.inline{display:inline-flex;align-items:center;gap:6px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Pattern Predictor · OHLCV Local v2</h1>
+      <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Siap – pilih file JSON</span></div>
+    </header>
+
+    <div class="controls">
+      <button type="button" class="primary" onclick="document.getElementById('fileInput').click()">Pilih File JSON</button>
+      <input type="file" id="fileInput" accept=".json,application/json" multiple style="display:none" />
+      <button type="button" onclick="document.getElementById('folderInput').click()">Pilih Folder</button>
+      <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none" />
+      <span style="color:#666">|</span>
+      <input type="date" id="fromDate" />
+      <span style="color:#666">s/d</span>
+      <input type="date" id="toDate" />
+      <button class="primary" id="btnAnalyze" onclick="runAnalysis()" disabled>Analisis Pola</button>
+    </div>
+    <div class="controls2">
+      <label class="inline">Min Volume
+        <input type="number" id="minVol" value="500000" min="0" step="100000" style="width:110px" title="Filter saham dengan volume hari sinyal ≥ nilai ini" />
+      </label>
+      <label class="inline">Min Value (Rp)
+        <input type="number" id="minValue" value="500000000" min="0" step="100000000" style="width:130px" title="Filter value transaksi hari sinyal ≥ nilai ini" />
+      </label>
+      <label class="inline">
+        <input type="checkbox" id="chkYear" checked /> Pecah per tahun
+      </label>
+      <span class="note" style="margin:0">Filter likuiditas diterapkan di hari sinyal (A−lag)</span>
+    </div>
+    <div class="file-info" id="fileInfo">Belum ada file. Pilih semua <code>GetStockSummary_YYYY-MM-DD.json</code>.</div>
+    <div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+    <div id="result"><div class="empty">Load file OHLCV dulu, lalu klik Analisis Pola<br><span style="font-size:12px">v2 · kombinasi · filter likuiditas · pecah tahun</span></div></div>
+  </div>
+
+  <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <div><h3 id="modalTitle">Detail</h3><div class="sub" id="modalSub"></div></div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+<script>
+const ohlcvByDay = {};
+let tradingDays = [];
+const detailStore = {};
+let detailSeq = 0;
+const MAX_ROWS = 250;
+
+// Single + Combination patterns
+const FORMULAS = [
+  // singles
+  { key: "up", name: "Close Naik (>0%)", fn: r => r.retPrev > 0 },
+  { key: "up2", name: "Close ≥ +2%", fn: r => r.retPrev >= 2 },
+  { key: "up3", name: "Close ≥ +3%", fn: r => r.retPrev >= 3 },
+  { key: "dn", name: "Close Turun (<0%)", fn: r => r.retPrev < 0 },
+  { key: "dn2", name: "Close ≤ −2%", fn: r => r.retPrev <= -2 },
+  { key: "dn3", name: "Close ≤ −3%", fn: r => r.retPrev <= -3 },
+  { key: "gap_up", name: "Gap Up", fn: r => r.gap > 0 },
+  { key: "gap_up1", name: "Gap Up ≥ +1%", fn: r => r.gap >= 1 },
+  { key: "gap_dn", name: "Gap Down", fn: r => r.gap < 0 },
+  { key: "gap_dn1", name: "Gap Down ≤ −1%", fn: r => r.gap <= -1 },
+  { key: "bh", name: "Breakout High", fn: r => r.breakoutHigh },
+  { key: "bl", name: "Breakdown Low", fn: r => r.breakdownLow },
+  { key: "wide", name: "Range ≥ 4%", fn: r => r.rangePct >= 4 },
+  { key: "vol_up", name: "Volume Naik", fn: r => r.volRatio > 1 },
+  { key: "vol_spike", name: "Volume Spike ≥1.8×", fn: r => r.volRatio >= 1.8 },
+  { key: "foreign_net", name: "Foreign Net Buy > 0", fn: r => r.foreignNet > 0 },
+  { key: "foreign_net_big", name: "Foreign Net Buy kuat", fn: r => r.foreignNet > 0 && r.foreignBuy > r.volume * 0.15 },
+  // combinations – mean reversion focus
+  { key: "bl_vol", name: "Breakdown Low + Vol naik", fn: r => r.breakdownLow && r.volRatio > 1 },
+  { key: "bl_spike", name: "Breakdown Low + Vol Spike", fn: r => r.breakdownLow && r.volRatio >= 1.8 },
+  { key: "bl_foreign", name: "Breakdown Low + Foreign Net+", fn: r => r.breakdownLow && r.foreignNet > 0 },
+  { key: "bl_spike_foreign", name: "BL + Spike + Foreign Net+", fn: r => r.breakdownLow && r.volRatio >= 1.8 && r.foreignNet > 0 },
+  { key: "dn2_vol", name: "Close ≤−2% + Vol naik", fn: r => r.retPrev <= -2 && r.volRatio > 1 },
+  { key: "dn2_spike", name: "Close ≤−2% + Vol Spike", fn: r => r.retPrev <= -2 && r.volRatio >= 1.8 },
+  { key: "dn2_foreign", name: "Close ≤−2% + Foreign Net+", fn: r => r.retPrev <= -2 && r.foreignNet > 0 },
+  { key: "dn2_spike_foreign", name: "≤−2% + Spike + Foreign+", fn: r => r.retPrev <= -2 && r.volRatio >= 1.8 && r.foreignNet > 0 },
+  { key: "gapdn_vol", name: "Gap Down + Vol naik", fn: r => r.gap < 0 && r.volRatio > 1 },
+  { key: "gapdn_spike", name: "Gap Down + Vol Spike", fn: r => r.gap < 0 && r.volRatio >= 1.8 },
+  { key: "gapdn_foreign", name: "Gap Down + Foreign Net+", fn: r => r.gap < 0 && r.foreignNet > 0 },
+  // combinations – momentum focus
+  { key: "bh_vol", name: "Breakout High + Vol naik", fn: r => r.breakoutHigh && r.volRatio > 1 },
+  { key: "bh_spike", name: "Breakout High + Vol Spike", fn: r => r.breakoutHigh && r.volRatio >= 1.8 },
+  { key: "bh_foreign", name: "Breakout High + Foreign Net+", fn: r => r.breakoutHigh && r.foreignNet > 0 },
+  { key: "up2_vol", name: "≥+2% + Vol naik", fn: r => r.retPrev >= 2 && r.volRatio > 1 },
+  { key: "up2_spike", name: "≥+2% + Vol Spike", fn: r => r.retPrev >= 2 && r.volRatio >= 1.8 },
+  { key: "up2_foreign", name: "≥+2% + Foreign Net+", fn: r => r.retPrev >= 2 && r.foreignNet > 0 },
+  { key: "gapup_vol", name: "Gap Up + Vol naik", fn: r => r.gap > 0 && r.volRatio > 1 },
+  { key: "gapup_spike_foreign", name: "Gap Up + Spike + Foreign+", fn: r => r.gap > 0 && r.volRatio >= 1.8 && r.foreignNet > 0 },
+];
+
+function storeDetail(p){ const id="d"+(++detailSeq); detailStore[id]=p; return id; }
+function openDetail(id){
+  const d=detailStore[id]; if(!d) return;
+  document.getElementById("modalTitle").textContent=d.title;
+  document.getElementById("modalSub").textContent=d.sub||"";
+  let body="";
+  if(d.rumus) body+='<div class="rumus">'+d.rumus+'</div>';
+  if(d.rows&&d.rows.length){
+    body+='<div class="table-toolbar"><input type="search" placeholder="Cari saham..." oninput="filterModalTable(this)" /><span class="hint">Klik header sort</span></div>';
+    body+='<div style="overflow-x:auto"><table class="modal-table sortable-table" id="modalDataTable"><thead><tr>'+
+      '<th>#</th><th>Saham</th><th>Hari sinyal</th><th>Hari hasil</th><th>Close A−1</th><th>Close A</th><th>Return</th><th>Naik?</th><th>≥2%?</th></tr></thead><tbody>';
+    d.rows.forEach((r,i)=>{
+      const pctCls=r.ret>0?"up":r.ret<0?"dn":"";
+      const hay=(r.code+" "+r.dayPrev+" "+r.dayA).toLowerCase();
+      body+='<tr data-search="'+hay+'">'+
+        '<td data-val="'+(i+1)+'">'+(i+1)+'</td>'+
+        '<td class="code" data-val="'+r.code+'">'+r.code+'</td>'+
+        '<td data-val="'+r.dayPrev+'">'+r.dayPrev+'</td>'+
+        '<td data-val="'+r.dayA+'">'+r.dayA+'</td>'+
+        '<td data-val="'+(r.closePrev||0)+'">'+fmtPrice(r.closePrev)+'</td>'+
+        '<td data-val="'+(r.closeA||0)+'">'+fmtPrice(r.closeA)+'</td>'+
+        '<td class="'+pctCls+'" data-val="'+r.ret+'">'+(r.ret>=0?"+":"")+r.ret.toFixed(2)+'%</td>'+
+        '<td class="'+(r.up?"up":"dn")+'" data-val="'+(r.up?1:0)+'">'+(r.up?"Ya":"Tidak")+'</td>'+
+        '<td class="'+(r.strong?"up":"")+'" data-val="'+(r.strong?1:0)+'">'+(r.strong?"Ya":"Tidak")+'</td></tr>';
+    });
+    body+='</tbody></table></div>';
+  } else body+='<p style="color:#888">Tidak ada sample.</p>';
+  document.getElementById("modalBody").innerHTML=body;
+  document.getElementById("modalFooter").textContent=d.footer||"";
+  document.getElementById("modalBg").classList.add("open");
+  initTableFeatures(document.getElementById("modalBody"));
+}
+function closeModal(){ document.getElementById("modalBg").classList.remove("open"); }
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
+function clk(id,label){ return '<span class="clk" onclick="openDetail(\''+id+'\')">'+label+'</span>'; }
+function fmtPrice(v){ if(v==null||isNaN(v)) return "—"; return Number(v).toLocaleString("id-ID"); }
+function filterModalTable(input){
+  const q=(input.value||"").toLowerCase().trim();
+  document.querySelectorAll("#modalDataTable tbody tr").forEach(tr=>{
+    const hay=tr.getAttribute("data-search")||"";
+    tr.style.display=(!q||hay.indexOf(q)>=0)?"":"none";
+  });
+}
+function initTableFeatures(root){
+  root=root||document;
+  root.querySelectorAll("table.sortable-table").forEach(table=>{
+    const thead=table.querySelector("thead");
+    if(!thead) return;
+    thead.querySelectorAll("th").forEach((th,colIdx)=>{
+      th.classList.add("sortable");
+      if(!th.querySelector(".sort-ind")){ const ind=document.createElement("span"); ind.className="sort-ind"; th.appendChild(ind); }
+      th.onclick=function(){ sortTable(table,colIdx,th); };
+    });
+  });
+}
+function sortTable(table,colIdx,th){
+  const tbody=table.querySelector("tbody"); if(!tbody) return;
+  const rows=Array.from(tbody.querySelectorAll("tr"));
+  const isAsc=th.classList.contains("sorted-asc");
+  table.querySelectorAll("th").forEach(h=>h.classList.remove("sorted-asc","sorted-desc"));
+  th.classList.add(isAsc?"sorted-desc":"sorted-asc");
+  const dir=isAsc?-1:1;
+  rows.sort((a,b)=>{
+    let av=a.children[colIdx]?.getAttribute("data-val")??a.children[colIdx]?.textContent.trim()??"";
+    let bv=b.children[colIdx]?.getAttribute("data-val")??b.children[colIdx]?.textContent.trim()??"";
+    const an=parseFloat(String(av).replace(/[%x+,]/g,""));
+    const bn=parseFloat(String(bv).replace(/[%x+,]/g,""));
+    if(!isNaN(an)&&!isNaN(bn)) return (an-bn)*dir;
+    return String(av).localeCompare(String(bv),"id",{sensitivity:"base"})*dir;
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+}
+function filterTable(input,tableId){
+  const q=(input.value||"").toLowerCase().trim();
+  const table=document.getElementById(tableId); if(!table) return;
+  table.querySelectorAll("tbody tr").forEach(tr=>{
+    const hay=(tr.getAttribute("data-search")||tr.textContent||"").toLowerCase();
+    if(!q||hay.indexOf(q)>=0) tr.classList.remove("hidden-row");
+    else tr.classList.add("hidden-row");
+  });
+}
+function toolbarHtml(tableId,ph){
+  return '<div class="table-toolbar"><input type="search" placeholder="'+(ph||"Cari...")+'" oninput="filterTable(this,\''+tableId+'\')" /><span class="hint">Klik header sort ▲▼</span></div>';
+}
+function extractDateFromName(name){
+  const m=name.match(/(\d{4}-\d{2}-\d{2})/);
+  return m?m[1]:null;
+}
+
+async function processFiles(fileList){
+  const files=Array.from(fileList).filter(f=>f.name.toLowerCase().endsWith(".json")&&f.name.includes("GetStockSummary"));
+  if(!files.length){ alert("Tidak ada file GetStockSummary_*.json"); return; }
+  const progress=document.getElementById("progress");
+  const bar=document.getElementById("progressBar");
+  progress.style.display="block"; bar.style.width="0%";
+  document.getElementById("statusText").textContent="Memuat "+files.length+" file...";
+  document.getElementById("btnAnalyze").disabled=true;
+  for(const k of Object.keys(ohlcvByDay)) delete ohlcvByDay[k];
+  tradingDays=[];
+  let loaded=0, errors=0;
+  for(const file of files){
+    try{
+      const text=await file.text();
+      const json=JSON.parse(text);
+      const rows=json.data||json||[];
+      let dateStr=extractDateFromName(file.name);
+      if(!dateStr&&rows[0]?.Date) dateStr=String(rows[0].Date).slice(0,10);
+      if(!dateStr){ errors++; continue; }
+      const map={};
+      for(const r of rows){
+        const code=r.StockCode||r.secCode;
+        if(!code) continue;
+        const close=Number(r.Close);
+        if(!close||close<=0) continue;
+        map[code]={
+          close, previous:Number(r.Previous)||null,
+          open:Number(r.OpenPrice)||null, high:Number(r.High)||null, low:Number(r.Low)||null,
+          volume:Number(r.Volume)||0, value:Number(r.Value)||0,
+          change:Number(r.Change)||0,
+          foreignBuy:Number(r.ForeignBuy)||0, foreignSell:Number(r.ForeignSell)||0
+        };
+      }
+      if(Object.keys(map).length) ohlcvByDay[dateStr]=map;
+    }catch(e){ errors++; console.warn(file.name,e); }
+    loaded++;
+    bar.style.width=Math.round((loaded/files.length)*100)+"%";
+    document.getElementById("statusText").textContent="Memuat "+loaded+"/"+files.length;
+  }
+  tradingDays=Object.keys(ohlcvByDay).sort();
+  progress.style.display="none";
+  if(tradingDays.length<2){
+    document.getElementById("fileInfo").textContent="Data kurang dari 2 hari.";
+    document.getElementById("statusText").textContent="Gagal";
+    return;
+  }
+  const first=tradingDays[0], last=tradingDays[tradingDays.length-1];
+  document.getElementById("fromDate").value=first;
+  document.getElementById("toDate").value=last;
+  document.getElementById("fileInfo").innerHTML="✓ <b>"+tradingDays.length+" hari bursa</b> · "+first+" s/d "+last+(errors?" · "+errors+" gagal":"");
+  document.getElementById("statusText").textContent="Ready · "+tradingDays.length+" hari";
+  document.getElementById("btnAnalyze").disabled=false;
+  document.getElementById("result").innerHTML='<div class="empty">Data siap. Atur filter volume/value bila perlu, lalu klik <b>Analisis Pola</b>.</div>';
+}
+document.getElementById("fileInput").addEventListener("change",e=>{ if(e.target.files?.length) processFiles(e.target.files); });
+document.getElementById("folderInput").addEventListener("change",e=>{ if(e.target.files?.length) processFiles(e.target.files); });
+
+function makeDetail(title,sub,rumus,subset,extraFooter){
+  const rows=subset.slice(0,MAX_ROWS).map(r=>({
+    code:r.code, dayPrev:r.dayPrev, dayA:r.dayA,
+    closePrev:r.closePrev, closeA:r.closeA, ret:r.ret, up:r.up, strong:r.strong
+  }));
+  const n=subset.length;
+  const nUp=subset.filter(r=>r.up).length;
+  const nStrong=subset.filter(r=>r.strong).length;
+  const avg=n?subset.reduce((a,r)=>a+r.ret,0)/n:0;
+  let footer="Total "+n+" pasangan"+(n>MAX_ROWS?" (tampil "+MAX_ROWS+")":"")+
+    " · Naik: "+nUp+" ("+(n?((nUp/n)*100).toFixed(1):0)+"%)"+
+    " · ≥2%: "+nStrong+" ("+(n?((nStrong/n)*100).toFixed(1):0)+"%)"+
+    " · Avg: "+(avg>=0?"+":"")+avg.toFixed(2)+"%";
+  if(extraFooter) footer+=" · "+extraFooter;
+  return storeDetail({title,sub,rumus,rows,footer});
+}
+
+function getPairs(lag, days, minVol, minValue){
+  const res=[];
+  for(let i=lag;i<days.length;i++){
+    const dayA=days[i], dayPrev=days[i-lag], daySignal=days[i-lag];
+    const ohlcvPrev=ohlcvByDay[dayPrev];
+    const ohlcvA=ohlcvByDay[dayA];
+    const ohlcvSignal=ohlcvByDay[daySignal];
+    if(!ohlcvPrev||!ohlcvA||!ohlcvSignal) continue;
+    const idxSig=days.indexOf(daySignal);
+    const dayBeforeSignal=idxSig>0?days[idxSig-1]:null;
+    const ohlcvBefore=dayBeforeSignal?ohlcvByDay[dayBeforeSignal]:null;
+
+    for(const code of Object.keys(ohlcvSignal)){
+      if(!ohlcvPrev[code]||!ohlcvA[code]) continue;
+      const s=ohlcvSignal[code];
+      // liquidity filter on signal day
+      if(s.volume < minVol) continue;
+      if((s.value||0) < minValue) continue;
+
+      const closePrev=ohlcvPrev[code].close;
+      const closeA=ohlcvA[code].close;
+      if(!closePrev||!closeA) continue;
+      const ret=((closeA-closePrev)/closePrev)*100;
+
+      const prevClose=s.previous||(ohlcvBefore&&ohlcvBefore[code]?ohlcvBefore[code].close:null);
+      const retPrev=prevClose?((s.close-prevClose)/prevClose)*100:0;
+      const gap=prevClose&&s.open?((s.open-prevClose)/prevClose)*100:0;
+      const rangePct=prevClose&&s.high!=null&&s.low!=null?((s.high-s.low)/prevClose)*100:0;
+
+      let breakoutHigh=false, breakdownLow=false;
+      if(ohlcvBefore&&ohlcvBefore[code]){
+        if(ohlcvBefore[code].high!=null) breakoutHigh=s.close>ohlcvBefore[code].high;
+        if(ohlcvBefore[code].low!=null) breakdownLow=s.close<ohlcvBefore[code].low;
+      }
+      let volRatio=1;
+      if(ohlcvBefore&&ohlcvBefore[code]&&ohlcvBefore[code].volume>0)
+        volRatio=s.volume/ohlcvBefore[code].volume;
+
+      const foreignNet=(s.foreignBuy||0)-(s.foreignSell||0);
+      const foreignBuy=s.foreignBuy||0;
+      const volume=s.volume||0;
+
+      res.push({
+        code, dayA, dayPrev, closePrev, closeA, ret,
+        up:ret>0, strong:ret>=2,
+        retPrev, gap, rangePct, breakoutHigh, breakdownLow,
+        volRatio, foreignNet, foreignBuy, volume, year:daySignal.slice(0,4)
+      });
+    }
+  }
+  return res;
+}
+
+function computeStats(pairs, lagLabel){
+  if(pairs.length<30) return null;
+  const baseUp=pairs.filter(r=>r.up).length/pairs.length;
+  const baseStrong=pairs.filter(r=>r.strong).length/pairs.length;
+  const baseDetailId=makeDetail("Base rate — "+lagLabel,"Semua (setelah filter likuiditas)",
+    "<b>Base naik</b> = count(ret&gt;0)/N<br>N=<code>"+pairs.length+"</code>",pairs);
+
+  const formulaStats=[];
+  for(const f of FORMULAS){
+    const subset=pairs.filter(f.fn);
+    if(subset.length<25) continue;
+    const up=subset.filter(r=>r.up).length/subset.length;
+    const strong=subset.filter(r=>r.strong).length/subset.length;
+    const avgPct=subset.reduce((a,r)=>a+r.ret,0)/subset.length;
+    const lift=baseUp>0?up/baseUp:0;
+    const idN=makeDetail("N — "+f.name+" ("+lagLabel+")","", "<b>N</b>=<code>"+subset.length+"</code>",subset);
+    const idUp=makeDetail("% Naik — "+f.name,"", "<b>% Naik</b>="+(up*100).toFixed(1)+"%",subset.filter(r=>r.up),"dari N="+subset.length);
+    const idStrong=makeDetail("% ≥2% — "+f.name,"", "<b>% ≥2%</b>="+(strong*100).toFixed(1)+"%",subset.filter(r=>r.strong),"dari N="+subset.length);
+    const idAvg=makeDetail("Avg — "+f.name,"", "<b>Avg</b>="+(avgPct>=0?"+":"")+avgPct.toFixed(2)+"%",subset);
+    const idLift=makeDetail("Lift — "+f.name,"", "<b>Lift</b>="+lift.toFixed(2)+"x",subset);
+    formulaStats.push({key:f.key,name:f.name,n:subset.length,upRate:up,strongRate:strong,avgPct,lift,idN,idUp,idStrong,idAvg,idLift});
+  }
+  formulaStats.sort((a,b)=>b.lift-a.lift||b.upRate-a.upRate);
+  return {pairs:pairs.length,baseUp,baseStrong,baseDetailId,formulaStats};
+}
+
+async function runAnalysis(){
+  const from=document.getElementById("fromDate").value;
+  const to=document.getElementById("toDate").value;
+  if(!from||!to) return alert("Pilih rentang tanggal");
+  if(from>to) return alert("Tanggal dari > sampai");
+  if(tradingDays.length<2) return alert("Load file dulu");
+
+  const minVol=Number(document.getElementById("minVol").value)||0;
+  const minValue=Number(document.getElementById("minValue").value)||0;
+  const doYear=document.getElementById("chkYear").checked;
+
+  for(const k of Object.keys(detailStore)) delete detailStore[k];
+  detailSeq=0;
+
+  const el=document.getElementById("result");
+  el.innerHTML='<div class="loading">Menganalisis (filter vol≥'+minVol.toLocaleString("id-ID")+', value≥'+minValue.toLocaleString("id-ID")+')...</div>';
+  document.getElementById("statusText").textContent="Analyzing...";
+  await new Promise(r=>setTimeout(r,40));
+
+  const days=tradingDays.filter(d=>d>=from&&d<=to);
+  if(days.length<2){ el.innerHTML='<div class="empty">Kurang dari 2 hari di rentang.</div>'; return; }
+
+  const lagResults={};
+  for(const lag of [1,2,3]){
+    const pairs=getPairs(lag,days,minVol,minValue);
+    const stats=computeStats(pairs,"Lag "+lag);
+    if(!stats) continue;
+
+    // edge stability top formulas
+    const edgeFormulas=stats.formulaStats.slice(0,10);
+    const dayEdges={};
+    for(const f of edgeFormulas){
+      dayEdges[f.key]=[];
+      const fn=FORMULAS.find(x=>x.key===f.key)?.fn;
+      if(!fn) continue;
+      for(let i=lag;i<days.length;i++){
+        const dayA=days[i], dayPrev=days[i-lag];
+        const dayPairs=pairs.filter(r=>r.dayA===dayA);
+        if(!dayPairs.length) continue;
+        const dayBase=dayPairs.filter(r=>r.up).length/dayPairs.length;
+        const subset=dayPairs.filter(fn);
+        if(subset.length<8) continue;
+        const upRate=subset.filter(r=>r.up).length/subset.length;
+        const edge=upRate-dayBase;
+        const idEdge=makeDetail("Edge "+f.name+" · "+dayPrev.slice(5)+"→"+dayA.slice(5),"Lag "+lag,
+          "Edge="+(edge*100).toFixed(1)+"% · N="+subset.length,subset);
+        dayEdges[f.key].push({from:dayPrev,to:dayA,n:subset.length,upRate,base:dayBase,edge,idEdge});
+      }
+    }
+    stats.edgeFormulas=edgeFormulas;
+    stats.dayEdges=dayEdges;
+    lagResults[lag]=stats;
+  }
+
+  // Year breakdown (lag-1)
+  let yearResults={};
+  if(doYear){
+    const years=[...new Set(days.map(d=>d.slice(0,4)))].sort();
+    for(const y of years){
+      const yDays=days.filter(d=>d.startsWith(y));
+      if(yDays.length<10) continue;
+      const pairs=getPairs(1,yDays,minVol,minValue);
+      const stats=computeStats(pairs,"Tahun "+y+" Lag-1");
+      if(stats) yearResults[y]=stats;
+    }
+  }
+
+  if(!Object.keys(lagResults).length){
+    el.innerHTML='<div class="empty">Data tidak cukup setelah filter likuiditas. Coba turunkan Min Volume / Min Value.</div>';
+    document.getElementById("statusText").textContent="Data kurang";
+    return;
+  }
+
+  // ===== RENDER =====
+  let html='<div class="formula-box"><h3>📌 Metode v2 (OHLCV + filter + kombinasi)</h3><ul>'+
+    '<li>Filter likuiditas: Volume ≥ <b>'+minVol.toLocaleString("id-ID")+'</b> · Value ≥ <b>'+minValue.toLocaleString("id-ID")+'</b> (hari sinyal)</li>'+
+    '<li>Pola tunggal + kombinasi (mean reversion & momentum)</li>'+
+    '<li>Return = (Close_A − Close_A−lag) / Close_A−lag</li>'+
+    '<li>Hari dimuat: <b>'+tradingDays.length+'</b> · Analisis: <b>'+days.length+'</b> hari ('+days[0]+' → '+days[days.length-1]+')</li></ul></div>';
+
+  const lag1=lagResults[1];
+  if(lag1&&lag1.formulaStats.length){
+    const best=lag1.formulaStats[0], worst=lag1.formulaStats[lag1.formulaStats.length-1];
+    html+='<div class="summary-box"><b>Ringkasan keseluruhan ('+from+' s/d '+to+')</b><ul>'+
+      '<li>Hari: <b>'+days.length+'</b> · Sample lag-1: <b>'+lag1.pairs.toLocaleString("id-ID")+'</b></li>'+
+      '<li>'+clk(lag1.baseDetailId,"Base rate naik")+': <b>'+(lag1.baseUp*100).toFixed(1)+'%</b></li>'+
+      '<li>Pola terbaik: <span class="badge best">'+best.name+'</span> → naik <b>'+(best.upRate*100).toFixed(1)+'%</b> (lift '+best.lift.toFixed(2)+'x), avg <b>'+(best.avgPct>=0?"+":"")+best.avgPct.toFixed(2)+'%</b> · '+clk(best.idN,"lihat "+best.n)+'</li>'+
+      '<li>Pola terlemah: <span class="badge bad">'+worst.name+'</span> → naik '+(worst.upRate*100).toFixed(1)+'% (lift '+worst.lift.toFixed(2)+'x)</li></ul></div>';
+  }
+
+  // Year cards
+  if(Object.keys(yearResults).length){
+    html+='<div class="section"><h2>📅 Konsistensi per Tahun (Lag-1)</h2>';
+    html+='<p class="note">Bandingkan apakah edge pola yang sama konsisten di 2024, 2025, 2026.</p><div class="year-grid">';
+    for(const y of Object.keys(yearResults).sort()){
+      const Y=yearResults[y];
+      const top=Y.formulaStats.slice(0,3);
+      const bot=Y.formulaStats.filter(r=>r.lift<=0.9).slice(0,2);
+      html+='<div class="year-card"><h4><span class="badge year">'+y+'</span> · base '+(Y.baseUp*100).toFixed(1)+'% · N='+Y.pairs.toLocaleString("id-ID")+'</h4>';
+      top.forEach((r,i)=>{
+        html+='<div class="stat">'+(i+1)+'. <b>'+r.name+'</b> — '+(r.upRate*100).toFixed(1)+'% · lift '+r.lift.toFixed(2)+'x · avg '+(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+'% · '+clk(r.idN,r.n)+'</div>';
+      });
+      if(bot.length){
+        html+='<div class="stat" style="margin-top:6px;color:var(--text-dim)">Lemah: ';
+        html+=bot.map(r=>r.name+' ('+r.lift.toFixed(2)+'x)').join(', ');
+        html+='</div>';
+      }
+      html+='</div>';
+    }
+    html+='</div></div>';
+  }
+
+  let tableSeq=0;
+  for(const lag of [1,2,3]){
+    const L=lagResults[lag]; if(!L) continue;
+    html+='<div class="section"><h2>Lag '+lag+' — Pola A−'+lag+' → Return Close A</h2>';
+    html+='<p class="note">Sample: '+L.pairs.toLocaleString("id-ID")+' · '+clk(L.baseDetailId,"Base naik")+': '+(L.baseUp*100).toFixed(1)+'% · Base ≥2%: '+(L.baseStrong*100).toFixed(1)+'%</p>';
+
+    const formTid="tbl-form-"+lag+"-"+(++tableSeq);
+    html+='<h3>Semua Pola (tunggal + kombinasi)</h3>'+toolbarHtml(formTid,"Cari pola...")+
+      '<div class="table-wrap"><table class="sortable-table" id="'+formTid+'"><thead><tr>'+
+      '<th>Pola</th><th>N</th><th>% Naik</th><th>% ≥2%</th><th>Avg Return</th><th>Lift</th></tr></thead><tbody>';
+    L.formulaStats.forEach((r,i)=>{
+      const cls=r.lift>=1.15?"good":r.lift<=0.85?"bad":"mid";
+      const liftCls=r.lift>=1.25?"lift-high":cls;
+      const badge=i===0&&r.lift>=1.15?'<span class="badge best">BEST</span> ':"";
+      html+='<tr data-search="'+r.name.toLowerCase()+'">'+
+        '<td class="code" data-val="'+r.name+'">'+badge+r.name+'</td>'+
+        '<td data-val="'+r.n+'">'+clk(r.idN,r.n)+'</td>'+
+        '<td class="'+cls+'" data-val="'+r.upRate+'">'+clk(r.idUp,(r.upRate*100).toFixed(1)+"%")+'</td>'+
+        '<td data-val="'+r.strongRate+'">'+clk(r.idStrong,(r.strongRate*100).toFixed(1)+"%")+'</td>'+
+        '<td class="'+(r.avgPct>=0?"good":"bad")+'" data-val="'+r.avgPct+'">'+clk(r.idAvg,(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+"%")+'</td>'+
+        '<td class="'+liftCls+'" data-val="'+r.lift+'">'+clk(r.idLift,r.lift.toFixed(2)+"x")+'</td></tr>';
+    });
+    html+='</tbody></table></div>';
+
+    // Edge stability
+    html+='<h3>Stabilitas Edge (top pola)</h3>';
+    html+='<p class="note">Edge = upRate pola − base hari itu. Min 8 sample/hari. Kolom = 12 pasangan terakhir.</p>';
+    const allDayPairs=new Set();
+    for(const f of L.edgeFormulas) (L.dayEdges[f.key]||[]).forEach(e=>allDayPairs.add(e.from+"|"+e.to));
+    const dayPairList=[...allDayPairs].sort();
+    if(dayPairList.length&&L.edgeFormulas.length){
+      const showPairs=dayPairList.length>12?dayPairList.slice(-12):dayPairList;
+      const edgeTid="tbl-edge-"+lag+"-"+(++tableSeq);
+      html+=toolbarHtml(edgeTid,"Cari...")+'<div class="table-wrap"><table class="sortable-table" id="'+edgeTid+'"><thead><tr><th>Pola</th>';
+      showPairs.forEach(dp=>{ const [a,b]=dp.split("|"); html+='<th>'+a.slice(5)+'→'+b.slice(5)+'</th>'; });
+      html+='<th>Rata Edge</th><th>#hari +</th></tr></thead><tbody>';
+      for(const f of L.edgeFormulas){
+        const edges=L.dayEdges[f.key]||[];
+        const edgeMap={}; edges.forEach(e=>{ edgeMap[e.from+"|"+e.to]=e; });
+        let sumAll=0,cntAll=0,posAll=0;
+        edges.forEach(e=>{ sumAll+=e.edge; cntAll++; if(e.edge>0) posAll++; });
+        html+='<tr data-search="'+f.name.toLowerCase()+'"><td class="code" data-val="'+f.name+'">'+f.name+'</td>';
+        showPairs.forEach(dp=>{
+          const e=edgeMap[dp];
+          if(!e){ html+='<td style="color:#444" data-val="">—</td>'; return; }
+          const cls=e.edge>0.05?"good":e.edge<-0.05?"bad":"mid";
+          const label=(e.edge>=0?"+":"")+(e.edge*100).toFixed(0)+'% <span style="color:#666;font-size:10px">('+e.n+')</span>';
+          html+='<td class="'+cls+'" data-val="'+e.edge+'">'+clk(e.idEdge,label)+'</td>';
+        });
+        const avgEdge=cntAll?sumAll/cntAll:0;
+        const avgCls=avgEdge>0.05?"good":avgEdge<-0.05?"bad":"mid";
+        html+='<td class="'+avgCls+'" data-val="'+avgEdge+'">'+(avgEdge>=0?"+":"")+(avgEdge*100).toFixed(1)+'%</td>';
+        html+='<td data-val="'+posAll+'">'+posAll+'/'+cntAll+'</td></tr>';
+      }
+      html+='</tbody></table></div>';
+    } else html+='<p class="note">Tidak ada sample edge cukup.</p>';
+    html+='</div>';
+  }
+
+  // Recommendations
+  if(lag1&&lag1.formulaStats.length){
+    const top=lag1.formulaStats.filter(r=>r.lift>=1.2&&r.avgPct>0.15).slice(0,5);
+    const topAny=lag1.formulaStats.slice(0,5);
+    const avoid=lag1.formulaStats.filter(r=>r.lift<=0.85||r.avgPct<-0.3).slice(0,4);
+    html+='<div class="section"><h2>📌 Rekomendasi</h2><div class="summary-box">';
+    if(top.length){
+      html+='<b>Pola dengan lift ≥1.2× dan avg return &gt; +0.15% (lebih layak diperhatikan):</b><ul>';
+      top.forEach((r,i)=>{
+        html+='<li><b>'+(i+1)+'. '+r.name+'</b> — naik '+(r.upRate*100).toFixed(1)+'%, lift '+r.lift.toFixed(2)+'x, avg '+(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+'% · '+clk(r.idN,"N="+r.n)+'</li>';
+      });
+      html+='</ul>';
+    } else {
+      html+='<b>Tidak ada pola yang memenuhi kriteria ketat (lift≥1.2× & avg&gt;+0.15%).</b><br>Top berdasarkan lift saja:<ul>';
+      topAny.forEach((r,i)=>{
+        html+='<li><b>'+(i+1)+'. '+r.name+'</b> — naik '+(r.upRate*100).toFixed(1)+'%, lift '+r.lift.toFixed(2)+'x, avg '+(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+'% · '+clk(r.idN,"N="+r.n)+'</li>';
+      });
+      html+='</ul>';
+    }
+    if(avoid.length){
+      html+='<b style="margin-top:10px;display:block">Sebaiknya dihindari:</b><ul>';
+      avoid.forEach(r=>{ html+='<li><b>'+r.name+'</b> — naik '+(r.upRate*100).toFixed(1)+'%, lift '+r.lift.toFixed(2)+'x, avg '+(r.avgPct>=0?"+":"")+r.avgPct.toFixed(2)+'%</li>'; });
+      html+='</ul>';
+    }
+    html+='<p class="note" style="margin-top:12px">Cek juga kartu <b>per tahun</b> di atas. Pola yang bagus di semua tahun lebih andal daripada yang hanya bagus di satu periode. Avg return positif + edge stabil = syarat minimum sebelum dipertimbangkan untuk trading.</p></div></div>';
+  }
+
+  el.innerHTML=html;
+  initTableFeatures(el);
+  document.getElementById("statusText").textContent="Done · "+days.length+" hari";
+}
+</script>
+</body>
+</html>
