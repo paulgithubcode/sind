@@ -15,14 +15,41 @@
     }
     h1 { font-size: 1.35rem; margin-bottom: 6px; color: #f8fafc; }
     .meta { color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px; }
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .tab-btn.active {
+      background: #3b82f6;
+      color: #fff;
+      border-color: #3b82f6;
+    }
+    .tab-btn:hover:not(.active) { background: #334155; color: #e2e8f0; }
     .controls {
       display: flex; flex-wrap: wrap; gap: 10px;
       margin-bottom: 14px; align-items: center;
     }
-    select, button {
+    select, button, input[type="text"] {
       padding: 9px 14px; border-radius: 8px;
       border: 1px solid #334155; background: #1e293b;
       color: #e2e8f0; font-size: 0.9rem;
+    }
+    input[type="text"] {
+      min-width: 220px;
+    }
+    input[type="text"]::placeholder {
+      color: #64748b;
     }
     button {
       background: #3b82f6; border: none; cursor: pointer; font-weight: 500;
@@ -37,7 +64,6 @@
     .status.error { background: #7f1d1d; color: #fecaca; }
     .status.success { background: #14532d; color: #bbf7d0; }
     .progress { font-size: 0.82rem; color: #94a3b8; margin-bottom: 10px; }
-
     .table-wrapper {
       overflow: auto;
       max-height: 75vh;
@@ -46,11 +72,11 @@
     }
     table {
       border-collapse: collapse;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       min-width: 100%;
     }
     th, td {
-      padding: 7px 9px;
+      padding: 6px 8px;
       text-align: center;
       white-space: nowrap;
       border-bottom: 1px solid #1e293b;
@@ -79,23 +105,39 @@
       left: 90px;
       background: #1e293b;
       z-index: 3;
-      min-width: 55px;
+      min-width: 50px;
     }
     tr:nth-child(even) td { background: #0f172a; }
     tr:nth-child(odd) td { background: #111827; }
     tr:hover td { background: #1e293b; }
-    .check { color: #4ade80; font-weight: 700; font-size: 1rem; }
+    .check { color: #4ade80; font-weight: 700; font-size: 0.95rem; }
     .muted { color: #64748b; }
     .jml { font-weight: 600; color: #93c5fd; }
     .sort-asc::after { content: " ▲"; font-size: 0.7rem; }
     .sort-desc::after { content: " ▼"; font-size: 0.7rem; }
+    .hint {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 4px;
+      width: 100%;
+    }
+    .search-wrapper {
+      margin-bottom: 12px;
+    }
   </style>
 </head>
 <body>
   <h1>Crypto Breakout High Matrix</h1>
   <p class="meta">Klik header kolom untuk mengurutkan (Asc / Desc)</p>
 
-  <div class="controls">
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" id="tabSwing" onclick="switchTab('swing')">Swing Trade</button>
+    <button class="tab-btn" id="tabScalping" onclick="switchTab('scalping')">Scalping</button>
+  </div>
+
+  <!-- Controls Swing -->
+  <div class="controls" id="controlsSwing">
     <select id="periodSelect">
       <option value="7">Breakout Period: 1W (7 hari) — Scalping / Intraday</option>
       <option value="14">Breakout Period: 2W (14 hari) — Swing pendek</option>
@@ -104,13 +146,37 @@
       <option value="180">Breakout Period: 6M (180 hari) — Position panjang</option>
       <option value="365">Breakout Period: 1Y (365 hari) — Breakout kuat / Long-term</option>
     </select>
-
     <button id="scanBtn" onclick="startScan()">Tampilkan</button>
+  </div>
+
+  <!-- Controls Scalping -->
+  <div class="controls" id="controlsScalping" style="display:none;">
+    <select id="tfSelect">
+      <option value="15">TF: 15 menit</option>
+      <option value="30" selected>TF: 30 menit (Rekomendasi)</option>
+      <option value="60">TF: 1 Jam</option>
+      <option value="240">TF: 4 Jam</option>
+    </select>
+    <select id="lookbackSelect">
+      <option value="1">Lookback: 1 hari</option>
+      <option value="2" selected>Lookback: 2 hari (Rekomendasi)</option>
+      <option value="3">Lookback: 3 hari</option>
+      <option value="5">Lookback: 5 hari</option>
+      <option value="7">Lookback: 1 minggu</option>
+    </select>
+    <button id="scanBtnScalp" onclick="startScan()">Tampilkan</button>
+    <div class="hint">
+      Rekomendasi: TF 30m + Lookback 1–2 hari · TF 15m + Lookback 1 hari · TF 1H/4H + Lookback 2–5 hari
+    </div>
+  </div>
+
+  <!-- Search Box -->
+  <div class="search-wrapper">
+    <input type="text" id="searchInput" placeholder="Cari pair... (contoh: BTC, ETH, PEPE)" oninput="filterTable()">
   </div>
 
   <div id="status" class="status" style="display:none;"></div>
   <div class="progress" id="progress"></div>
-
   <div class="table-wrapper">
     <div id="tableContainer"></div>
   </div>
@@ -121,11 +187,25 @@
 
     let allPairs = [];
     let isScanning = false;
-
-    // Data untuk sorting
+    let currentMode = "swing";
+    let currentTf = "1d";
     let currentResults = [];
     let currentDates = [];
-    let sortState = { key: "count", asc: false }; // default: Jml descending
+    let sortState = { key: "count", asc: false };
+
+    function switchTab(mode) {
+      currentMode = mode;
+      document.getElementById("tabSwing").classList.toggle("active", mode === "swing");
+      document.getElementById("tabScalping").classList.toggle("active", mode === "scalping");
+      document.getElementById("controlsSwing").style.display = mode === "swing" ? "flex" : "none";
+      document.getElementById("controlsScalping").style.display = mode === "scalping" ? "flex" : "none";
+      
+      // Reset search & table
+      document.getElementById("searchInput").value = "";
+      document.getElementById("tableContainer").innerHTML = "";
+      document.getElementById("progress").textContent = "";
+      document.getElementById("status").style.display = "none";
+    }
 
     function showStatus(msg, type) {
       const el = document.getElementById("status");
@@ -140,11 +220,40 @@
       return Math.floor(d.getTime() / 1000);
     }
 
-    function formatDate(ts) {
+    // Format kolom mengikuti TF
+    function formatKey(ts) {
       const d = new Date(ts * 1000);
       const day = String(d.getDate()).padStart(2, "0");
       const month = String(d.getMonth() + 1).padStart(2, "0");
-      return `${day}/${month}`;
+      const hour = String(d.getHours()).padStart(2, "0");
+      const minute = String(d.getMinutes()).padStart(2, "0");
+
+      if (currentMode === "swing") {
+        return `${day}/${month}`;
+      }
+
+      // Scalping → ikuti TF
+      if (currentTf === "15" || currentTf === "30") {
+        return `${day}/${month} ${hour}:${minute}`;
+      }
+      // 1H dan 4H
+      return `${day}/${month} ${hour}:00`;
+    }
+
+    // Parse key untuk sorting
+    function parseKeyToDate(key) {
+      const now = new Date();
+      const year = now.getFullYear();
+
+      if (key.includes(" ")) {
+        const [datePart, timePart] = key.split(" ");
+        const [day, month] = datePart.split("/").map(Number);
+        const [hour, minute = 0] = timePart.split(":").map(Number);
+        return new Date(year, month - 1, day, hour, minute);
+      } else {
+        const [day, month] = key.split("/").map(Number);
+        return new Date(year, month - 1, day);
+      }
     }
 
     function sleep(ms) {
@@ -163,8 +272,8 @@
       return allPairs;
     }
 
-    async function fetchHistory(symbol, from, to) {
-      const url = `${HISTORY_BASE}?from=${from}&to=${to}&symbol=${symbol}&tf=1d`;
+    async function fetchHistory(symbol, from, to, tf = "1d") {
+      const url = `${HISTORY_BASE}?from=${from}&to=${to}&symbol=${symbol}&tf=${tf}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
@@ -180,15 +289,12 @@
       let count = 0;
 
       candles.forEach(c => {
-        const dateStr = formatDate(c.Time);
+        const key = formatKey(c.Time);
         const isNewHigh = c.High > runningHigh;
-
         if (isNewHigh) {
           runningHigh = c.High;
-          breakoutMap[dateStr] = true;
+          breakoutMap[key] = true;
           count++;
-        } else {
-          breakoutMap[dateStr] = false;
         }
       });
 
@@ -196,12 +302,11 @@
         symbol: null,
         breakoutMap,
         count,
-        dates: candles.map(c => formatDate(c.Time))
+        dates: candles.map(c => formatKey(c.Time))
       };
     }
 
     function sortResults(key) {
-      // Toggle arah sort kalau klik kolom yang sama
       if (sortState.key === key) {
         sortState.asc = !sortState.asc;
       } else {
@@ -211,20 +316,16 @@
 
       currentResults.sort((a, b) => {
         let valA, valB;
-
         if (key === "symbol") {
           valA = a.symbol;
           valB = b.symbol;
           return sortState.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
         }
-
         if (key === "count") {
           valA = a.count;
           valB = b.count;
           return sortState.asc ? valA - valB : valB - valA;
         }
-
-        // Sorting berdasarkan tanggal (jumlah check di tanggal itu)
         valA = a.breakoutMap[key] ? 1 : 0;
         valB = b.breakoutMap[key] ? 1 : 0;
         return sortState.asc ? valA - valB : valB - valA;
@@ -233,11 +334,28 @@
       renderMatrix();
     }
 
+    // Filter berdasarkan search
+    function getFilteredResults() {
+      const q = document.getElementById("searchInput").value.trim().toLowerCase();
+      if (!q) return currentResults;
+      return currentResults.filter(r => r.symbol.toLowerCase().includes(q));
+    }
+
+    function filterTable() {
+      renderMatrix();
+    }
+
     function renderMatrix() {
       const container = document.getElementById("tableContainer");
+      const filtered = getFilteredResults();
 
       if (currentResults.length === 0) {
         container.innerHTML = `<p class="muted" style="padding:16px;">Tidak ada data.</p>`;
+        return;
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<p class="muted" style="padding:16px;">Tidak ada pair yang cocok dengan pencarian.</p>`;
         return;
       }
 
@@ -252,7 +370,7 @@
             <tr>
               <th class="${getSortClass("symbol")}" onclick="sortResults('symbol')">Pair</th>
               <th class="${getSortClass("count")}" onclick="sortResults('count')">Jml</th>
-              ${currentDates.map(d => 
+              ${currentDates.map(d =>
                 `<th class="${getSortClass(d)}" onclick="sortResults('${d}')">${d}</th>`
               ).join("")}
             </tr>
@@ -260,7 +378,7 @@
           <tbody>
       `;
 
-      currentResults.forEach(r => {
+      filtered.forEach(r => {
         html += `
           <tr>
             <td><strong>${r.symbol}</strong></td>
@@ -283,12 +401,14 @@
       if (isScanning) return;
       isScanning = true;
 
-      const btn = document.getElementById("scanBtn");
-      const periodDays = parseInt(document.getElementById("periodSelect").value);
-      const progressEl = document.getElementById("progress");
+      const btn = currentMode === "swing"
+        ? document.getElementById("scanBtn")
+        : document.getElementById("scanBtnScalp");
 
+      const progressEl = document.getElementById("progress");
       btn.disabled = true;
       document.getElementById("tableContainer").innerHTML = "";
+      document.getElementById("searchInput").value = ""; // reset search
       showStatus("Memuat daftar pairs...", "loading");
       progressEl.textContent = "";
 
@@ -298,10 +418,25 @@
         }
 
         const pairsToScan = [...allPairs];
-        const to = getUnixTime(0);
-        const from = getUnixTime(periodDays + 3);
+        let periodDays, tf;
 
-        showStatus(`Scanning ${pairsToScan.length} pairs (Breakout Period ${periodDays} hari)...`, "loading");
+        if (currentMode === "swing") {
+          periodDays = parseInt(document.getElementById("periodSelect").value);
+          tf = "1d";
+        } else {
+          periodDays = parseInt(document.getElementById("lookbackSelect").value);
+          tf = document.getElementById("tfSelect").value;
+        }
+
+        currentTf = tf;
+
+        const to = getUnixTime(0);
+        const from = getUnixTime(periodDays + 1);
+
+        showStatus(
+          `Scanning ${pairsToScan.length} pairs | Mode: ${currentMode.toUpperCase()} | TF: ${tf} | Lookback: ${periodDays} hari...`,
+          "loading"
+        );
 
         const results = [];
         let allDatesSet = new Set();
@@ -313,7 +448,7 @@
           progressEl.textContent = `Progress: ${i + 1}/${pairsToScan.length} — ${pair.symbol}`;
 
           try {
-            const candles = await fetchHistory(pair.id, from, to);
+            const candles = await fetchHistory(pair.id, from, to, tf);
             const analysis = findBreakoutDays(candles);
 
             if (analysis && analysis.count > 0) {
@@ -330,16 +465,13 @@
           await sleep(300);
         }
 
-        // Urutkan tanggal dari terbaru → terlama
+        // Urutkan kolom dari yang terbaru
         currentDates = Array.from(allDatesSet).sort((a, b) => {
-          const [d1, m1] = a.split("/").map(Number);
-          const [d2, m2] = b.split("/").map(Number);
-          if (m1 !== m2) return m2 - m1;
-          return d2 - d1;
+          return parseKeyToDate(b) - parseKeyToDate(a);
         });
 
         currentResults = results;
-        sortState = { key: "count", asc: false }; // default Jml descending
+        sortState = { key: "count", asc: false };
 
         showStatus(
           `Selesai. Berhasil: ${success} | Gagal: ${failed} | Pair yang punya breakout: ${results.length}`,
