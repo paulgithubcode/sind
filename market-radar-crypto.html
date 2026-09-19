@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Breakout High Matrix</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+      line-height: 1.4;
+    }
+    h1 { font-size: 1.35rem; margin-bottom: 6px; color: #f8fafc; }
+    .meta { color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px; }
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-bottom: 14px; align-items: center;
+    }
+    select, button {
+      padding: 9px 14px; border-radius: 8px;
+      border: 1px solid #334155; background: #1e293b;
+      color: #e2e8f0; font-size: 0.9rem;
+    }
+    button {
+      background: #3b82f6; border: none; cursor: pointer; font-weight: 500;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+    .status {
+      margin-bottom: 12px; padding: 10px 14px;
+      border-radius: 8px; font-size: 0.88rem;
+    }
+    .status.loading { background: #1e293b; color: #94a3b8; }
+    .status.error { background: #7f1d1d; color: #fecaca; }
+    .status.success { background: #14532d; color: #bbf7d0; }
+    .progress { font-size: 0.82rem; color: #94a3b8; margin-bottom: 10px; }
+
+    .table-wrapper {
+      overflow: auto;
+      max-height: 75vh;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+    table {
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      min-width: 100%;
+    }
+    th, td {
+      padding: 7px 9px;
+      text-align: center;
+      white-space: nowrap;
+      border-bottom: 1px solid #1e293b;
+    }
+    th {
+      background: #1e293b;
+      color: #f1f5f9;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      cursor: pointer;
+      user-select: none;
+    }
+    th:hover { background: #334155; }
+    th:first-child, td:first-child {
+      text-align: left;
+      position: sticky;
+      left: 0;
+      background: #1e293b;
+      z-index: 3;
+      min-width: 90px;
+    }
+    th:nth-child(2), td:nth-child(2) {
+      position: sticky;
+      left: 90px;
+      background: #1e293b;
+      z-index: 3;
+      min-width: 55px;
+    }
+    tr:nth-child(even) td { background: #0f172a; }
+    tr:nth-child(odd) td { background: #111827; }
+    tr:hover td { background: #1e293b; }
+    .check { color: #4ade80; font-weight: 700; font-size: 1rem; }
+    .muted { color: #64748b; }
+    .jml { font-weight: 600; color: #93c5fd; }
+    .sort-asc::after { content: " ▲"; font-size: 0.7rem; }
+    .sort-desc::after { content: " ▼"; font-size: 0.7rem; }
+  </style>
+</head>
+<body>
+  <h1>Crypto Breakout High Matrix</h1>
+  <p class="meta">Klik header kolom untuk mengurutkan (Asc / Desc)</p>
+
+  <div class="controls">
+    <select id="periodSelect">
+      <option value="7">Breakout Period: 1W (7 hari) — Scalping / Intraday</option>
+      <option value="14">Breakout Period: 2W (14 hari) — Swing pendek</option>
+      <option value="30" selected>Breakout Period: 1M (30 hari) — Swing Trade (Rekomendasi)</option>
+      <option value="90">Breakout Period: 3M (90 hari) — Position Trade</option>
+      <option value="180">Breakout Period: 6M (180 hari) — Position panjang</option>
+      <option value="365">Breakout Period: 1Y (365 hari) — Breakout kuat / Long-term</option>
+    </select>
+
+    <button id="scanBtn" onclick="startScan()">Tampilkan</button>
+  </div>
+
+  <div id="status" class="status" style="display:none;"></div>
+  <div class="progress" id="progress"></div>
+
+  <div class="table-wrapper">
+    <div id="tableContainer"></div>
+  </div>
+
+  <script>
+    const PAIRS_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json";
+    const HISTORY_BASE = "https://indodax.com/tradingview/history_v2";
+
+    let allPairs = [];
+    let isScanning = false;
+
+    // Data untuk sorting
+    let currentResults = [];
+    let currentDates = [];
+    let sortState = { key: "count", asc: false }; // default: Jml descending
+
+    function showStatus(msg, type) {
+      const el = document.getElementById("status");
+      el.style.display = "block";
+      el.className = `status ${type}`;
+      el.textContent = msg;
+    }
+
+    function getUnixTime(daysAgo = 0) {
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      return Math.floor(d.getTime() / 1000);
+    }
+
+    function formatDate(ts) {
+      const d = new Date(ts * 1000);
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      return `${day}/${month}`;
+    }
+
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    async function loadPairs() {
+      const res = await fetch(PAIRS_URL);
+      if (!res.ok) throw new Error("Gagal load pairs.json");
+      const data = await res.json();
+      allPairs = data.filter(p =>
+        p.id.endsWith("idr") &&
+        p.is_maintenance === 0 &&
+        p.is_market_suspended === 0
+      );
+      return allPairs;
+    }
+
+    async function fetchHistory(symbol, from, to) {
+      const url = `${HISTORY_BASE}?from=${from}&to=${to}&symbol=${symbol}&tf=1d`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    function findBreakoutDays(candles) {
+      if (!candles || candles.length < 2) return null;
+
+      candles.sort((a, b) => a.Time - b.Time);
+
+      const breakoutMap = {};
+      let runningHigh = -Infinity;
+      let count = 0;
+
+      candles.forEach(c => {
+        const dateStr = formatDate(c.Time);
+        const isNewHigh = c.High > runningHigh;
+
+        if (isNewHigh) {
+          runningHigh = c.High;
+          breakoutMap[dateStr] = true;
+          count++;
+        } else {
+          breakoutMap[dateStr] = false;
+        }
+      });
+
+      return {
+        symbol: null,
+        breakoutMap,
+        count,
+        dates: candles.map(c => formatDate(c.Time))
+      };
+    }
+
+    function sortResults(key) {
+      // Toggle arah sort kalau klik kolom yang sama
+      if (sortState.key === key) {
+        sortState.asc = !sortState.asc;
+      } else {
+        sortState.key = key;
+        sortState.asc = true;
+      }
+
+      currentResults.sort((a, b) => {
+        let valA, valB;
+
+        if (key === "symbol") {
+          valA = a.symbol;
+          valB = b.symbol;
+          return sortState.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+
+        if (key === "count") {
+          valA = a.count;
+          valB = b.count;
+          return sortState.asc ? valA - valB : valB - valA;
+        }
+
+        // Sorting berdasarkan tanggal (jumlah check di tanggal itu)
+        valA = a.breakoutMap[key] ? 1 : 0;
+        valB = b.breakoutMap[key] ? 1 : 0;
+        return sortState.asc ? valA - valB : valB - valA;
+      });
+
+      renderMatrix();
+    }
+
+    function renderMatrix() {
+      const container = document.getElementById("tableContainer");
+
+      if (currentResults.length === 0) {
+        container.innerHTML = `<p class="muted" style="padding:16px;">Tidak ada data.</p>`;
+        return;
+      }
+
+      const getSortClass = (key) => {
+        if (sortState.key !== key) return "";
+        return sortState.asc ? "sort-asc" : "sort-desc";
+      };
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th class="${getSortClass("symbol")}" onclick="sortResults('symbol')">Pair</th>
+              <th class="${getSortClass("count")}" onclick="sortResults('count')">Jml</th>
+              ${currentDates.map(d => 
+                `<th class="${getSortClass(d)}" onclick="sortResults('${d}')">${d}</th>`
+              ).join("")}
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      currentResults.forEach(r => {
+        html += `
+          <tr>
+            <td><strong>${r.symbol}</strong></td>
+            <td class="jml">${r.count}</td>
+            ${currentDates.map(d => {
+              if (r.breakoutMap[d]) {
+                return `<td class="check">✓</td>`;
+              }
+              return `<td class="muted">·</td>`;
+            }).join("")}
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    async function startScan() {
+      if (isScanning) return;
+      isScanning = true;
+
+      const btn = document.getElementById("scanBtn");
+      const periodDays = parseInt(document.getElementById("periodSelect").value);
+      const progressEl = document.getElementById("progress");
+
+      btn.disabled = true;
+      document.getElementById("tableContainer").innerHTML = "";
+      showStatus("Memuat daftar pairs...", "loading");
+      progressEl.textContent = "";
+
+      try {
+        if (allPairs.length === 0) {
+          await loadPairs();
+        }
+
+        const pairsToScan = [...allPairs];
+        const to = getUnixTime(0);
+        const from = getUnixTime(periodDays + 3);
+
+        showStatus(`Scanning ${pairsToScan.length} pairs (Breakout Period ${periodDays} hari)...`, "loading");
+
+        const results = [];
+        let allDatesSet = new Set();
+        let success = 0;
+        let failed = 0;
+
+        for (let i = 0; i < pairsToScan.length; i++) {
+          const pair = pairsToScan[i];
+          progressEl.textContent = `Progress: ${i + 1}/${pairsToScan.length} — ${pair.symbol}`;
+
+          try {
+            const candles = await fetchHistory(pair.id, from, to);
+            const analysis = findBreakoutDays(candles);
+
+            if (analysis && analysis.count > 0) {
+              analysis.symbol = pair.symbol;
+              results.push(analysis);
+              analysis.dates.forEach(d => allDatesSet.add(d));
+              success++;
+            }
+          } catch (err) {
+            failed++;
+            console.warn(`Gagal ${pair.id}:`, err.message);
+          }
+
+          await sleep(300);
+        }
+
+        // Urutkan tanggal dari terbaru → terlama
+        currentDates = Array.from(allDatesSet).sort((a, b) => {
+          const [d1, m1] = a.split("/").map(Number);
+          const [d2, m2] = b.split("/").map(Number);
+          if (m1 !== m2) return m2 - m1;
+          return d2 - d1;
+        });
+
+        currentResults = results;
+        sortState = { key: "count", asc: false }; // default Jml descending
+
+        showStatus(
+          `Selesai. Berhasil: ${success} | Gagal: ${failed} | Pair yang punya breakout: ${results.length}`,
+          "success"
+        );
+        progressEl.textContent = "";
+        renderMatrix();
+
+      } catch (err) {
+        console.error(err);
+        showStatus("Error: " + err.message, "error");
+      } finally {
+        isScanning = false;
+        btn.disabled = false;
+      }
+    }
+
+    // Load pairs saat buka
+    loadPairs().then(pairs => {
+      showStatus(`Siap. ${pairs.length} pair IDR aktif berhasil dimuat.`, "success");
+    }).catch(err => {
+      showStatus("Gagal memuat pairs: " + err.message, "error");
+    });
+  </script>
+</body>
+</html>
