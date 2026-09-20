@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Indodax Backtest · Modal per Trade</title>
+  <title>Indodax Backtest · Modal + Fee (Input)</title>
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -49,10 +49,8 @@
     button:hover { background: #1e4fd6; }
     button.secondary { background: #2e7d32; }
     button.secondary:hover { background: #1b5e20; }
-
-    #chart { width: 100%; height: 330px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 6px; }
-    #macdChart { width: 100%; height: 115px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 14px; }
-
+    #chart { width: 100%; height: 310px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 6px; }
+    #macdChart { width: 100%; height: 105px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 14px; }
     .analysis-box {
       background: #1a1d24;
       padding: 14px;
@@ -70,7 +68,7 @@
     }
     .table-wrapper {
       overflow: auto;
-      max-height: 48vh;
+      max-height: 45vh;
       border: 1px solid #333;
       border-radius: 6px;
       margin-bottom: 16px;
@@ -79,7 +77,7 @@
       width: 100%;
       border-collapse: collapse;
       font-size: 0.72rem;
-      min-width: 1450px;
+      min-width: 1500px;
     }
     th, td {
       padding: 5px 6px;
@@ -102,10 +100,9 @@
     .blue { color: #42a5f5; }
     .gray { color: #888; }
     .note { font-size: 0.74rem; color: #777; margin-top: 8px; line-height: 1.4; }
-
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 10px;
       margin-bottom: 12px;
     }
@@ -116,25 +113,21 @@
       text-align: center;
     }
     .summary-card .label {
-      font-size: 0.73rem;
+      font-size: 0.72rem;
       color: #aaa;
       margin-bottom: 4px;
     }
     .summary-card .value {
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: 700;
     }
     .summary-card .sub {
-      font-size: 0.7rem;
+      font-size: 0.69rem;
       color: #888;
       margin-top: 3px;
     }
-
-    /* Searchable select */
     .symbol-wrapper { position: relative; }
-    #symbolSearch {
-      width: 180px;
-    }
+    #symbolSearch { width: 180px; }
     #symbolList {
       display: none;
       position: absolute;
@@ -153,14 +146,11 @@
       cursor: pointer;
       font-size: 0.8rem;
     }
-    #symbolList div:hover {
-      background: #333;
-    }
+    #symbolList div:hover { background: #333; }
   </style>
 </head>
 <body>
-  <h1>Indodax Backtest · Modal per Trade</h1>
-
+  <h1>Indodax Backtest · Modal + Fee (Bisa diubah)</h1>
   <div class="controls">
     <label>Symbol
       <div class="symbol-wrapper">
@@ -194,22 +184,25 @@
       <input type="number" id="emaPeriod" value="50" min="2" max="200" style="width:56px">
     </label>
     <label>Modal per Trade (Rp)
-      <input type="number" id="modalRp" value="100000" min="1000" step="10000" style="width:120px">
+      <input type="number" id="modalRp" value="100000" min="1000" step="10000" style="width:115px">
+    </label>
+    <label>Fee Buy (%)
+      <input type="text" id="feeBuy" value="0.2111" style="width:80px">
+    </label>
+    <label>Fee Sell (%)
+      <input type="text" id="feeSell" value="0.4211" style="width:80px">
     </label>
     <button onclick="loadData()">Load Data</button>
     <button class="secondary" onclick="generateFullTable()">Generate Full Table</button>
   </div>
-
   <div id="status"></div>
   <div id="chart"></div>
   <div id="macdChart"></div>
-
   <div class="analysis-box">
-    <h2>Ringkasan Hasil Backtest</h2>
+    <h2>Ringkasan Hasil Backtest (sudah termasuk Fee)</h2>
     <div class="summary-grid" id="summaryGrid">
       <div class="summary-card"><div class="label">Belum di-generate</div></div>
     </div>
-
     <h2 style="margin-top:16px">Detail Semua Tanggal</h2>
     <div class="progress" id="progress"></div>
     <div class="table-wrapper">
@@ -226,7 +219,7 @@
             <th>TP1</th>
             <th>Close Date</th>
             <th>Hasil</th>
-            <th>Modal (Rp)</th>
+            <th>Modal Setelah Fee Beli</th>
             <th>Profit (Rp)</th>
             <th>Catatan</th>
           </tr>
@@ -237,52 +230,42 @@
       </table>
     </div>
     <p class="note">
-      • Symbol diambil dari pairs.json · From = 1 tahun lalu · To = hari ini<br>
-      • Setiap sinyal LONG → beli dengan <b>Modal</b> yang kamu tentukan.<br>
-      • Profit/Rugi dihitung dari persen pergerakan harga ke TP1 atau CL.
+      • Fee Buy & Fee Sell bisa diubah di input atas (dalam persen, contoh: 0.2111).<br>
+      • Saat beli, fee buy dipotong → modal efektif yang dipakai untuk beli aset <strong>bukan</strong> 100% dari input modal.<br>
+      • Saat jual, fee sell juga dipotong dari hasil penjualan.<br>
+      • Profit dihitung dari modal awal yang kamu input, sudah termasuk fee buy + fee sell.
     </p>
   </div>
-
   <script>
     let chart, candleSeries, volumeSeries, maSeries, emaSeries;
     let macdChart, macdLineSeries, macdSignalSeries, macdHistSeries;
     let allData = [];
     let pairsList = [];
-
-    // ========== Set default dates (1 year ago → today) ==========
     function setDefaultDates() {
       const today = new Date();
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(today.getFullYear() - 1);
-
       document.getElementById('toDate').value = today.toISOString().slice(0, 10);
       document.getElementById('fromDate').value = oneYearAgo.toISOString().slice(0, 10);
     }
-
-    // ========== Load pairs from GitHub ==========
     async function loadPairs() {
       try {
         const res = await fetch('https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json');
         pairsList = await res.json();
-
-        // Default to btcidr
         const btc = pairsList.find(p => p.id === 'btcidr');
         if (btc) {
           document.getElementById('symbol').value = 'btcidr';
           document.getElementById('symbolSearch').value = btc.description || btc.symbol;
         }
-
         renderSymbolList(pairsList);
       } catch (err) {
-        console.error('Gagal load pairs:', err);
-        document.getElementById('status').textContent = 'Gagal load daftar pair';
+        console.error(err);
       }
     }
-
     function renderSymbolList(list) {
       const container = document.getElementById('symbolList');
       container.innerHTML = '';
-      list.slice(0, 100).forEach(p => { // limit for performance
+      list.slice(0, 80).forEach(p => {
         const div = document.createElement('div');
         div.textContent = `${p.description || p.symbol} (${p.id})`;
         div.onclick = () => {
@@ -293,12 +276,9 @@
         container.appendChild(div);
       });
     }
-
-    // Search filter
     document.addEventListener('DOMContentLoaded', () => {
       const searchInput = document.getElementById('symbolSearch');
       const list = document.getElementById('symbolList');
-
       searchInput.addEventListener('input', () => {
         const q = searchInput.value.toLowerCase();
         const filtered = pairsList.filter(p =>
@@ -309,21 +289,16 @@
         renderSymbolList(filtered);
         list.style.display = filtered.length ? 'block' : 'none';
       });
-
       searchInput.addEventListener('focus', () => {
         if (pairsList.length) {
           renderSymbolList(pairsList);
           list.style.display = 'block';
         }
       });
-
       document.addEventListener('click', (e) => {
-        if (!e.target.closest('.symbol-wrapper')) {
-          list.style.display = 'none';
-        }
+        if (!e.target.closest('.symbol-wrapper')) list.style.display = 'none';
       });
     });
-
     function initChart() {
       const container = document.getElementById('chart');
       chart = LightweightCharts.createChart(container, {
@@ -333,23 +308,19 @@
         rightPriceScale: { borderColor: '#2B2B43' },
         timeScale: { borderColor: '#2B2B43', timeVisible: true, secondsVisible: false },
       });
-
       candleSeries = chart.addCandlestickSeries({
         upColor: '#26a69a', downColor: '#ef5350',
         borderUpColor: '#26a69a', borderDownColor: '#ef5350',
         wickUpColor: '#26a69a', wickDownColor: '#ef5350',
       });
-
       volumeSeries = chart.addHistogramSeries({
         color: '#26a69a',
         priceFormat: { type: 'volume' },
         priceScaleId: '',
         scaleMargins: { top: 0.75, bottom: 0 },
       });
-
       maSeries = chart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, title: 'MA' });
       emaSeries = chart.addLineSeries({ color: '#2196f3', lineWidth: 1.5, title: 'EMA' });
-
       const macdContainer = document.getElementById('macdChart');
       macdChart = LightweightCharts.createChart(macdContainer, {
         layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
@@ -358,31 +329,26 @@
         timeScale: { borderColor: '#2B2B43', visible: false },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
       });
-
       macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: 'price', precision: 0 } });
       macdLineSeries = macdChart.addLineSeries({ color: '#2962ff', lineWidth: 1.5, title: 'MACD' });
       macdSignalSeries = macdChart.addLineSeries({ color: '#ff6d00', lineWidth: 1.5, title: 'Signal' });
-
       chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (range) macdChart.timeScale().setVisibleLogicalRange(range);
       });
       macdChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (range) chart.timeScale().setVisibleLogicalRange(range);
       });
-
       new ResizeObserver(() => {
         chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
         macdChart.applyOptions({ width: macdContainer.clientWidth, height: macdContainer.clientHeight });
       }).observe(container);
     }
-
     function dateToUnix(dateStr) {
       return Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 1000);
     }
     function unixToDate(ts) {
       return new Date(ts * 1000).toISOString().slice(0, 10);
     }
-
     function calcSMA(data, period) {
       const result = [];
       for (let i = period - 1; i < data.length; i++) {
@@ -392,7 +358,6 @@
       }
       return result;
     }
-
     function calcEMA(data, period) {
       const result = [];
       const k = 2 / (period + 1);
@@ -403,7 +368,6 @@
       }
       return result;
     }
-
     function calcMACD(data, fast = 12, slow = 26, signal = 9) {
       const emaFast = calcEMA(data, fast);
       const emaSlow = calcEMA(data, slow);
@@ -425,28 +389,23 @@
       }));
       return { macdLine, signalLine, hist };
     }
-
     async function loadData() {
       const symbol = document.getElementById('symbol').value.trim().toLowerCase();
       const tf = document.getElementById('tf').value;
       const from = dateToUnix(document.getElementById('fromDate').value);
       const to = dateToUnix(document.getElementById('toDate').value) + 86400;
-
       document.getElementById('status').textContent = 'Loading data...';
       document.getElementById('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;color:#888;padding:16px">Loading...</td></tr>';
       document.getElementById('summaryGrid').innerHTML = '<div class="summary-card"><div class="label">Loading...</div></div>';
-
       try {
         const url = `https://indodax.com/tradingview/history_v2?from=${from}&to=${to}&symbol=${symbol}&tf=${tf}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const raw = await res.json();
-
         if (!Array.isArray(raw) || raw.length === 0) {
           document.getElementById('status').textContent = 'Tidak ada data.';
           return;
         }
-
         allData = raw.map(d => ({
           time: d.Time,
           open: +d.Open,
@@ -455,7 +414,6 @@
           close: +d.Close,
           volume: +d.Volume
         })).sort((a, b) => a.time - b.time);
-
         candleSeries.setData(allData.map(d => ({
           time: d.time, open: d.open, high: d.high, low: d.low, close: d.close
         })));
@@ -464,20 +422,16 @@
           value: d.volume,
           color: d.close >= d.open ? 'rgba(38,166,154,0.45)' : 'rgba(239,83,80,0.45)'
         })));
-
         const maPeriod = +document.getElementById('maPeriod').value || 20;
         const emaPeriod = +document.getElementById('emaPeriod').value || 50;
         maSeries.setData(calcSMA(allData, maPeriod));
         emaSeries.setData(calcEMA(allData, emaPeriod));
-
         const { macdLine, signalLine, hist } = calcMACD(allData);
         macdLineSeries.setData(macdLine);
         macdSignalSeries.setData(signalLine);
         macdHistSeries.setData(hist);
-
         chart.timeScale().fitContent();
         macdChart.timeScale().fitContent();
-
         document.getElementById('status').textContent = `Loaded ${allData.length} candles · ${unixToDate(allData[0].time)} → ${unixToDate(allData[allData.length-1].time)} · ${symbol.toUpperCase()}`;
         document.getElementById('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;color:#888;padding:16px">Data siap. Klik "Generate Full Table"</td></tr>';
         document.getElementById('summaryGrid').innerHTML = '<div class="summary-card"><div class="label">Siap generate</div></div>';
@@ -486,33 +440,27 @@
         document.getElementById('status').textContent = 'Error: ' + err.message;
       }
     }
-
     function analyzeAtIndex(idx) {
       const data = allData.slice(0, idx + 1);
       if (data.length < 25) return null;
-
       const last = data[data.length - 1];
       const lookback = Math.min(20, data.length - 1);
       const recent = data.slice(-lookback - 1, -1);
-
       let swingHigh = -Infinity, swingLow = Infinity;
       recent.forEach(d => {
         if (d.high > swingHigh) swingHigh = d.high;
         if (d.low < swingLow) swingLow = d.low;
       });
-
       let priceAction = 'Range';
       if (last.close > swingHigh) priceAction = 'Breakout High';
       else if (last.close < swingLow) priceAction = 'Breakout Low';
       else if (last.high > swingHigh) priceAction = 'Try Break High';
       else if (last.low < swingLow) priceAction = 'Try Break Low';
-
       const avgVol = recent.reduce((s, d) => s + d.volume, 0) / (recent.length || 1);
       const volRatio = last.volume / (avgVol || 1);
       const firstClose = recent[0]?.close || last.close;
       const trendPct = ((last.close - firstClose) / firstClose) * 100;
       const rangePct = ((swingHigh - swingLow) / swingLow) * 100;
-
       let phase = 'Netral';
       if (rangePct < 8 && volRatio < 0.85) phase = 'Akumulasi';
       else if (rangePct < 8 && volRatio > 1.4) phase = 'Distribusi';
@@ -520,9 +468,7 @@
       else if (trendPct < -5 && volRatio > 1.0) phase = 'Markdown';
       else if (trendPct > 3) phase = 'Markup lemah';
       else if (trendPct < -3) phase = 'Markdown lemah';
-
       let buy = null, cl = null, tp1 = null, note = '', hasSignal = false;
-
       if (priceAction === 'Breakout High' || phase.includes('Markup')) {
         buy = last.close;
         cl = swingLow * 0.995;
@@ -546,7 +492,6 @@
       } else {
         note = 'Wait / range';
       }
-
       return {
         date: unixToDate(last.time),
         close: last.close,
@@ -554,43 +499,68 @@
       };
     }
 
-    function validateForward(analysis, modalRp) {
-      if (!analysis.hasSignal) {
-        return { hasil: '-', closeDate: '-', profit: 0 };
-      }
+    // Perhitungan fee yang lebih jelas:
+    // - Modal yang diinput = total uang yang kamu alokasikan
+    // - Saat beli: fee buy dipotong → quantity yang didapat lebih sedikit
+    // - Saat jual: fee sell dipotong dari hasil penjualan
+    function calculateProfitWithFee(entryPrice, exitPrice, modalRp, feeBuyPct, feeSellPct) {
+      const feeBuy  = feeBuyPct  / 100;
+      const feeSell = feeSellPct / 100;
 
+      // Quantity yang didapat setelah fee buy dipotong
+      // (modal / (harga * (1 + feeBuy)))
+      const qty = modalRp / (entryPrice * (1 + feeBuy));
+
+      // Hasil jual setelah fee sell dipotong
+      const sellProceeds = qty * exitPrice * (1 - feeSell);
+
+      // Profit = hasil jual - modal awal
+      const profit = sellProceeds - modalRp;
+      const pct = profit / modalRp;
+
+      // Modal efektif yang benar-benar dipakai untuk beli aset (setelah fee beli)
+      const modalSetelahFeeBeli = modalRp / (1 + feeBuy);
+
+      return { pct, profit, modalSetelahFeeBeli };
+    }
+
+    function validateForward(analysis, modalRp, feeBuyPct, feeSellPct) {
+      if (!analysis.hasSignal) {
+        return { hasil: '-', closeDate: '-', profit: 0, modalSetelahFeeBeli: 0 };
+      }
       const future = allData.slice(analysis.idx + 1);
       if (future.length === 0) {
-        return { hasil: 'No future data', closeDate: '-', profit: 0 };
+        return { hasil: 'No future data', closeDate: '-', profit: 0, modalSetelahFeeBeli: 0 };
       }
-
-      let hitTP = false, hitCL = false, closeDate = '-';
-
+      let hitTP = false, hitCL = false, closeDate = '-', exitPrice = null;
       for (const d of future) {
         if (d.high >= analysis.tp1) {
           hitTP = true;
           closeDate = unixToDate(d.time);
+          exitPrice = analysis.tp1;
           break;
         }
         if (d.low <= analysis.cl) {
           hitCL = true;
           closeDate = unixToDate(d.time);
+          exitPrice = analysis.cl;
           break;
         }
       }
-
-      if (hitTP) {
-        const pct = (analysis.tp1 - analysis.buy) / analysis.buy;
-        const profit = modalRp * pct;
-        return { hasil: `TP1 (+${(pct*100).toFixed(1)}%)`, closeDate, profit };
+      if (hitTP || hitCL) {
+        const { pct, profit, modalSetelahFeeBeli } = calculateProfitWithFee(
+          analysis.buy, exitPrice, modalRp, feeBuyPct, feeSellPct
+        );
+        const label = hitTP
+          ? `TP1 (${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(2)}%)`
+          : `CL (${(pct * 100).toFixed(2)}%)`;
+        return { hasil: label, closeDate, profit, modalSetelahFeeBeli };
       }
-      if (hitCL) {
-        const pct = (analysis.cl - analysis.buy) / analysis.buy;
-        const profit = modalRp * pct;
-        return { hasil: `CL (${(pct*100).toFixed(1)}%)`, closeDate, profit };
-      }
-
-      return { hasil: 'Belum close', closeDate: '-', profit: 0 };
+      // Belum close → tetap hitung modal setelah fee beli untuk ditampilkan
+      const { modalSetelahFeeBeli } = calculateProfitWithFee(
+        analysis.buy, analysis.buy, modalRp, feeBuyPct, feeSellPct
+      );
+      return { hasil: 'Belum close', closeDate: '-', profit: 0, modalSetelahFeeBeli };
     }
 
     function formatRp(num) {
@@ -598,7 +568,6 @@
       const abs = Math.abs(Math.round(num));
       return (num > 0 ? '+Rp ' : '-Rp ') + abs.toLocaleString('id-ID');
     }
-
     function formatRpPlain(num) {
       return 'Rp ' + Math.round(num).toLocaleString('id-ID');
     }
@@ -608,8 +577,9 @@
         alert('Data terlalu sedikit.');
         return;
       }
-
-      const modalRp = Number(document.getElementById('modalRp').value) || 100000;
+      const modalRp    = Number(document.getElementById('modalRp').value) || 100000;
+      const feeBuyPct  = parseFloat(document.getElementById('feeBuy').value) || 0;
+      const feeSellPct = parseFloat(document.getElementById('feeSell').value) || 0;
 
       const tbody = document.getElementById('tableBody');
       const progress = document.getElementById('progress');
@@ -618,7 +588,7 @@
 
       let totalSignal = 0;
       let benar = 0, salah = 0, belum = 0;
-      let totalModal = 0;
+      let totalModal = 0;          // total modal awal yang diinput
       let totalProfit = 0;
 
       const startIdx = 24;
@@ -628,7 +598,7 @@
         const analysis = analyzeAtIndex(i);
         if (!analysis) continue;
 
-        const val = validateForward(analysis, modalRp);
+        const val = validateForward(analysis, modalRp, feeBuyPct, feeSellPct);
 
         if (analysis.hasSignal) {
           totalSignal++;
@@ -652,7 +622,7 @@
           <td class="blue">${analysis.hasSignal ? fmt(analysis.tp1) : '-'}</td>
           <td>${val.closeDate}</td>
           <td class="${val.profit > 0 ? 'green' : val.profit < 0 ? 'red' : ''}">${val.hasil}</td>
-          <td>${analysis.hasSignal ? formatRpPlain(modalRp) : '-'}</td>
+          <td>${analysis.hasSignal ? formatRpPlain(val.modalSetelahFeeBeli) : '-'}</td>
           <td class="${val.profit > 0 ? 'green' : val.profit < 0 ? 'red' : ''}">${analysis.hasSignal ? formatRp(val.profit) : '-'}</td>
           <td>${analysis.note}</td>
         `;
@@ -683,29 +653,32 @@
           <div class="value ${winrate >= 50 ? 'green' : 'red'}">${winrate}%</div>
         </div>
         <div class="summary-card">
-          <div class="label">Modal per Trade</div>
+          <div class="label">Modal / Trade</div>
           <div class="value">Rp ${modalRp.toLocaleString('id-ID')}</div>
         </div>
         <div class="summary-card">
           <div class="label">Total Modal</div>
-          <div class="value">Rp ${Math.round(totalModal).toLocaleString('id-ID')}</div>
+          <div class="value blue">Rp ${totalModal.toLocaleString('id-ID')}</div>
+          <div class="sub">${totalSignal} trade</div>
         </div>
         <div class="summary-card">
-          <div class="label">Total Profit</div>
+          <div class="label">Fee Buy / Sell</div>
+          <div class="value" style="font-size:0.95rem">${feeBuyPct}% / ${feeSellPct}%</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">Total Profit (setelah fee)</div>
           <div class="value ${totalProfit >= 0 ? 'green' : 'red'}">${formatRp(totalProfit)}</div>
           <div class="sub">${totalProfit >= 0 ? 'UNTUNG' : 'RUGI'}</div>
         </div>
       `;
 
-      progress.textContent = `Selesai! ${totalSignal} sinyal dianalisa.`;
+      progress.textContent = `Selesai! ${totalSignal} sinyal dianalisa · Total Modal Rp ${totalModal.toLocaleString('id-ID')} · Fee Buy ${feeBuyPct}% / Sell ${feeSellPct}%.`;
     }
 
     // Init
     setDefaultDates();
     initChart();
-    loadPairs().then(() => {
-      setTimeout(loadData, 300);
-    });
+    loadPairs().then(() => setTimeout(loadData, 300));
   </script>
 </body>
 </html>
