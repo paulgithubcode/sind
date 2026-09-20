@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Indodax Backtest · Modal + Fee (Input)</title>
+  <title>Indodax Backtest · Single + Multi</title>
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -14,7 +14,32 @@
       padding: 12px;
       font-size: 13px;
     }
-    h1 { font-size: 1.25rem; margin-bottom: 10px; color: #fff; }
+    h1 { font-size: 1.25rem; margin-bottom: 12px; color: #fff; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 14px;
+    }
+    .tab-btn {
+      padding: 8px 18px;
+      border: none;
+      border-radius: 6px 6px 0 0;
+      background: #1a1d24;
+      color: #aaa;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .tab-btn.active {
+      background: #2962ff;
+      color: #fff;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Common controls */
     .controls {
       display: flex;
       flex-wrap: wrap;
@@ -49,6 +74,9 @@
     button:hover { background: #1e4fd6; }
     button.secondary { background: #2e7d32; }
     button.secondary:hover { background: #1b5e20; }
+    button:disabled { background: #444; cursor: not-allowed; }
+
+    /* Single tab styles */
     #chart { width: 100%; height: 310px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 6px; }
     #macdChart { width: 100%; height: 105px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 14px; }
     .analysis-box {
@@ -61,7 +89,7 @@
       margin-bottom: 10px;
       color: #90caf9;
     }
-    #status, .progress {
+    #status, .progress, #statusMulti {
       font-size: 0.8rem;
       margin: 6px 0;
       color: #aaa;
@@ -147,107 +175,243 @@
       font-size: 0.8rem;
     }
     #symbolList div:hover { background: #333; }
+
+    /* Multi tab extra */
+    .progress-bar {
+      height: 6px;
+      background: #252830;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #2962ff;
+      width: 0%;
+      transition: width 0.25s;
+    }
+    .table-tools {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+    .table-tools input { width: 220px; }
+    #tableMulti th {
+      cursor: pointer;
+      user-select: none;
+    }
+    #tableMulti th:hover { background: #2e3340; }
+    #tableMulti th.sorted-asc::after { content: " ▲"; font-size: 0.7rem; }
+    #tableMulti th.sorted-desc::after { content: " ▼"; font-size: 0.7rem; }
+    #tableMulti { min-width: 1100px; }
   </style>
 </head>
 <body>
-  <h1>Indodax Backtest · Modal + Fee (Bisa diubah)</h1>
-  <div class="controls">
-    <label>Symbol
-      <div class="symbol-wrapper">
-        <input type="text" id="symbolSearch" placeholder="Cari pair..." autocomplete="off">
-        <input type="hidden" id="symbol" value="btcidr">
-        <div id="symbolList"></div>
-      </div>
-    </label>
-    <label>Timeframe
-      <select id="tf">
-        <option value="1">1m</option>
-        <option value="15">15m</option>
-        <option value="30">30m</option>
-        <option value="60">1H</option>
-        <option value="240">4H</option>
-        <option value="1d" selected>1D</option>
-        <option value="3d">3D</option>
-        <option value="1w">1W</option>
-      </select>
-    </label>
-    <label>From
-      <input type="date" id="fromDate">
-    </label>
-    <label>To
-      <input type="date" id="toDate">
-    </label>
-    <label>MA
-      <input type="number" id="maPeriod" value="20" min="2" max="200" style="width:56px">
-    </label>
-    <label>EMA
-      <input type="number" id="emaPeriod" value="50" min="2" max="200" style="width:56px">
-    </label>
-    <label>Modal per Trade (Rp)
-      <input type="number" id="modalRp" value="100000" min="1000" step="10000" style="width:115px">
-    </label>
-    <label>Fee Buy (%)
-      <input type="text" id="feeBuy" value="0.2111" style="width:80px">
-    </label>
-    <label>Fee Sell (%)
-      <input type="text" id="feeSell" value="0.4211" style="width:80px">
-    </label>
-    <button onclick="loadData()">Load Data</button>
-    <button class="secondary" onclick="generateFullTable()">Generate Full Table</button>
+
+  <h1>Indodax Backtest · Single + Multi Symbol</h1>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('single')">Single Symbol</button>
+    <button class="tab-btn" onclick="switchTab('multi')">Multi Symbol</button>
   </div>
-  <div id="status"></div>
-  <div id="chart"></div>
-  <div id="macdChart"></div>
-  <div class="analysis-box">
-    <h2>Ringkasan Hasil Backtest (sudah termasuk Fee)</h2>
-    <div class="summary-grid" id="summaryGrid">
-      <div class="summary-card"><div class="label">Belum di-generate</div></div>
+
+  <!-- ==================== TAB 1: SINGLE ==================== -->
+  <div id="tab-single" class="tab-content active">
+    <div class="controls">
+      <label>Symbol
+        <div class="symbol-wrapper">
+          <input type="text" id="symbolSearch" placeholder="Cari pair..." autocomplete="off">
+          <input type="hidden" id="symbol" value="btcidr">
+          <div id="symbolList"></div>
+        </div>
+      </label>
+      <label>Timeframe
+        <select id="tf">
+          <option value="1">1m</option>
+          <option value="15">15m</option>
+          <option value="30">30m</option>
+          <option value="60">1H</option>
+          <option value="240">4H</option>
+          <option value="1d" selected>1D</option>
+          <option value="3d">3D</option>
+          <option value="1w">1W</option>
+        </select>
+      </label>
+      <label>From
+        <input type="date" id="fromDate">
+      </label>
+      <label>To
+        <input type="date" id="toDate">
+      </label>
+      <label>MA
+        <input type="number" id="maPeriod" value="20" min="2" max="200" style="width:56px">
+      </label>
+      <label>EMA
+        <input type="number" id="emaPeriod" value="50" min="2" max="200" style="width:56px">
+      </label>
+      <label>Modal per Trade (Rp)
+        <input type="number" id="modalRp" value="100000" min="1000" step="10000" style="width:115px">
+      </label>
+      <label>Fee Buy (%)
+        <input type="text" id="feeBuy" value="0.2111" style="width:80px">
+      </label>
+      <label>Fee Sell (%)
+        <input type="text" id="feeSell" value="0.4211" style="width:80px">
+      </label>
+      <button onclick="loadData()">Load Data</button>
+      <button class="secondary" onclick="generateFullTable()">Generate Full Table</button>
     </div>
-    <h2 style="margin-top:16px">Detail Semua Tanggal</h2>
-    <div class="progress" id="progress"></div>
+
+    <div id="status"></div>
+    <div id="chart"></div>
+    <div id="macdChart"></div>
+
+    <div class="analysis-box">
+      <h2>Ringkasan Hasil Backtest (sudah termasuk Fee)</h2>
+      <div class="summary-grid" id="summaryGrid">
+        <div class="summary-card"><div class="label">Belum di-generate</div></div>
+      </div>
+      <h2 style="margin-top:16px">Detail Semua Tanggal</h2>
+      <div class="progress" id="progress"></div>
+      <div class="table-wrapper">
+        <table id="resultTable">
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Close</th>
+              <th>Price Action</th>
+              <th>Fase</th>
+              <th>Sinyal</th>
+              <th>Buy</th>
+              <th>CL</th>
+              <th>TP1</th>
+              <th>Close Date</th>
+              <th>Hasil</th>
+              <th>Modal Setelah Fee Beli</th>
+              <th>Profit (Rp)</th>
+              <th>Catatan</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="13" style="text-align:center;color:#888;padding:20px">Load data dulu, lalu klik "Generate Full Table"</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">
+        • Fee Buy & Fee Sell bisa diubah di input atas (dalam persen, contoh: 0.2111).<br>
+        • Saat beli, fee buy dipotong → modal efektif yang dipakai untuk beli aset <strong>bukan</strong> 100% dari input modal.<br>
+        • Saat jual, fee sell juga dipotong dari hasil penjualan.<br>
+        • Profit dihitung dari modal awal yang kamu input, sudah termasuk fee buy + fee sell.
+      </p>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 2: MULTI ==================== -->
+  <div id="tab-multi" class="tab-content">
+    <div class="controls">
+      <label>From
+        <input type="date" id="fromDateMulti">
+      </label>
+      <label>To
+        <input type="date" id="toDateMulti">
+      </label>
+      <label>Modal per Trade (Rp)
+        <input type="number" id="modalRpMulti" value="100000" min="1000" step="10000" style="width:120px">
+      </label>
+      <label>Fee Buy (%)
+        <input type="text" id="feeBuyMulti" value="0.2111" style="width:80px">
+      </label>
+      <label>Fee Sell (%)
+        <input type="text" id="feeSellMulti" value="0.4211" style="width:80px">
+      </label>
+      <button id="btnGenerate" onclick="startMultiBacktest()">Generate All Symbols</button>
+    </div>
+
+    <div id="statusMulti">Siap. Klik "Generate All Symbols" untuk mulai.</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+    <div class="table-tools">
+      <input type="text" id="searchInput" placeholder="Cari symbol..." oninput="filterTable()">
+      <span id="resultCount" style="color:#888;font-size:0.8rem"></span>
+    </div>
+
     <div class="table-wrapper">
-      <table id="resultTable">
+      <table id="tableMulti">
         <thead>
           <tr>
-            <th>Tanggal</th>
-            <th>Close</th>
-            <th>Price Action</th>
-            <th>Fase</th>
-            <th>Sinyal</th>
-            <th>Buy</th>
-            <th>CL</th>
-            <th>TP1</th>
-            <th>Close Date</th>
-            <th>Hasil</th>
-            <th>Modal Setelah Fee Beli</th>
-            <th>Profit (Rp)</th>
-            <th>Catatan</th>
+            <th data-key="symbol">Symbol</th>
+            <th data-key="totalSignal">Total Sinyal</th>
+            <th data-key="benar">Menang (TP)</th>
+            <th data-key="salah">Kalah (CL)</th>
+            <th data-key="belum">Belum Close</th>
+            <th data-key="winrate">WinRate</th>
+            <th data-key="totalModal">Total Modal</th>
+            <th data-key="totalProfit">Total Profit (setelah fee)</th>
+            <th data-key="totalPct">% dari Total Modal</th>
           </tr>
         </thead>
-        <tbody id="tableBody">
-          <tr><td colspan="13" style="text-align:center;color:#888;padding:20px">Load data dulu, lalu klik "Generate Full Table"</td></tr>
+        <tbody id="tableBodyMulti">
+          <tr>
+            <td colspan="9" style="text-align:center;color:#888;padding:30px">
+              Belum ada data. Klik tombol Generate All Symbols.
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
+
     <p class="note">
-      • Fee Buy & Fee Sell bisa diubah di input atas (dalam persen, contoh: 0.2111).<br>
-      • Saat beli, fee buy dipotong → modal efektif yang dipakai untuk beli aset <strong>bukan</strong> 100% dari input modal.<br>
-      • Saat jual, fee sell juga dipotong dari hasil penjualan.<br>
-      • Profit dihitung dari modal awal yang kamu input, sudah termasuk fee buy + fee sell.
+      • Logika analisa + fee 100% sama dengan versi Single Symbol.<br>
+      • Timeframe tetap <strong>1D</strong>.<br>
+      • Concurrency = 3, Delay = 300ms, Retry = 1600ms.<br>
+      • Klik header kolom untuk sort. Ketik di search box untuk filter.
     </p>
   </div>
+
   <script>
-    let chart, candleSeries, volumeSeries, maSeries, emaSeries;
-    let macdChart, macdLineSeries, macdSignalSeries, macdHistSeries;
-    let allData = [];
+    // ==================== TAB SWITCH ====================
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    // ==================== SHARED ====================
     let pairsList = [];
     function setDefaultDates() {
       const today = new Date();
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(today.getFullYear() - 1);
-      document.getElementById('toDate').value = today.toISOString().slice(0, 10);
-      document.getElementById('fromDate').value = oneYearAgo.toISOString().slice(0, 10);
+      const from = oneYearAgo.toISOString().slice(0, 10);
+      const to = today.toISOString().slice(0, 10);
+      document.getElementById('fromDate').value = from;
+      document.getElementById('toDate').value = to;
+      document.getElementById('fromDateMulti').value = from;
+      document.getElementById('toDateMulti').value = to;
     }
+    function dateToUnix(dateStr) {
+      return Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 1000);
+    }
+    function unixToDate(ts) {
+      return new Date(ts * 1000).toISOString().slice(0, 10);
+    }
+    function formatRp(num) {
+      if (num === 0) return 'Rp 0';
+      const abs = Math.abs(Math.round(num));
+      return (num > 0 ? '+Rp ' : '-Rp ') + abs.toLocaleString('id-ID');
+    }
+    function formatRpPlain(num) {
+      return 'Rp ' + Math.round(num).toLocaleString('id-ID');
+    }
+
+    // ==================== SINGLE SYMBOL ====================
+    let chart, candleSeries, volumeSeries, maSeries, emaSeries;
+    let macdChart, macdLineSeries, macdSignalSeries, macdHistSeries;
+    let allData = [];
+
     async function loadPairs() {
       try {
         const res = await fetch('https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json');
@@ -258,10 +422,12 @@
           document.getElementById('symbolSearch').value = btc.description || btc.symbol;
         }
         renderSymbolList(pairsList);
+        document.getElementById('statusMulti').textContent = `Siap. Ditemukan ${pairsList.length} pair.`;
       } catch (err) {
         console.error(err);
       }
     }
+
     function renderSymbolList(list) {
       const container = document.getElementById('symbolList');
       container.innerHTML = '';
@@ -276,6 +442,7 @@
         container.appendChild(div);
       });
     }
+
     document.addEventListener('DOMContentLoaded', () => {
       const searchInput = document.getElementById('symbolSearch');
       const list = document.getElementById('symbolList');
@@ -299,6 +466,7 @@
         if (!e.target.closest('.symbol-wrapper')) list.style.display = 'none';
       });
     });
+
     function initChart() {
       const container = document.getElementById('chart');
       chart = LightweightCharts.createChart(container, {
@@ -321,6 +489,7 @@
       });
       maSeries = chart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, title: 'MA' });
       emaSeries = chart.addLineSeries({ color: '#2196f3', lineWidth: 1.5, title: 'EMA' });
+
       const macdContainer = document.getElementById('macdChart');
       macdChart = LightweightCharts.createChart(macdContainer, {
         layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
@@ -332,6 +501,7 @@
       macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: 'price', precision: 0 } });
       macdLineSeries = macdChart.addLineSeries({ color: '#2962ff', lineWidth: 1.5, title: 'MACD' });
       macdSignalSeries = macdChart.addLineSeries({ color: '#ff6d00', lineWidth: 1.5, title: 'Signal' });
+
       chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (range) macdChart.timeScale().setVisibleLogicalRange(range);
       });
@@ -343,12 +513,7 @@
         macdChart.applyOptions({ width: macdContainer.clientWidth, height: macdContainer.clientHeight });
       }).observe(container);
     }
-    function dateToUnix(dateStr) {
-      return Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 1000);
-    }
-    function unixToDate(ts) {
-      return new Date(ts * 1000).toISOString().slice(0, 10);
-    }
+
     function calcSMA(data, period) {
       const result = [];
       for (let i = period - 1; i < data.length; i++) {
@@ -389,6 +554,7 @@
       }));
       return { macdLine, signalLine, hist };
     }
+
     async function loadData() {
       const symbol = document.getElementById('symbol').value.trim().toLowerCase();
       const tf = document.getElementById('tf').value;
@@ -407,19 +573,12 @@
           return;
         }
         allData = raw.map(d => ({
-          time: d.Time,
-          open: +d.Open,
-          high: +d.High,
-          low: +d.Low,
-          close: +d.Close,
-          volume: +d.Volume
+          time: d.Time, open: +d.Open, high: +d.High, low: +d.Low, close: +d.Close, volume: +d.Volume
         })).sort((a, b) => a.time - b.time);
-        candleSeries.setData(allData.map(d => ({
-          time: d.time, open: d.open, high: d.high, low: d.low, close: d.close
-        })));
+
+        candleSeries.setData(allData.map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })));
         volumeSeries.setData(allData.map(d => ({
-          time: d.time,
-          value: d.volume,
+          time: d.time, value: d.volume,
           color: d.close >= d.open ? 'rgba(38,166,154,0.45)' : 'rgba(239,83,80,0.45)'
         })));
         const maPeriod = +document.getElementById('maPeriod').value || 20;
@@ -440,6 +599,7 @@
         document.getElementById('status').textContent = 'Error: ' + err.message;
       }
     }
+
     function analyzeAtIndex(idx) {
       const data = allData.slice(0, idx + 1);
       if (data.length < 25) return null;
@@ -492,124 +652,67 @@
       } else {
         note = 'Wait / range';
       }
-      return {
-        date: unixToDate(last.time),
-        close: last.close,
-        priceAction, phase, buy, cl, tp1, note, hasSignal, idx
-      };
+      return { date: unixToDate(last.time), close: last.close, priceAction, phase, buy, cl, tp1, note, hasSignal, idx };
     }
 
-    // Perhitungan fee yang lebih jelas:
-    // - Modal yang diinput = total uang yang kamu alokasikan
-    // - Saat beli: fee buy dipotong → quantity yang didapat lebih sedikit
-    // - Saat jual: fee sell dipotong dari hasil penjualan
     function calculateProfitWithFee(entryPrice, exitPrice, modalRp, feeBuyPct, feeSellPct) {
       const feeBuy  = feeBuyPct  / 100;
       const feeSell = feeSellPct / 100;
-
-      // Quantity yang didapat setelah fee buy dipotong
-      // (modal / (harga * (1 + feeBuy)))
       const qty = modalRp / (entryPrice * (1 + feeBuy));
-
-      // Hasil jual setelah fee sell dipotong
       const sellProceeds = qty * exitPrice * (1 - feeSell);
-
-      // Profit = hasil jual - modal awal
       const profit = sellProceeds - modalRp;
       const pct = profit / modalRp;
-
-      // Modal efektif yang benar-benar dipakai untuk beli aset (setelah fee beli)
       const modalSetelahFeeBeli = modalRp / (1 + feeBuy);
-
       return { pct, profit, modalSetelahFeeBeli };
     }
 
     function validateForward(analysis, modalRp, feeBuyPct, feeSellPct) {
-      if (!analysis.hasSignal) {
-        return { hasil: '-', closeDate: '-', profit: 0, modalSetelahFeeBeli: 0 };
-      }
+      if (!analysis.hasSignal) return { hasil: '-', closeDate: '-', profit: 0, modalSetelahFeeBeli: 0 };
       const future = allData.slice(analysis.idx + 1);
-      if (future.length === 0) {
-        return { hasil: 'No future data', closeDate: '-', profit: 0, modalSetelahFeeBeli: 0 };
-      }
+      if (future.length === 0) return { hasil: 'No future data', closeDate: '-', profit: 0, modalSetelahFeeBeli: 0 };
       let hitTP = false, hitCL = false, closeDate = '-', exitPrice = null;
       for (const d of future) {
         if (d.high >= analysis.tp1) {
-          hitTP = true;
-          closeDate = unixToDate(d.time);
-          exitPrice = analysis.tp1;
-          break;
+          hitTP = true; closeDate = unixToDate(d.time); exitPrice = analysis.tp1; break;
         }
         if (d.low <= analysis.cl) {
-          hitCL = true;
-          closeDate = unixToDate(d.time);
-          exitPrice = analysis.cl;
-          break;
+          hitCL = true; closeDate = unixToDate(d.time); exitPrice = analysis.cl; break;
         }
       }
       if (hitTP || hitCL) {
-        const { pct, profit, modalSetelahFeeBeli } = calculateProfitWithFee(
-          analysis.buy, exitPrice, modalRp, feeBuyPct, feeSellPct
-        );
-        const label = hitTP
-          ? `TP1 (${pct >= 0 ? '+' : ''}${(pct * 100).toFixed(2)}%)`
-          : `CL (${(pct * 100).toFixed(2)}%)`;
+        const { pct, profit, modalSetelahFeeBeli } = calculateProfitWithFee(analysis.buy, exitPrice, modalRp, feeBuyPct, feeSellPct);
+        const label = hitTP ? `TP1 (${pct >= 0 ? '+' : ''}${(pct*100).toFixed(2)}%)` : `CL (${(pct*100).toFixed(2)}%)`;
         return { hasil: label, closeDate, profit, modalSetelahFeeBeli };
       }
-      // Belum close → tetap hitung modal setelah fee beli untuk ditampilkan
-      const { modalSetelahFeeBeli } = calculateProfitWithFee(
-        analysis.buy, analysis.buy, modalRp, feeBuyPct, feeSellPct
-      );
+      const { modalSetelahFeeBeli } = calculateProfitWithFee(analysis.buy, analysis.buy, modalRp, feeBuyPct, feeSellPct);
       return { hasil: 'Belum close', closeDate: '-', profit: 0, modalSetelahFeeBeli };
     }
 
-    function formatRp(num) {
-      if (num === 0) return 'Rp 0';
-      const abs = Math.abs(Math.round(num));
-      return (num > 0 ? '+Rp ' : '-Rp ') + abs.toLocaleString('id-ID');
-    }
-    function formatRpPlain(num) {
-      return 'Rp ' + Math.round(num).toLocaleString('id-ID');
-    }
-
     async function generateFullTable() {
-      if (allData.length < 30) {
-        alert('Data terlalu sedikit.');
-        return;
-      }
+      if (allData.length < 30) { alert('Data terlalu sedikit.'); return; }
       const modalRp    = Number(document.getElementById('modalRp').value) || 100000;
       const feeBuyPct  = parseFloat(document.getElementById('feeBuy').value) || 0;
       const feeSellPct = parseFloat(document.getElementById('feeSell').value) || 0;
-
       const tbody = document.getElementById('tableBody');
       const progress = document.getElementById('progress');
       tbody.innerHTML = '';
       progress.textContent = 'Generating...';
-
-      let totalSignal = 0;
-      let benar = 0, salah = 0, belum = 0;
-      let totalModal = 0;          // total modal awal yang diinput
-      let totalProfit = 0;
-
+      let totalSignal = 0, benar = 0, salah = 0, belum = 0, totalModal = 0, totalProfit = 0;
       const startIdx = 24;
       const fmt = (n) => n != null ? Math.round(n).toLocaleString('id-ID') : '-';
 
       for (let i = startIdx; i < allData.length; i++) {
         const analysis = analyzeAtIndex(i);
         if (!analysis) continue;
-
         const val = validateForward(analysis, modalRp, feeBuyPct, feeSellPct);
-
         if (analysis.hasSignal) {
           totalSignal++;
           totalModal += modalRp;
           totalProfit += val.profit;
-
           if (val.profit > 0) benar++;
           else if (val.profit < 0) salah++;
           else belum++;
         }
-		
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${analysis.date}</td>
@@ -629,56 +732,247 @@
         tbody.appendChild(tr);
       }
 
-	  const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
+      const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
       const winrate = totalSignal > 0 ? ((benar / totalSignal) * 100).toFixed(1) : 0;
 
       document.getElementById('summaryGrid').innerHTML = `
+        <div class="summary-card"><div class="label">Total Sinyal</div><div class="value blue">${totalSignal}</div></div>
+        <div class="summary-card"><div class="label">✅ Menang (TP)</div><div class="value green">${benar}</div></div>
+        <div class="summary-card"><div class="label">❌ Kalah (CL)</div><div class="value red">${salah}</div></div>
+        <div class="summary-card"><div class="label">Belum Close</div><div class="value yellow">${belum}</div></div>
+        <div class="summary-card"><div class="label">Winrate</div><div class="value ${winrate >= 50 ? 'green' : 'red'}">${winrate}%</div></div>
+        <div class="summary-card"><div class="label">Modal / Trade</div><div class="value">Rp ${modalRp.toLocaleString('id-ID')}</div></div>
+        <div class="summary-card"><div class="label">Total Modal</div><div class="value blue">Rp ${totalModal.toLocaleString('id-ID')}</div><div class="sub">${totalSignal} trade</div></div>
+        <div class="summary-card"><div class="label">Fee Buy / Sell</div><div class="value" style="font-size:0.95rem">${feeBuyPct}% / ${feeSellPct}%</div></div>
         <div class="summary-card">
-          <div class="label">Total Sinyal</div>
-          <div class="value blue">${totalSignal}</div>
+          <div class="label">Total Profit (setelah fee)</div>
+          <div class="value ${totalProfit >= 0 ? 'green' : 'red'}">${formatRp(totalProfit)}</div>
+          <div class="sub ${totalProfit >= 0 ? 'green' : 'red'}">${totalProfit >= 0 ? '+' : ''}${totalPct.toFixed(2)}% dari Total Modal</div>
         </div>
-        <div class="summary-card">
-          <div class="label">✅ Menang (TP)</div>
-          <div class="value green">${benar}</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">❌ Kalah (CL)</div>
-          <div class="value red">${salah}</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">Belum Close</div>
-          <div class="value yellow">${belum}</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">Winrate</div>
-          <div class="value ${winrate >= 50 ? 'green' : 'red'}">${winrate}%</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">Modal / Trade</div>
-          <div class="value">Rp ${modalRp.toLocaleString('id-ID')}</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">Total Modal</div>
-          <div class="value blue">Rp ${totalModal.toLocaleString('id-ID')}</div>
-          <div class="sub">${totalSignal} trade</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">Fee Buy / Sell</div>
-          <div class="value" style="font-size:0.95rem">${feeBuyPct}% / ${feeSellPct}%</div>
-        </div>
-		<div class="summary-card">
-		  <div class="label">Total Profit (setelah fee)</div>
-		  <div class="value ${totalProfit >= 0 ? 'green' : 'red'}">${formatRp(totalProfit)}</div>
-		  <div class="sub ${totalProfit >= 0 ? 'green' : 'red'}">
-			${totalProfit >= 0 ? '+' : ''}${totalPct.toFixed(2)}% dari Total Modal
-		  </div>
-		</div>
       `;
-
       progress.textContent = `Selesai! ${totalSignal} sinyal dianalisa · Total Modal Rp ${totalModal.toLocaleString('id-ID')} · Fee Buy ${feeBuyPct}% / Sell ${feeSellPct}%.`;
     }
 
-    // Init
+    // ==================== MULTI SYMBOL ====================
+    const CONCURRENCY = 3;
+    const DELAY_AFTER_REQUEST = 300;
+    const RETRY_DELAY = 1600;
+    let allResults = [];
+    let currentSort = { key: 'totalProfit', dir: 'desc' };
+
+    function analyzeAtIndexMulti(allData, idx) {
+      const data = allData.slice(0, idx + 1);
+      if (data.length < 25) return null;
+      const last = data[data.length - 1];
+      const lookback = Math.min(20, data.length - 1);
+      const recent = data.slice(-lookback - 1, -1);
+      let swingHigh = -Infinity, swingLow = Infinity;
+      recent.forEach(d => {
+        if (d.high > swingHigh) swingHigh = d.high;
+        if (d.low < swingLow) swingLow = d.low;
+      });
+      let priceAction = 'Range';
+      if (last.close > swingHigh) priceAction = 'Breakout High';
+      else if (last.close < swingLow) priceAction = 'Breakout Low';
+      else if (last.high > swingHigh) priceAction = 'Try Break High';
+      else if (last.low < swingLow) priceAction = 'Try Break Low';
+      const avgVol = recent.reduce((s, d) => s + d.volume, 0) / (recent.length || 1);
+      const volRatio = last.volume / (avgVol || 1);
+      const firstClose = recent[0]?.close || last.close;
+      const trendPct = ((last.close - firstClose) / firstClose) * 100;
+      const rangePct = ((swingHigh - swingLow) / swingLow) * 100;
+      let phase = 'Netral';
+      if (rangePct < 8 && volRatio < 0.85) phase = 'Akumulasi';
+      else if (rangePct < 8 && volRatio > 1.4) phase = 'Distribusi';
+      else if (trendPct > 5 && volRatio > 1.0) phase = 'Markup';
+      else if (trendPct < -5 && volRatio > 1.0) phase = 'Markdown';
+      else if (trendPct > 3) phase = 'Markup lemah';
+      else if (trendPct < -3) phase = 'Markdown lemah';
+      let buy = null, cl = null, tp1 = null, note = '', hasSignal = false;
+      if (priceAction === 'Breakout High' || phase.includes('Markup')) {
+        buy = last.close; cl = swingLow * 0.995;
+        const riskDist = buy - cl;
+        if (riskDist > 0) { tp1 = buy + riskDist * 1.5; note = 'Long bias'; hasSignal = true; }
+      } else if (priceAction === 'Breakout Low' || phase.includes('Markdown')) {
+        note = 'Bearish / no long';
+      } else if (phase === 'Akumulasi') {
+        buy = (swingLow + last.close) / 2; cl = swingLow * 0.99;
+        const riskDist = buy - cl;
+        if (riskDist > 0) { tp1 = buy + riskDist * 2; note = 'Akumulasi → long'; hasSignal = true; }
+      } else { note = 'Wait / range'; }
+      return { date: unixToDate(last.time), close: last.close, priceAction, phase, buy, cl, tp1, note, hasSignal, idx };
+    }
+
+    function calculateProfitWithFeeMulti(entryPrice, exitPrice, modalRp, feeBuyPct, feeSellPct) {
+      const feeBuy  = feeBuyPct  / 100;
+      const feeSell = feeSellPct / 100;
+      const qty = modalRp / (entryPrice * (1 + feeBuy));
+      const sellProceeds = qty * exitPrice * (1 - feeSell);
+      return { profit: sellProceeds - modalRp };
+    }
+
+    function validateForwardMulti(allData, analysis, modalRp, feeBuyPct, feeSellPct) {
+      if (!analysis.hasSignal) return { profit: 0 };
+      const future = allData.slice(analysis.idx + 1);
+      if (future.length === 0) return { profit: 0 };
+      let exitPrice = null;
+      for (const d of future) {
+        if (d.high >= analysis.tp1) { exitPrice = analysis.tp1; break; }
+        if (d.low <= analysis.cl) { exitPrice = analysis.cl; break; }
+      }
+      if (exitPrice !== null) return calculateProfitWithFeeMulti(analysis.buy, exitPrice, modalRp, feeBuyPct, feeSellPct);
+      return { profit: 0 };
+    }
+
+    function runBacktestOnData(allData, modalRp, feeBuyPct, feeSellPct) {
+      let totalSignal = 0, benar = 0, salah = 0, belum = 0, totalModal = 0, totalProfit = 0;
+      const startIdx = 24;
+      for (let i = startIdx; i < allData.length; i++) {
+        const analysis = analyzeAtIndexMulti(allData, i);
+        if (!analysis) continue;
+        const val = validateForwardMulti(allData, analysis, modalRp, feeBuyPct, feeSellPct);
+        if (analysis.hasSignal) {
+          totalSignal++;
+          totalModal += modalRp;
+          totalProfit += val.profit;
+          if (val.profit > 0) benar++;
+          else if (val.profit < 0) salah++;
+          else belum++;
+        }
+      }
+      const winrate = totalSignal > 0 ? (benar / totalSignal) * 100 : 0;
+      const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
+      return { totalSignal, benar, salah, belum, winrate, totalModal, totalProfit, totalPct };
+    }
+
+    async function fetchSymbolData(symbol, from, to, attempt = 1) {
+      try {
+        const url = `https://indodax.com/tradingview/history_v2?from=${from}&to=${to}&symbol=${symbol}&tf=1d`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const raw = await res.json();
+        if (!Array.isArray(raw) || raw.length === 0) return null;
+        return raw.map(d => ({
+          time: d.Time, open: +d.Open, high: +d.High, low: +d.Low, close: +d.Close, volume: +d.Volume
+        })).sort((a, b) => a.time - b.time);
+      } catch (err) {
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY));
+          return fetchSymbolData(symbol, from, to, attempt + 1);
+        }
+        throw err;
+      }
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById('tableBodyMulti');
+      const search = document.getElementById('searchInput').value.toLowerCase().trim();
+      let filtered = data;
+      if (search) filtered = data.filter(r => r.symbol.toLowerCase().includes(search));
+      document.getElementById('resultCount').textContent = filtered.length + ' dari ' + data.length + ' symbol';
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#888;padding:30px">Tidak ada data.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = filtered.map(r => `
+        <tr>
+          <td><strong>${r.symbol}</strong></td>
+          <td class="blue">${r.totalSignal}</td>
+          <td class="green">${r.benar}</td>
+          <td class="red">${r.salah}</td>
+          <td class="yellow">${r.belum}</td>
+          <td class="${r.winrate >= 50 ? 'green' : 'red'}">${r.winrate.toFixed(1)}%</td>
+          <td>Rp ${r.totalModal.toLocaleString('id-ID')}</td>
+          <td class="${r.totalProfit >= 0 ? 'green' : 'red'}">${formatRp(r.totalProfit)}</td>
+          <td class="${r.totalPct >= 0 ? 'green' : 'red'}">${r.totalPct >= 0 ? '+' : ''}${r.totalPct.toFixed(2)}%</td>
+        </tr>
+      `).join('');
+    }
+
+    function sortData(key) {
+      if (currentSort.key === key) currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+      else {
+        currentSort.key = key;
+        currentSort.dir = key === 'symbol' ? 'asc' : 'desc';
+      }
+      document.querySelectorAll('#tableMulti th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.dataset.key === currentSort.key) th.classList.add(currentSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+      });
+      allResults.sort((a, b) => {
+        let va = a[key], vb = b[key];
+        if (typeof va === 'string') return currentSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        return currentSort.dir === 'asc' ? va - vb : vb - va;
+      });
+      renderTable(allResults);
+    }
+
+    function filterTable() { renderTable(allResults); }
+
+    document.querySelectorAll('#tableMulti th[data-key]').forEach(th => {
+      th.addEventListener('click', () => sortData(th.dataset.key));
+    });
+
+    async function startMultiBacktest() {
+      if (pairsList.length === 0) { alert('Daftar pair belum ter-load.'); return; }
+      const from = dateToUnix(document.getElementById('fromDateMulti').value);
+      const to = dateToUnix(document.getElementById('toDateMulti').value) + 86400;
+      const modalRp = Number(document.getElementById('modalRpMulti').value) || 100000;
+      const feeBuyPct = parseFloat(document.getElementById('feeBuyMulti').value) || 0;
+      const feeSellPct = parseFloat(document.getElementById('feeSellMulti').value) || 0;
+
+      const btn = document.getElementById('btnGenerate');
+      const status = document.getElementById('statusMulti');
+      const progressFill = document.getElementById('progressFill');
+      btn.disabled = true;
+      allResults = [];
+      document.getElementById('tableBodyMulti').innerHTML = '';
+      progressFill.style.width = '0%';
+      document.getElementById('searchInput').value = '';
+
+      let completed = 0;
+      const total = pairsList.length;
+      const queue = [...pairsList];
+      const workers = [];
+
+      async function worker() {
+        while (queue.length > 0) {
+          const pair = queue.shift();
+          const symbol = pair.id;
+          try {
+            const data = await fetchSymbolData(symbol, from, to);
+            await new Promise(r => setTimeout(r, DELAY_AFTER_REQUEST));
+            if (data && data.length >= 30) {
+              const res = runBacktestOnData(data, modalRp, feeBuyPct, feeSellPct);
+              if (res.totalSignal > 0) {
+                allResults.push({ symbol: symbol.toUpperCase(), ...res });
+              }
+            }
+          } catch (err) {
+            console.warn('Skip', symbol, err.message);
+          }
+          completed++;
+          progressFill.style.width = (completed / total * 100).toFixed(1) + '%';
+          status.textContent = `Memproses ${completed}/${total} → ${symbol.toUpperCase()}`;
+        }
+      }
+
+      for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
+      await Promise.all(workers);
+
+      currentSort = { key: 'totalProfit', dir: 'desc' };
+      allResults.sort((a, b) => b.totalProfit - a.totalProfit);
+      document.querySelectorAll('#tableMulti th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.dataset.key === 'totalProfit') th.classList.add('sorted-desc');
+      });
+      renderTable(allResults);
+      progressFill.style.width = '100%';
+      status.textContent = `Selesai! ${allResults.length} symbol berhasil dianalisa.`;
+      btn.disabled = false;
+    }
+
+    // ==================== INIT ====================
     setDefaultDates();
     initChart();
     loadPairs().then(() => setTimeout(loadData, 300));
