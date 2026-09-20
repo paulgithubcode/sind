@@ -46,7 +46,7 @@
       color: #e2e8f0; font-size: 0.9rem;
     }
     input[type="text"] {
-      min-width: 220px;
+      min-width: 240px;
     }
     input[type="text"]::placeholder {
       color: #64748b;
@@ -128,7 +128,7 @@
 </head>
 <body>
   <h1>Crypto Breakout High Matrix</h1>
-  <p class="meta">Klik header kolom untuk mengurutkan (Asc / Desc)</p>
+  <p class="meta">Klik header kolom untuk mengurutkan · Concurrent optimized (tanpa cache)</p>
 
   <!-- Tabs -->
   <div class="tabs">
@@ -139,12 +139,12 @@
   <!-- Controls Swing -->
   <div class="controls" id="controlsSwing">
     <select id="periodSelect">
-      <option value="7">Breakout Period: 1W (7 hari) — Scalping / Intraday</option>
-      <option value="14">Breakout Period: 2W (14 hari) — Swing pendek</option>
-      <option value="30" selected>Breakout Period: 1M (30 hari) — Swing Trade (Rekomendasi)</option>
-      <option value="90">Breakout Period: 3M (90 hari) — Position Trade</option>
-      <option value="180">Breakout Period: 6M (180 hari) — Position panjang</option>
-      <option value="365">Breakout Period: 1Y (365 hari) — Breakout kuat / Long-term</option>
+      <option value="7">Breakout Period: 1W (7 hari)</option>
+      <option value="14">Breakout Period: 2W (14 hari)</option>
+      <option value="30" selected>Breakout Period: 1M (30 hari) — Rekomendasi</option>
+      <option value="90">Breakout Period: 3M (90 hari)</option>
+      <option value="180">Breakout Period: 6M (180 hari)</option>
+      <option value="365">Breakout Period: 1Y (365 hari)</option>
     </select>
     <button id="scanBtn" onclick="startScan()">Tampilkan</button>
   </div>
@@ -170,7 +170,7 @@
     </div>
   </div>
 
-  <!-- Search Box -->
+  <!-- Search -->
   <div class="search-wrapper">
     <input type="text" id="searchInput" placeholder="Cari pair... (contoh: BTC, ETH, PEPE)" oninput="filterTable()">
   </div>
@@ -184,6 +184,11 @@
   <script>
     const PAIRS_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json";
     const HISTORY_BASE = "https://indodax.com/tradingview/history_v2";
+
+    // Pengaturan lebih aman
+    const CONCURRENCY = 3;
+    const DELAY_AFTER_REQUEST = 300; // ms
+    const RETRY_DELAY = 1600;
 
     let allPairs = [];
     let isScanning = false;
@@ -199,8 +204,7 @@
       document.getElementById("tabScalping").classList.toggle("active", mode === "scalping");
       document.getElementById("controlsSwing").style.display = mode === "swing" ? "flex" : "none";
       document.getElementById("controlsScalping").style.display = mode === "scalping" ? "flex" : "none";
-      
-      // Reset search & table
+
       document.getElementById("searchInput").value = "";
       document.getElementById("tableContainer").innerHTML = "";
       document.getElementById("progress").textContent = "";
@@ -220,7 +224,6 @@
       return Math.floor(d.getTime() / 1000);
     }
 
-    // Format kolom mengikuti TF
     function formatKey(ts) {
       const d = new Date(ts * 1000);
       const day = String(d.getDate()).padStart(2, "0");
@@ -231,20 +234,15 @@
       if (currentMode === "swing") {
         return `${day}/${month}`;
       }
-
-      // Scalping → ikuti TF
       if (currentTf === "15" || currentTf === "30") {
         return `${day}/${month} ${hour}:${minute}`;
       }
-      // 1H dan 4H
       return `${day}/${month} ${hour}:00`;
     }
 
-    // Parse key untuk sorting
     function parseKeyToDate(key) {
       const now = new Date();
       const year = now.getFullYear();
-
       if (key.includes(" ")) {
         const [datePart, timePart] = key.split(" ");
         const [day, month] = datePart.split("/").map(Number);
@@ -272,9 +270,19 @@
       return allPairs;
     }
 
-    async function fetchHistory(symbol, from, to, tf = "1d") {
+    async function fetchHistory(symbol, from, to, tf = "1d", isRetry = false) {
       const url = `${HISTORY_BASE}?from=${from}&to=${to}&symbol=${symbol}&tf=${tf}`;
       const res = await fetch(url);
+
+      if (res.status === 429) {
+        if (!isRetry) {
+          console.warn(`429 pada ${symbol}, retry...`);
+          await sleep(RETRY_DELAY);
+          return fetchHistory(symbol, from, to, tf, true);
+        }
+        throw new Error("429 Too Many Requests");
+      }
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     }
@@ -290,8 +298,7 @@
 
       candles.forEach(c => {
         const key = formatKey(c.Time);
-        const isNewHigh = c.High > runningHigh;
-        if (isNewHigh) {
+        if (c.High > runningHigh) {
           runningHigh = c.High;
           breakoutMap[key] = true;
           count++;
@@ -304,6 +311,41 @@
         count,
         dates: candles.map(c => formatKey(c.Time))
       };
+    }
+
+    async function runWithConcurrency(items, concurrency, worker) {
+      const results = [];
+      let index = 0;
+      let active = 0;
+      let completed = 0;
+
+      return new Promise((resolve) => {
+        const next = () => {
+          while (active < concurrency && index < items.length) {
+            const i = index++;
+            active++;
+
+            worker(items[i], i)
+              .then(res => results[i] = res)
+              .catch(err => results[i] = { error: err })
+              .finally(async () => {
+                active--;
+                completed++;
+                document.getElementById("progress").textContent =
+                  `Progress: ${completed}/${items.length}`;
+
+                await sleep(DELAY_AFTER_REQUEST);
+
+                if (completed === items.length) {
+                  resolve(results);
+                } else {
+                  next();
+                }
+              });
+          }
+        };
+        next();
+      });
     }
 
     function sortResults(key) {
@@ -334,7 +376,6 @@
       renderMatrix();
     }
 
-    // Filter berdasarkan search
     function getFilteredResults() {
       const q = document.getElementById("searchInput").value.trim().toLowerCase();
       if (!q) return currentResults;
@@ -384,10 +425,9 @@
             <td><strong>${r.symbol}</strong></td>
             <td class="jml">${r.count}</td>
             ${currentDates.map(d => {
-              if (r.breakoutMap[d]) {
-                return `<td class="check">✓</td>`;
-              }
-              return `<td class="muted">·</td>`;
+              return r.breakoutMap[d]
+                ? `<td class="check">✓</td>`
+                : `<td class="muted">·</td>`;
             }).join("")}
           </tr>
         `;
@@ -405,19 +445,19 @@
         ? document.getElementById("scanBtn")
         : document.getElementById("scanBtnScalp");
 
-      const progressEl = document.getElementById("progress");
       btn.disabled = true;
       document.getElementById("tableContainer").innerHTML = "";
-      document.getElementById("searchInput").value = ""; // reset search
-      showStatus("Memuat daftar pairs...", "loading");
-      progressEl.textContent = "";
+      document.getElementById("searchInput").value = "";
+      document.getElementById("progress").textContent = "";
+
+      const startTime = performance.now();
 
       try {
         if (allPairs.length === 0) {
+          showStatus("Memuat daftar pairs...", "loading");
           await loadPairs();
         }
 
-        const pairsToScan = [...allPairs];
         let periodDays, tf;
 
         if (currentMode === "swing") {
@@ -429,24 +469,20 @@
         }
 
         currentTf = tf;
-
         const to = getUnixTime(0);
         const from = getUnixTime(periodDays + 1);
 
         showStatus(
-          `Scanning ${pairsToScan.length} pairs | Mode: ${currentMode.toUpperCase()} | TF: ${tf} | Lookback: ${periodDays} hari...`,
+          `Scanning ${allPairs.length} pairs | Mode: ${currentMode.toUpperCase()} | TF: ${tf} | Lookback: ${periodDays} hari`,
           "loading"
         );
 
-        const results = [];
-        let allDatesSet = new Set();
         let success = 0;
         let failed = 0;
+        const results = [];
+        const allDatesSet = new Set();
 
-        for (let i = 0; i < pairsToScan.length; i++) {
-          const pair = pairsToScan[i];
-          progressEl.textContent = `Progress: ${i + 1}/${pairsToScan.length} — ${pair.symbol}`;
-
+        const worker = async (pair) => {
           try {
             const candles = await fetchHistory(pair.id, from, to, tf);
             const analysis = findBreakoutDays(candles);
@@ -461,11 +497,10 @@
             failed++;
             console.warn(`Gagal ${pair.id}:`, err.message);
           }
+        };
 
-          await sleep(300);
-        }
+        await runWithConcurrency(allPairs, CONCURRENCY, worker);
 
-        // Urutkan kolom dari yang terbaru
         currentDates = Array.from(allDatesSet).sort((a, b) => {
           return parseKeyToDate(b) - parseKeyToDate(a);
         });
@@ -473,11 +508,13 @@
         currentResults = results;
         sortState = { key: "count", asc: false };
 
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+
         showStatus(
-          `Selesai. Berhasil: ${success} | Gagal: ${failed} | Pair yang punya breakout: ${results.length}`,
+          `Selesai dalam ${elapsed} detik · Berhasil: ${success} | Gagal: ${failed} | Pair breakout: ${results.length}`,
           "success"
         );
-        progressEl.textContent = "";
+        document.getElementById("progress").textContent = "";
         renderMatrix();
 
       } catch (err) {
