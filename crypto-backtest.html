@@ -609,7 +609,7 @@
           else if (val.profit < 0) salah++;
           else belum++;
         }
-
+		
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${analysis.date}</td>
@@ -629,6 +629,7 @@
         tbody.appendChild(tr);
       }
 
+	  const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
       const winrate = totalSignal > 0 ? ((benar / totalSignal) * 100).toFixed(1) : 0;
 
       document.getElementById('summaryGrid').innerHTML = `
@@ -665,11 +666,13 @@
           <div class="label">Fee Buy / Sell</div>
           <div class="value" style="font-size:0.95rem">${feeBuyPct}% / ${feeSellPct}%</div>
         </div>
-        <div class="summary-card">
-          <div class="label">Total Profit (setelah fee)</div>
-          <div class="value ${totalProfit >= 0 ? 'green' : 'red'}">${formatRp(totalProfit)}</div>
-          <div class="sub">${totalProfit >= 0 ? 'UNTUNG' : 'RUGI'}</div>
-        </div>
+		<div class="summary-card">
+		  <div class="label">Total Profit (setelah fee)</div>
+		  <div class="value ${totalProfit >= 0 ? 'green' : 'red'}">${formatRp(totalProfit)}</div>
+		  <div class="sub ${totalProfit >= 0 ? 'green' : 'red'}">
+			${totalProfit >= 0 ? '+' : ''}${totalPct.toFixed(2)}% dari Total Modal
+		  </div>
+		</div>
       `;
 
       progress.textContent = `Selesai! ${totalSignal} sinyal dianalisa · Total Modal Rp ${totalModal.toLocaleString('id-ID')} · Fee Buy ${feeBuyPct}% / Sell ${feeSellPct}%.`;
