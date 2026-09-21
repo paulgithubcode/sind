@@ -15,7 +15,6 @@
       font-size: 13px;
     }
     h1 { font-size: 1.25rem; margin-bottom: 12px; color: #fff; }
-
     .tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
     .tab-btn {
       padding: 8px 16px; border: none; border-radius: 6px 6px 0 0;
@@ -24,7 +23,6 @@
     .tab-btn.active { background: #2962ff; color: #fff; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
-
     .controls {
       display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
       background: #1a1d24; padding: 12px; border-radius: 8px; align-items: flex-end;
@@ -41,17 +39,13 @@
     button.secondary:hover { background: #1b5e20; }
     button:disabled { background: #444; cursor: not-allowed; }
     button.small { padding: 4px 10px; font-size: 0.75rem; }
-
     #chart { width: 100%; height: 310px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 6px; }
     #macdChart { width: 100%; height: 105px; border-radius: 8px; overflow: hidden; background: #131722; margin-bottom: 14px; }
-
     .analysis-box { background: #1a1d24; padding: 14px; border-radius: 8px; }
     .analysis-box h2 { font-size: 1.05rem; margin-bottom: 10px; color: #90caf9; }
-
     #status, .progress, #statusMulti, #statusCons {
       font-size: 0.8rem; margin: 6px 0; color: #aaa;
     }
-
     .table-wrapper {
       overflow: auto; max-height: 55vh; border: 1px solid #333;
       border-radius: 6px; margin-bottom: 14px;
@@ -71,7 +65,6 @@
     .blue { color: #42a5f5; }
     .gray { color: #888; }
     .note { font-size: 0.74rem; color: #777; margin-top: 8px; line-height: 1.45; }
-
     .summary-grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 10px; margin-bottom: 12px;
@@ -82,7 +75,6 @@
     .summary-card .label { font-size: 0.72rem; color: #aaa; margin-bottom: 4px; }
     .summary-card .value { font-size: 1.05rem; font-weight: 700; }
     .summary-card .sub { font-size: 0.69rem; color: #888; margin-top: 3px; }
-
     .symbol-wrapper { position: relative; }
     #symbolSearch { width: 180px; }
     #symbolList {
@@ -92,14 +84,13 @@
     }
     #symbolList div { padding: 7px 10px; cursor: pointer; font-size: 0.8rem; }
     #symbolList div:hover { background: #333; }
-
     .progress-bar {
       height: 6px; background: #252830; border-radius: 4px; overflow: hidden; margin-bottom: 14px;
     }
     .progress-fill { height: 100%; background: #2962ff; width: 0%; transition: width 0.25s; }
-    .table-tools { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; }
+    .table-tools { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
     .table-tools input { width: 220px; }
-
+    .table-tools select { min-width: 200px; }
     /* Sorting style */
     #tableMulti th, #tableCons th {
       cursor: pointer;
@@ -118,18 +109,17 @@
       content: " ▼";
       font-size: 0.7rem;
     }
+    tr.group-start td { border-top: 2px solid #3a4050; }
+    tr.group-start td:first-child { font-weight: 700; }
   </style>
 </head>
 <body>
-
   <h1>Indodax Backtest · Single + Multi + Consistency</h1>
-
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('single')">Single Symbol</button>
     <button class="tab-btn" onclick="switchTab('multi')">Multi Symbol</button>
     <button class="tab-btn" onclick="switchTab('cons')">Consistency Check</button>
   </div>
-
   <!-- ==================== TAB 1: SINGLE ==================== -->
   <div id="tab-single" class="tab-content active">
     <div class="controls">
@@ -164,11 +154,9 @@
       <button onclick="loadData()">Load Data</button>
       <button class="secondary" onclick="generateFullTable()">Generate Full Table</button>
     </div>
-
     <div id="status"></div>
     <div id="chart"></div>
     <div id="macdChart"></div>
-
     <div class="analysis-box">
       <h2>Ringkasan Hasil Backtest</h2>
       <div class="summary-grid" id="summaryGrid">
@@ -192,7 +180,6 @@
       </div>
     </div>
   </div>
-
   <!-- ==================== TAB 2: MULTI ==================== -->
   <div id="tab-multi" class="tab-content">
     <div class="controls">
@@ -205,15 +192,12 @@
       <label>Fee Sell (%) <input type="text" id="feeSellMulti" value="0.4211" style="width:80px"></label>
       <button id="btnGenerate" onclick="startMultiBacktest()">Generate All Symbols</button>
     </div>
-
     <div id="statusMulti">Siap.</div>
     <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-
     <div class="table-tools">
       <input type="text" id="searchInput" placeholder="Cari symbol..." oninput="filterTable()">
       <span id="resultCount" style="color:#888;font-size:0.8rem"></span>
     </div>
-
     <div class="table-wrapper">
       <table id="tableMulti">
         <thead>
@@ -235,7 +219,6 @@
       </table>
     </div>
   </div>
-
   <!-- ==================== TAB 3: CONSISTENCY ==================== -->
   <div id="tab-cons" class="tab-content">
     <div class="controls">
@@ -246,18 +229,45 @@
       <label>Fee Sell (%) <input type="text" id="feeSellCons" value="0.4211" style="width:80px"></label>
       <button id="btnCons" onclick="runFullConsistency()">Jalankan Consistency Semua Symbol</button>
     </div>
-
     <div id="statusCons">
       Akan mengecek <strong>semua symbol</strong> di 4 periode (6, 12, 18, 24 bulan).<br>
       Proses ini cukup lama. Jangan menutup tab browser.
     </div>
     <div class="progress-bar"><div class="progress-fill" id="progressFillCons"></div></div>
-
     <div class="table-tools">
       <input type="text" id="searchCons" placeholder="Cari symbol..." oninput="filterConsTable()">
+      <label style="font-size:0.78rem;display:flex;flex-direction:column;gap:3px;margin:0">
+        Filter Status + Rekomendasi
+        <select id="filterStatusCons" onchange="filterConsTable()">
+          <option value="">Semua</option>
+          <option value="Konsisten|Baik">Konsisten · Baik</option>
+          <option value="Mendekati|Cukup">Mendekati · Cukup</option>
+          <option value="Kurang Stabil|Kurang Stabil">Kurang Stabil · Kurang Stabil</option>
+        </select>
+      </label>
+      <label style="font-size:0.78rem;display:flex;flex-direction:column;gap:3px;margin:0">
+        Filter Periode
+        <select id="filterPeriodeCons" onchange="filterConsTable()">
+          <option value="">Semua</option>
+          <option value="6 Bulan">6 Bulan</option>
+          <option value="12 Bulan">12 Bulan</option>
+          <option value="18 Bulan">18 Bulan</option>
+          <option value="24 Bulan">24 Bulan</option>
+          <option value="6 Bulan|12 Bulan">6 + 12 Bulan</option>
+          <option value="6 Bulan|18 Bulan">6 + 18 Bulan</option>
+          <option value="6 Bulan|24 Bulan">6 + 24 Bulan</option>
+          <option value="12 Bulan|18 Bulan">12 + 18 Bulan</option>
+          <option value="12 Bulan|24 Bulan">12 + 24 Bulan</option>
+          <option value="18 Bulan|24 Bulan">18 + 24 Bulan</option>
+          <option value="6 Bulan|12 Bulan|18 Bulan">6 + 12 + 18 Bulan</option>
+          <option value="6 Bulan|12 Bulan|24 Bulan">6 + 12 + 24 Bulan</option>
+          <option value="6 Bulan|18 Bulan|24 Bulan">6 + 18 + 24 Bulan</option>
+          <option value="12 Bulan|18 Bulan|24 Bulan">12 + 18 + 24 Bulan</option>
+          <option value="6 Bulan|12 Bulan|18 Bulan|24 Bulan">6 + 12 + 18 + 24 Bulan</option>
+        </select>
+      </label>
       <span id="resultCountCons" style="color:#888;font-size:0.8rem"></span>
     </div>
-
     <div class="table-wrapper">
       <table id="tableCons">
         <thead>
@@ -280,14 +290,13 @@
         </tbody>
       </table>
     </div>
-
     <p class="note">
       • Klik header kolom untuk sort ASC / DESC<br>
       • Status "Konsisten" = Winrate ≥ 50% dan Profit Factor ≥ 1.3<br>
+      • Filter Status + Periode: hanya tampil symbol yang <strong>Konsisten · Baik di SEMUA periode</strong> yang dipilih<br>
       • Tombol "Gunakan Periode Ini" mengisi tanggal di Tab Single & Multi
     </p>
   </div>
-
   <script>
     // ==================== TAB SWITCH ====================
     function switchTab(tab) {
@@ -296,7 +305,6 @@
       document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
       document.getElementById('tab-' + tab).classList.add('active');
     }
-
     // ==================== SHARED ====================
     let pairsList = [];
     function setDefaultDates() {
@@ -329,7 +337,6 @@
       d.setDate(d.getDate() - n);
       return d.toISOString().slice(0, 10);
     }
-
     // ==================== PAIR LOADER ====================
     async function loadPairs() {
       try {
@@ -344,7 +351,6 @@
         document.getElementById('statusMulti').textContent = `Siap. Ditemukan ${pairsList.length} pair.`;
       } catch (err) { console.error(err); }
     }
-
     function renderSymbolList(list) {
       const container = document.getElementById('symbolList');
       container.innerHTML = '';
@@ -359,7 +365,6 @@
         container.appendChild(div);
       });
     }
-
     document.addEventListener('DOMContentLoaded', () => {
       const searchInput = document.getElementById('symbolSearch');
       const list = document.getElementById('symbolList');
@@ -383,12 +388,10 @@
         if (!e.target.closest('.symbol-wrapper')) list.style.display = 'none';
       });
     });
-
     // ==================== SINGLE SYMBOL ====================
     let chart, candleSeries, volumeSeries, maSeries, emaSeries;
     let macdChart, macdLineSeries, macdSignalSeries, macdHistSeries;
     let allData = [];
-
     function initChart() {
       const container = document.getElementById('chart');
       chart = LightweightCharts.createChart(container, {
@@ -409,7 +412,6 @@
       });
       maSeries = chart.addLineSeries({ color: '#ff9800', lineWidth: 1.5, title: 'MA' });
       emaSeries = chart.addLineSeries({ color: '#2196f3', lineWidth: 1.5, title: 'EMA' });
-
       const macdContainer = document.getElementById('macdChart');
       macdChart = LightweightCharts.createChart(macdContainer, {
         layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
@@ -421,7 +423,6 @@
       macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: 'price', precision: 0 } });
       macdLineSeries = macdChart.addLineSeries({ color: '#2962ff', lineWidth: 1.5, title: 'MACD' });
       macdSignalSeries = macdChart.addLineSeries({ color: '#ff6d00', lineWidth: 1.5, title: 'Signal' });
-
       chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (range) macdChart.timeScale().setVisibleLogicalRange(range);
       });
@@ -433,7 +434,6 @@
         macdChart.applyOptions({ width: macdContainer.clientWidth, height: macdContainer.clientHeight });
       }).observe(container);
     }
-
     function calcSMA(data, period) {
       const result = [];
       for (let i = period - 1; i < data.length; i++) {
@@ -474,7 +474,6 @@
       }));
       return { macdLine, signalLine, hist };
     }
-
     async function loadData() {
       const symbol = document.getElementById('symbol').value.trim().toLowerCase();
       const tf = document.getElementById('tf').value;
@@ -494,7 +493,6 @@
         allData = raw.map(d => ({
           time: d.Time, open: +d.Open, high: +d.High, low: +d.Low, close: +d.Close, volume: +d.Volume
         })).sort((a, b) => a.time - b.time);
-
         candleSeries.setData(allData.map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })));
         volumeSeries.setData(allData.map(d => ({
           time: d.time, value: d.volume,
@@ -514,7 +512,6 @@
         document.getElementById('status').textContent = 'Error: ' + err.message;
       }
     }
-
     function analyzeAtIndex(idx) {
       const data = allData.slice(0, idx + 1);
       if (data.length < 25) return null;
@@ -554,7 +551,6 @@
       } else note = 'Wait / range';
       return { date: unixToDate(last.time), close: last.close, priceAction, phase, buy, cl, tp1, note, hasSignal, idx };
     }
-
     function calculateProfitWithFee(entryPrice, exitPrice, modalRp, feeBuyPct, feeSellPct) {
       const feeBuy = feeBuyPct / 100;
       const feeSell = feeSellPct / 100;
@@ -563,7 +559,6 @@
       const profit = sellProceeds - modalRp;
       return { pct: profit / modalRp, profit, modalSetelahFeeBeli: modalRp / (1 + feeBuy) };
     }
-
     function validateForward(analysis, modalRp, feeBuyPct, feeSellPct) {
       if (!analysis.hasSignal) return { hasil: '-', closeDate: '-', profit: 0, modalSetelahFeeBeli: 0 };
       const future = allData.slice(analysis.idx + 1);
@@ -581,7 +576,6 @@
       const { modalSetelahFeeBeli } = calculateProfitWithFee(analysis.buy, analysis.buy, modalRp, feeBuyPct, feeSellPct);
       return { hasil: 'Belum close', closeDate: '-', profit: 0, modalSetelahFeeBeli };
     }
-
     async function generateFullTable() {
       if (allData.length < 30) { alert('Data terlalu sedikit.'); return; }
       const modalRp = Number(document.getElementById('modalRp').value) || 100000;
@@ -591,7 +585,6 @@
       tbody.innerHTML = '';
       let totalSignal = 0, benar = 0, salah = 0, belum = 0, totalModal = 0, totalProfit = 0;
       const fmt = n => n != null ? Math.round(n).toLocaleString('id-ID') : '-';
-
       for (let i = 24; i < allData.length; i++) {
         const analysis = analyzeAtIndex(i);
         if (!analysis) continue;
@@ -620,7 +613,6 @@
           <td>${analysis.note}</td>`;
         tbody.appendChild(tr);
       }
-
       const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
       const winrate = totalSignal > 0 ? ((benar / totalSignal) * 100).toFixed(1) : 0;
       document.getElementById('summaryGrid').innerHTML = `
@@ -633,12 +625,10 @@
           <div class="sub">${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(2)}%</div></div>
       `;
     }
-
     // ==================== SHARED BACKTEST ENGINE ====================
     function runBacktestFull(dataArr, modalRp, feeBuyPct, feeSellPct) {
       let totalSignal = 0, benar = 0, salah = 0, belum = 0;
       let totalModal = 0, totalProfit = 0, grossProfit = 0, grossLoss = 0;
-
       for (let i = 24; i < dataArr.length; i++) {
         const data = dataArr.slice(0, i + 1);
         if (data.length < 25) continue;
@@ -647,22 +637,18 @@
         const recent = data.slice(-lookback - 1, -1);
         let swingHigh = -Infinity, swingLow = Infinity;
         recent.forEach(d => { if (d.high > swingHigh) swingHigh = d.high; if (d.low < swingLow) swingLow = d.low; });
-
         let priceAction = 'Range';
         if (last.close > swingHigh) priceAction = 'Breakout High';
         else if (last.close < swingLow) priceAction = 'Breakout Low';
-
         const avgVol = recent.reduce((s, d) => s + d.volume, 0) / (recent.length || 1);
         const volRatio = last.volume / (avgVol || 1);
         const firstClose = recent[0]?.close || last.close;
         const trendPct = ((last.close - firstClose) / firstClose) * 100;
         const rangePct = ((swingHigh - swingLow) / swingLow) * 100;
-
         let phase = 'Netral';
         if (rangePct < 8 && volRatio < 0.85) phase = 'Akumulasi';
         else if (trendPct > 5 && volRatio > 1.0) phase = 'Markup';
         else if (trendPct < -5 && volRatio > 1.0) phase = 'Markdown';
-
         let buy = null, cl = null, tp1 = null, hasSignal = false;
         if (priceAction === 'Breakout High' || phase.includes('Markup')) {
           buy = last.close; cl = swingLow * 0.995;
@@ -673,19 +659,15 @@
           const riskDist = buy - cl;
           if (riskDist > 0) { tp1 = buy + riskDist * 2; hasSignal = true; }
         }
-
         if (!hasSignal) continue;
-
         const future = dataArr.slice(i + 1);
         let exitPrice = null;
         for (const d of future) {
           if (d.high >= tp1) { exitPrice = tp1; break; }
           if (d.low <= cl) { exitPrice = cl; break; }
         }
-
         totalSignal++;
         totalModal += modalRp;
-
         if (exitPrice !== null) {
           const feeBuy = feeBuyPct / 100;
           const feeSell = feeSellPct / 100;
@@ -698,14 +680,11 @@
           belum++;
         }
       }
-
       const winrate = totalSignal > 0 ? (benar / totalSignal) * 100 : 0;
       const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
       const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 99 : 0);
-
       return { totalSignal, benar, salah, belum, winrate, totalModal, totalProfit, totalPct, profitFactor };
     }
-
     async function fetchSymbolData(symbol, from, to, attempt = 1) {
       try {
         const url = `https://indodax.com/tradingview/history_v2?from=${from}&to=${to}&symbol=${symbol}&tf=1d`;
@@ -724,13 +703,11 @@
         return null;
       }
     }
-
     // ==================== MULTI SYMBOL ====================
     const CONCURRENCY = 3;
     const DELAY_AFTER_REQUEST = 300;
     let allResults = [];
     let currentSort = { key: 'totalProfit', dir: 'desc' };
-
     function renderTable(data) {
       const tbody = document.getElementById('tableBodyMulti');
       const search = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -754,7 +731,6 @@
         </tr>
       `).join('');
     }
-
     function sortData(key) {
       if (currentSort.key === key) currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
       else { currentSort.key = key; currentSort.dir = key === 'symbol' ? 'asc' : 'desc'; }
@@ -769,13 +745,10 @@
       });
       renderTable(allResults);
     }
-
     function filterTable() { renderTable(allResults); }
-
     document.querySelectorAll('#tableMulti th[data-key]').forEach(th => {
       th.addEventListener('click', () => sortData(th.dataset.key));
     });
-
     async function startMultiBacktest() {
       if (pairsList.length === 0) return alert('Daftar pair belum ter-load.');
       const from = dateToUnix(document.getElementById('fromDateMulti').value);
@@ -783,7 +756,6 @@
       const modalRp = Number(document.getElementById('modalRpMulti').value) || 100000;
       const feeBuyPct = parseFloat(document.getElementById('feeBuyMulti').value) || 0;
       const feeSellPct = parseFloat(document.getElementById('feeSellMulti').value) || 0;
-
       const btn = document.getElementById('btnGenerate');
       const status = document.getElementById('statusMulti');
       const progressFill = document.getElementById('progressFill');
@@ -791,12 +763,10 @@
       allResults = [];
       document.getElementById('tableBodyMulti').innerHTML = '';
       progressFill.style.width = '0%';
-
       let completed = 0;
       const total = pairsList.length;
       const queue = [...pairsList];
       const workers = [];
-
       async function worker() {
         while (queue.length > 0) {
           const pair = queue.shift();
@@ -814,58 +784,50 @@
           status.textContent = `Memproses ${completed}/${total} → ${symbol.toUpperCase()}`;
         }
       }
-
       for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
       await Promise.all(workers);
-
       allResults.sort((a, b) => b.totalProfit - a.totalProfit);
       renderTable(allResults);
       progressFill.style.width = '100%';
       status.textContent = `Selesai! ${allResults.length} symbol berhasil dianalisa.`;
       btn.disabled = false;
     }
-
     // ==================== CONSISTENCY CHECK ====================
     let consResults = [];
-    let consSort = { key: 'profitFactor', dir: 'desc' };
+    let consSort = { key: 'profitFactor', dir: 'desc', active: false };
+    const periodeOrder = { '6 Bulan': 1, '12 Bulan': 2, '18 Bulan': 3, '24 Bulan': 4 };
 
     async function runFullConsistency() {
       if (pairsList.length === 0) return alert('Daftar pair belum ter-load.');
-
       const modalRp = Number(document.getElementById('modalRpCons').value) || 100000;
       const feeBuyPct = parseFloat(document.getElementById('feeBuyCons').value) || 0;
       const feeSellPct = parseFloat(document.getElementById('feeSellCons').value) || 0;
-
       const btn = document.getElementById('btnCons');
       const status = document.getElementById('statusCons');
       const progressFill = document.getElementById('progressFillCons');
       const tbody = document.getElementById('tableBodyCons');
-
       btn.disabled = true;
       consResults = [];
       tbody.innerHTML = '';
       progressFill.style.width = '0%';
       document.getElementById('searchCons').value = '';
-
+      document.getElementById('filterStatusCons').value = '';
+      document.getElementById('filterPeriodeCons').value = '';
       const periods = [
         { label: '6 Bulan', days: 180 },
         { label: '12 Bulan', days: 365 },
         { label: '18 Bulan', days: 547 },
         { label: '24 Bulan', days: 730 }
       ];
-
       const today = new Date().toISOString().slice(0, 10);
       const totalTasks = pairsList.length;
       let completed = 0;
-
       const queue = [...pairsList];
       const workers = [];
-
       async function worker() {
         while (queue.length > 0) {
           const pair = queue.shift();
           const symbol = pair.id;
-
           const from24 = dateToUnix(daysAgo(730));
           const to = dateToUnix(today) + 86400;
           let fullData = null;
@@ -873,19 +835,15 @@
             fullData = await fetchSymbolData(symbol, from24, to);
             await new Promise(r => setTimeout(r, DELAY_AFTER_REQUEST));
           } catch (e) {}
-
           if (fullData && fullData.length >= 40) {
             for (const p of periods) {
               const fromTime = dateToUnix(daysAgo(p.days));
               const periodData = fullData.filter(d => d.time >= fromTime);
               if (periodData.length < 40) continue;
-
               const res = runBacktestFull(periodData, modalRp, feeBuyPct, feeSellPct);
-
               let statusText = 'Kurang Stabil';
               let rekomendasi = 'Kurang Stabil';
               let statusClass = 'red';
-
               if (res.winrate >= 50 && res.profitFactor >= 1.3) {
                 statusText = 'Konsisten';
                 rekomendasi = 'Baik';
@@ -895,7 +853,6 @@
                 rekomendasi = 'Cukup';
                 statusClass = 'yellow';
               }
-
               consResults.push({
                 symbol: symbol.toUpperCase(),
                 periode: p.label,
@@ -911,28 +868,24 @@
               });
             }
           }
-
           completed++;
           progressFill.style.width = (completed / totalTasks * 100).toFixed(1) + '%';
           status.textContent = `Memproses ${completed}/${totalTasks} → ${symbol.toUpperCase()}`;
         }
       }
-
       for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
       await Promise.all(workers);
-
-      // Default sort by Profit Factor desc
-      consSort = { key: 'profitFactor', dir: 'desc' };
-      consResults.sort((a, b) => b.profitFactor - a.profitFactor);
-
-      // Tandai header
+      // Default: group by symbol ASC + periode ASC
+      consSort = { key: 'symbol', dir: 'asc', active: false };
+      consResults.sort((a, b) => {
+        const symCmp = a.symbol.localeCompare(b.symbol);
+        if (symCmp !== 0) return symCmp;
+        return (periodeOrder[a.periode] || 99) - (periodeOrder[b.periode] || 99);
+      });
       document.querySelectorAll('#tableCons th').forEach(th => {
         th.classList.remove('sorted-asc', 'sorted-desc');
-        if (th.dataset.key === 'profitFactor') th.classList.add('sorted-desc');
       });
-
       renderConsTable(consResults);
-
       progressFill.style.width = '100%';
       status.textContent = `Selesai! Total ${consResults.length} baris hasil.`;
       btn.disabled = false;
@@ -941,16 +894,81 @@
     function renderConsTable(data) {
       const tbody = document.getElementById('tableBodyCons');
       const search = document.getElementById('searchCons').value.toLowerCase().trim();
-      let filtered = search ? data.filter(r => r.symbol.toLowerCase().includes(search)) : data;
-      document.getElementById('resultCountCons').textContent = filtered.length + ' baris';
+      const statusFilter = document.getElementById('filterStatusCons').value;
+      const periodeFilter = document.getElementById('filterPeriodeCons').value;
 
+      let filtered = data;
+
+      // 1. Filter by search (symbol)
+      if (search) {
+        filtered = filtered.filter(r => r.symbol.toLowerCase().includes(search));
+      }
+
+      // 2. Jika ada status filter + periode filter:
+      //    Hanya tampilkan symbol yang MEMENUHI status tsb di SEMUA periode yang dipilih
+      if (statusFilter && periodeFilter) {
+        const [st, rek] = statusFilter.split('|');
+        const requiredPeriods = periodeFilter.split('|');
+
+        // Group by symbol
+        const bySymbol = {};
+        filtered.forEach(r => {
+          if (!bySymbol[r.symbol]) bySymbol[r.symbol] = [];
+          bySymbol[r.symbol].push(r);
+        });
+
+        // Cari symbol yang punya status yang diminta di SETIAP periode yang dipilih
+        const qualifyingSymbols = new Set();
+        for (const [sym, rows] of Object.entries(bySymbol)) {
+          const matchingPeriods = new Set(
+            rows
+              .filter(r => r.status === st && r.rekomendasi === rek)
+              .map(r => r.periode)
+          );
+          // Harus punya SEMUA requiredPeriods
+          const hasAll = requiredPeriods.every(p => matchingPeriods.has(p));
+          if (hasAll) qualifyingSymbols.add(sym);
+        }
+
+        // Hanya ambil baris dari symbol yang lolos, dan hanya periode yang dipilih + status cocok
+        filtered = filtered.filter(r =>
+          qualifyingSymbols.has(r.symbol) &&
+          requiredPeriods.includes(r.periode) &&
+          r.status === st && r.rekomendasi === rek
+        );
+      }
+      // 3. Hanya status filter (tanpa periode) → filter baris biasa
+      else if (statusFilter) {
+        const [st, rek] = statusFilter.split('|');
+        filtered = filtered.filter(r => r.status === st && r.rekomendasi === rek);
+      }
+      // 4. Hanya periode filter (tanpa status) → tampilkan semua status di periode tsb
+      else if (periodeFilter) {
+        const allowed = periodeFilter.split('|');
+        filtered = filtered.filter(r => allowed.includes(r.periode));
+      }
+
+      // Always group by symbol ASC + periode ASC (unless user clicked a column sort)
+      if (!consSort.active) {
+        filtered = [...filtered].sort((a, b) => {
+          const symCmp = a.symbol.localeCompare(b.symbol);
+          if (symCmp !== 0) return symCmp;
+          return (periodeOrder[a.periode] || 99) - (periodeOrder[b.periode] || 99);
+        });
+      }
+
+      document.getElementById('resultCountCons').textContent = filtered.length + ' baris';
       if (filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Tidak ada data.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = filtered.map(r => `
-        <tr>
+      let lastSymbol = null;
+      tbody.innerHTML = filtered.map(r => {
+        const isGroupStart = r.symbol !== lastSymbol;
+        lastSymbol = r.symbol;
+        return `
+        <tr class="${isGroupStart ? 'group-start' : ''}">
           <td><strong>${r.symbol}</strong></td>
           <td>${r.periode}</td>
           <td>${r.dari}</td>
@@ -967,46 +985,50 @@
             </button>
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function filterConsTable() {
+      // Reset custom sort when filtering so grouping is preserved
+      consSort.active = false;
+      document.querySelectorAll('#tableCons th').forEach(t => t.classList.remove('sorted-asc','sorted-desc'));
       renderConsTable(consResults);
     }
 
     // ==================== SORTING CONSISTENCY ====================
     function sortConsData(key) {
-      if (consSort.key === key) {
+      if (consSort.key === key && consSort.active) {
         consSort.dir = consSort.dir === 'asc' ? 'desc' : 'asc';
       } else {
         consSort.key = key;
         consSort.dir = (key === 'symbol' || key === 'periode' || key === 'status' || key === 'rekomendasi') ? 'asc' : 'desc';
       }
-
+      consSort.active = true;
       document.querySelectorAll('#tableCons th').forEach(th => {
         th.classList.remove('sorted-asc', 'sorted-desc');
         if (th.dataset.key === consSort.key) {
           th.classList.add(consSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
         }
       });
-
       consResults.sort((a, b) => {
         let va = a[key];
         let vb = b[key];
+        if (key === 'periode') {
+          va = periodeOrder[va] || 99;
+          vb = periodeOrder[vb] || 99;
+        }
         if (typeof va === 'string') {
           return consSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
         }
         return consSort.dir === 'asc' ? va - vb : vb - va;
       });
-
       renderConsTable(consResults);
     }
-
     // Pasang event click header Consistency
     document.querySelectorAll('#tableCons th[data-key]').forEach(th => {
       th.addEventListener('click', () => sortConsData(th.dataset.key));
     });
-
     function applyPeriod(from, to) {
       document.getElementById('fromDate').value = from;
       document.getElementById('toDate').value = to;
@@ -1014,7 +1036,6 @@
       document.getElementById('toDateMulti').value = to;
       alert(`Tanggal berhasil diisi:\nFrom: ${from}\nTo: ${to}\n\nSilakan pindah ke Tab Single atau Multi.`);
     }
-
     // ==================== INIT ====================
     setDefaultDates();
     initChart();
