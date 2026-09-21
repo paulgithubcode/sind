@@ -114,7 +114,19 @@
           <option value="">-- Pilih saham --</option>
         </select>
       </label>
-      <label>Modal (Lot)
+      <label>From
+        <input type="date" id="fromDate" style="width:130px" onchange="onDateChange('from')">
+      </label>
+      <label>To
+        <input type="date" id="toDate" style="width:130px" onchange="onDateChange('to')">
+      </label>
+      <label>MA
+        <input type="number" id="maPeriod" value="20" min="2" max="200" style="width:56px">
+      </label>
+      <label>EMA
+        <input type="number" id="emaPeriod" value="50" min="2" max="200" style="width:56px">
+      </label>
+      <label>Modal per Trade (Lot)
         <input type="number" id="modalLot" value="1" min="1" step="1" style="width:80px">
       </label>
       <label>Fee Buy (%)
@@ -162,16 +174,18 @@
         </table>
       </div>
       <p class="note">
-        • Input <strong>Modal (Lot)</strong> = berapa lot yang ingin dipakai setiap sinyal.<br>
+        • Input <strong>Modal per Trade (Lot)</strong> = berapa lot yang ingin dipakai setiap sinyal.<br>
         • 1 Lot = 100 lembar.<br>
-        • Total (Rp) = Lot × 100 × harga beli (sebelum fee).
+        • Total (Rp) = Lot × 100 × harga beli (sebelum fee).<br>
+        • From / To bisa diubah manual. From tidak boleh di bawah tanggal data upload. To tidak boleh lewat hari ini.<br>
+        • Klik "Gunakan Periode Ini" di Consistency Check untuk mengisi From / To otomatis.
       </p>
     </div>
   </div>
   <!-- ==================== TAB 2: MULTI ==================== -->
   <div id="tab-multi" class="tab-content">
     <div class="controls">
-      <label>Modal (Lot)
+      <label>Modal per Trade (Lot)
         <input type="number" id="modalLotMulti" value="1" min="1" step="1" style="width:80px">
       </label>
       <label>Fee Buy (%)
@@ -212,7 +226,7 @@
   <!-- ==================== TAB 3: CONSISTENCY ==================== -->
   <div id="tab-cons" class="tab-content">
     <div class="controls">
-      <label>Modal (Lot)
+      <label>Modal per Trade (Lot)
         <input type="number" id="modalLotCons" value="1" min="1" step="1" style="width:80px">
       </label>
       <label>Fee Buy (%)
@@ -273,10 +287,11 @@
             <th data-key="totalPct">Total Profit %</th>
             <th data-key="status">Status</th>
             <th data-key="rekomendasi">Rekomendasi</th>
+            <th>Aksi</th>
           </tr>
         </thead>
         <tbody id="tableBodyCons">
-          <tr><td colspan="10" style="text-align:center;color:#888;padding:30px">Belum dijalankan</td></tr>
+          <tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Belum dijalankan</td></tr>
         </tbody>
       </table>
     </div>
@@ -353,6 +368,24 @@
         select.appendChild(opt);
       });
       const dateRange = getOverallDateRange();
+      dataMinDate = dateRange.from !== '-' ? dateRange.from : null;
+      dataMaxDate = dateRange.to !== '-' ? dateRange.to : null;
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      // Set min/max bounds on date inputs
+      const fromEl = document.getElementById('fromDate');
+      const toEl = document.getElementById('toDate');
+      if (dataMinDate) {
+        fromEl.min = dataMinDate;
+        toEl.min = dataMinDate;
+      }
+      fromEl.max = todayStr;
+      toEl.max = todayStr;
+
+      // Default fill if empty
+      if (!fromEl.value && dataMinDate) fromEl.value = dataMinDate;
+      if (!toEl.value && dataMaxDate) toEl.value = dataMaxDate > todayStr ? todayStr : dataMaxDate;
+
       document.getElementById('uploadStatus').innerHTML = `
         <span class="green">Berhasil load ${stockList.length} saham</span> · 
         ${totalRecords} baris data · 
@@ -361,6 +394,9 @@
       document.getElementById('statusMulti').textContent = `Data siap. ${stockList.length} saham tersedia.`;
       document.getElementById('statusCons').textContent = `Data siap. ${stockList.length} saham tersedia.`;
     }
+    let dataMinDate = null; // earliest date in uploaded data
+    let dataMaxDate = null; // latest date in uploaded data
+
     function getOverallDateRange() {
       let minT = Infinity, maxT = -Infinity;
       Object.values(stockData).forEach(arr => {
@@ -373,6 +409,36 @@
         from: minT < Infinity ? new Date(minT * 1000).toISOString().slice(0, 10) : '-',
         to: maxT > -Infinity ? new Date(maxT * 1000).toISOString().slice(0, 10) : '-'
       };
+    }
+
+    function onDateChange(which) {
+      const fromEl = document.getElementById('fromDate');
+      const toEl = document.getElementById('toDate');
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      // From: tidak boleh di bawah tanggal data upload
+      if (dataMinDate && fromEl.value && fromEl.value < dataMinDate) {
+        fromEl.value = dataMinDate;
+        fromEl.readOnly = true;
+        setTimeout(() => { fromEl.readOnly = false; }, 100);
+      } else {
+        fromEl.readOnly = false;
+      }
+
+      // To: tidak boleh lebih dari hari ini
+      if (toEl.value && toEl.value > todayStr) {
+        toEl.value = todayStr;
+        toEl.readOnly = true;
+        setTimeout(() => { toEl.readOnly = false; }, 100);
+      } else {
+        toEl.readOnly = false;
+      }
+
+      // From tidak boleh > To
+      if (fromEl.value && toEl.value && fromEl.value > toEl.value) {
+        if (which === 'from') toEl.value = fromEl.value;
+        else fromEl.value = toEl.value;
+      }
     }
     // ==================== CHART ====================
     let chart, candleSeries, volumeSeries, maSeries, emaSeries;
@@ -455,23 +521,69 @@
     function loadSelectedStock() {
       const code = document.getElementById('stockSelect').value;
       if (!code || !stockData[code]) return alert('Pilih saham terlebih dahulu');
-      currentData = stockData[code];
-      if (currentData.length < 30) return alert('Data terlalu sedikit');
+      let data = stockData[code];
+      if (data.length < 30) return alert('Data terlalu sedikit');
+
+      // Filter by From/To if set (from "Gunakan Periode Ini")
+      const fromVal = document.getElementById('fromDate').value;
+      const toVal = document.getElementById('toDate').value;
+      if (fromVal && toVal) {
+        const fromT = Math.floor(new Date(fromVal + 'T00:00:00Z').getTime() / 1000);
+        const toT = Math.floor(new Date(toVal + 'T23:59:59Z').getTime() / 1000);
+        const filtered = data.filter(d => d.time >= fromT && d.time <= toT);
+        if (filtered.length >= 30) data = filtered;
+      }
+
+      currentData = data;
+
+      // Jangan overwrite From/To — biarkan nilai hasil upload / yang di-set user
+      const firstDate = new Date(currentData[0].time * 1000).toISOString().slice(0, 10);
+      const lastDate = new Date(currentData[currentData.length - 1].time * 1000).toISOString().slice(0, 10);
+      const fromEl = document.getElementById('fromDate');
+      const toEl = document.getElementById('toDate');
+      if (!fromEl.value) fromEl.value = dataMinDate || firstDate;
+      if (!toEl.value) toEl.value = dataMaxDate || lastDate;
+
+      const maPer = +document.getElementById('maPeriod').value || 20;
+      const emaPer = +document.getElementById('emaPeriod').value || 50;
+
       candleSeries.setData(currentData.map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })));
       volumeSeries.setData(currentData.map(d => ({
         time: d.time, value: d.volume,
         color: d.close >= d.open ? 'rgba(38,166,154,0.45)' : 'rgba(239,83,80,0.45)'
       })));
-      maSeries.setData(calcSMA(currentData, 20));
-      emaSeries.setData(calcEMA(currentData, 50));
+      maSeries.setData(calcSMA(currentData, maPer));
+      emaSeries.setData(calcEMA(currentData, emaPer));
       const { macdLine, signalLine, hist } = calcMACD(currentData);
       macdLineSeries.setData(macdLine);
       macdSignalSeries.setData(signalLine);
       macdHistSeries.setData(hist);
       chart.timeScale().fitContent();
       macdChart.timeScale().fitContent();
-      document.getElementById('status').textContent = `Loaded ${currentData.length} hari data · ${code}`;
+      const displayFrom = fromEl.value || firstDate;
+      const displayTo = toEl.value || lastDate;
+      let statusMsg = `Loaded ${currentData.length} hari data · ${code} · ${displayFrom} → ${displayTo}`;
+      if (firstDate !== displayFrom || lastDate !== displayTo) {
+        statusMsg += ` (data aktual saham: ${firstDate} → ${lastDate})`;
+      }
+      document.getElementById('status').textContent = statusMsg;
       document.getElementById('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;color:#888;padding:16px">Data siap. Klik Generate Full Table</td></tr>';
+    }
+
+    function applyPeriod(from, to, symbol) {
+      document.getElementById('fromDate').value = from;
+      document.getElementById('toDate').value = to;
+      // Auto-select the symbol if provided
+      if (symbol && stockData[symbol]) {
+        document.getElementById('stockSelect').value = symbol;
+        loadSelectedStock();
+      } else {
+        const code = document.getElementById('stockSelect').value;
+        if (code && stockData[code]) {
+          loadSelectedStock();
+        }
+      }
+      alert(`Tanggal berhasil diisi:\nFrom: ${from}\nTo: ${to}${symbol ? '\nSaham: ' + symbol : ''}\n\nSilakan pindah ke Tab Single Symbol untuk Generate Full Table.`);
     }
     // ==================== LOT CALCULATION ====================
     // User input = jumlah lot
@@ -854,7 +966,7 @@
 
       document.getElementById('resultCountCons').textContent = filtered.length + ' baris';
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:#888;padding:30px">Tidak ada data</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Tidak ada data</td></tr>`;
         return;
       }
 
@@ -874,6 +986,11 @@
           <td class="${r.totalPct >= 0 ? 'green' : 'red'}">${r.totalPct >= 0 ? '+' : ''}${r.totalPct.toFixed(2)}%</td>
           <td class="${r.statusClass}">${r.status}</td>
           <td class="${r.statusClass}">${r.rekomendasi}</td>
+          <td>
+            <button class="small secondary" onclick="applyPeriod('${r.dari}','${r.sampai}','${r.symbol}')">
+              Gunakan Periode Ini
+            </button>
+          </td>
         </tr>
       `;
       }).join('');
