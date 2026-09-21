@@ -189,6 +189,12 @@
   <!-- ==================== TAB 2: MULTI ==================== -->
   <div id="tab-multi" class="tab-content">
     <div class="controls">
+      <label>From
+        <input type="date" id="fromDateMulti" style="width:130px" onchange="onDateChangeMulti('from')">
+      </label>
+      <label>To
+        <input type="date" id="toDateMulti" style="width:130px" onchange="onDateChangeMulti('to')">
+      </label>
       <label>Modal per Trade (Lot)
         <input type="number" id="modalLotMulti" value="1" min="1" step="1" style="width:80px">
       </label>
@@ -246,6 +252,12 @@
     <div class="table-tools">
       <input type="text" id="searchCons" placeholder="Cari kode saham..." oninput="filterConsTable()">
       <label style="font-size:0.78rem;display:flex;flex-direction:column;gap:3px;margin:0">
+        Filter Kode
+        <select id="filterKodeCons" onchange="filterConsTable()">
+          <option value="">Semua Kode</option>
+        </select>
+      </label>
+      <label style="font-size:0.78rem;display:flex;flex-direction:column;gap:3px;margin:0">
         Filter Status + Rekomendasi
         <select id="filterStatusCons" onchange="filterConsTable()">
           <option value="">Semua</option>
@@ -276,6 +288,10 @@
         </select>
       </label>
       <span id="resultCountCons" style="color:#888;font-size:0.8rem"></span>
+    </div>
+    <div id="kodeListBox" style="display:none;background:#1a1d24;padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:0.8rem;line-height:1.6">
+      <div style="color:#90caf9;font-weight:600;margin-bottom:6px">Kode unik di tabel (<span id="kodeListCount">0</span>):</div>
+      <div id="kodeList" style="color:#e0e0e0;word-break:break-word"></div>
     </div>
     <div class="table-wrapper">
       <table id="tableCons">
@@ -367,14 +383,22 @@
 
       const fromEl = document.getElementById('fromDate');
       const toEl = document.getElementById('toDate');
+      const fromElMulti = document.getElementById('fromDateMulti');
+      const toElMulti = document.getElementById('toDateMulti');
       if (dataMinDate) {
         fromEl.min = dataMinDate;
         toEl.min = dataMinDate;
+        fromElMulti.min = dataMinDate;
+        toElMulti.min = dataMinDate;
       }
       fromEl.max = todayStr;
       toEl.max = todayStr;
+      fromElMulti.max = todayStr;
+      toElMulti.max = todayStr;
       if (!fromEl.value && dataMinDate) fromEl.value = dataMinDate;
       if (!toEl.value && dataMaxDate) toEl.value = dataMaxDate > todayStr ? todayStr : dataMaxDate;
+      if (!fromElMulti.value && dataMinDate) fromElMulti.value = dataMinDate;
+      if (!toElMulti.value && dataMaxDate) toElMulti.value = dataMaxDate > todayStr ? todayStr : dataMaxDate;
 
       document.getElementById('uploadStatus').innerHTML = `
         <span class="green">Berhasil load ${stockList.length} saham</span> · 
@@ -409,8 +433,12 @@
       // Izinkan set From bebas sebelum fetch (hapus min sementara)
       const fromEl = document.getElementById('fromDate');
       const toEl = document.getElementById('toDate');
+      const fromElMulti = document.getElementById('fromDateMulti');
+      const toElMulti = document.getElementById('toDateMulti');
       fromEl.removeAttribute('min');
       toEl.removeAttribute('min');
+      fromElMulti.removeAttribute('min');
+      toElMulti.removeAttribute('min');
       dataMinDate = null;
 
       const fromVal = fromEl.value;
@@ -532,6 +560,32 @@
       }
 
       // From tidak boleh > To
+      if (fromEl.value && toEl.value && fromEl.value > toEl.value) {
+        if (which === 'from') toEl.value = fromEl.value;
+        else fromEl.value = toEl.value;
+      }
+    }
+    function onDateChangeMulti(which) {
+      const fromEl = document.getElementById('fromDateMulti');
+      const toEl = document.getElementById('toDateMulti');
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      if (dataMinDate && fromEl.value && fromEl.value < dataMinDate) {
+        fromEl.value = dataMinDate;
+        fromEl.readOnly = true;
+        setTimeout(() => { fromEl.readOnly = false; }, 100);
+      } else {
+        fromEl.readOnly = false;
+      }
+
+      if (toEl.value && toEl.value > todayStr) {
+        toEl.value = todayStr;
+        toEl.readOnly = true;
+        setTimeout(() => { toEl.readOnly = false; }, 100);
+      } else {
+        toEl.readOnly = false;
+      }
+
       if (fromEl.value && toEl.value && fromEl.value > toEl.value) {
         if (which === 'from') toEl.value = fromEl.value;
         else fromEl.value = toEl.value;
@@ -864,6 +918,8 @@
       const lots = Number(document.getElementById('modalLotMulti').value) || 1;
       const feeBuyPct = parseFloat(document.getElementById('feeBuyMulti').value) || 0.1513;
       const feeSellPct = parseFloat(document.getElementById('feeSellMulti').value) || 0.2513;
+      const fromVal = document.getElementById('fromDateMulti').value;
+      const toVal = document.getElementById('toDateMulti').value;
       const btn = document.getElementById('btnMulti');
       const status = document.getElementById('statusMulti');
       const progressFill = document.getElementById('progressFillMulti');
@@ -872,8 +928,16 @@
       progressFill.style.width = '0%';
       for (let i = 0; i < stockList.length; i++) {
         const code = stockList[i];
-        const data = stockData[code];
+        let data = stockData[code];
         if (data.length < 40) continue;
+        // Filter by From/To (logika sama dengan Single Symbol)
+        if (fromVal && toVal) {
+          const fromT = Math.floor(new Date(fromVal + 'T00:00:00Z').getTime() / 1000);
+          const toT = Math.floor(new Date(toVal + 'T23:59:59Z').getTime() / 1000);
+          const filtered = data.filter(d => d.time >= fromT && d.time <= toT);
+          if (filtered.length < 40) continue;
+          data = filtered;
+        }
         const res = runBacktestOnData(data, lots, feeBuyPct, feeSellPct);
         if (res.totalSignal > 0) {
           multiResults.push({ symbol: code, ...res });
@@ -885,7 +949,8 @@
       multiResults.sort((a, b) => b.totalProfit - a.totalProfit);
       renderMultiTable(multiResults);
       progressFill.style.width = '100%';
-      status.textContent = `Selesai! ${multiResults.length} saham memiliki sinyal.`;
+      const periodNote = (fromVal && toVal) ? ` · ${fromVal} → ${toVal}` : '';
+      status.textContent = `Selesai! ${multiResults.length} saham memiliki sinyal${periodNote}.`;
       btn.disabled = false;
     }
     function renderMultiTable(data) {
@@ -989,19 +1054,37 @@
         if (symCmp !== 0) return symCmp;
         return (periodeOrder[a.periode] || 99) - (periodeOrder[b.periode] || 99);
       });
+
+      // Populate Filter Kode dengan kode-kode unik yang ada di hasil table
+      const kodeSelect = document.getElementById('filterKodeCons');
+      const uniqueKodes = [...new Set(consResults.map(r => r.symbol))].sort();
+      kodeSelect.innerHTML = '<option value="">Semua Kode</option>';
+      uniqueKodes.forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = k;
+        kodeSelect.appendChild(opt);
+      });
+
       renderConsTable(consResults);
       progressFill.style.width = '100%';
-      status.textContent = `Selesai! ${consResults.length} baris hasil.`;
+      status.textContent = `Selesai! ${consResults.length} baris hasil · ${uniqueKodes.length} kode unik.`;
       btn.disabled = false;
     }
 
     function renderConsTable(data) {
       const tbody = document.getElementById('tableBodyCons');
       const search = document.getElementById('searchCons').value.toLowerCase().trim();
+      const kodeFilter = document.getElementById('filterKodeCons').value;
       const statusFilter = document.getElementById('filterStatusCons').value;
       const periodeFilter = document.getElementById('filterPeriodeCons').value;
 
       let filtered = data;
+
+      // 0. Filter by Kode (dropdown)
+      if (kodeFilter) {
+        filtered = filtered.filter(r => r.symbol === kodeFilter);
+      }
 
       // 1. Filter by search (symbol)
       if (search) {
@@ -1062,6 +1145,22 @@
       }
 
       document.getElementById('resultCountCons').textContent = filtered.length + ' baris';
+
+      // Tampilkan daftar kode unik (distinct) yang sedang tampil di tabel
+      const uniqueInView = [...new Set(filtered.map(r => r.symbol))].sort();
+      const kodeListBox = document.getElementById('kodeListBox');
+      const kodeListEl = document.getElementById('kodeList');
+      const kodeListCount = document.getElementById('kodeListCount');
+      if (uniqueInView.length > 0) {
+        kodeListBox.style.display = 'block';
+        kodeListCount.textContent = uniqueInView.length;
+        kodeListEl.textContent = uniqueInView.join(', ');
+      } else {
+        kodeListBox.style.display = 'none';
+        kodeListEl.textContent = '';
+        kodeListCount.textContent = '0';
+      }
+
       if (filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Tidak ada data</td></tr>`;
         return;

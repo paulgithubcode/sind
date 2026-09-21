@@ -268,6 +268,10 @@
       </label>
       <span id="resultCountCons" style="color:#888;font-size:0.8rem"></span>
     </div>
+    <div id="symbolListBox" style="display:none;background:#1a1d24;padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:0.8rem;line-height:1.6">
+      <div style="color:#90caf9;font-weight:600;margin-bottom:6px">Symbol unik di tabel (<span id="symbolListCount">0</span>):</div>
+      <div id="symbolListText" style="color:#e0e0e0;word-break:break-word"></div>
+    </div>	
     <div class="table-wrapper">
       <table id="tableCons">
         <thead>
@@ -958,6 +962,23 @@
       }
 
       document.getElementById('resultCountCons').textContent = filtered.length + ' baris';
+
+      // Tampilkan daftar symbol unik (distinct) yang sedang tampil di tabel
+      const uniqueInView = [...new Set(filtered.map(r => r.symbol))].sort();
+      const symbolListBox = document.getElementById('symbolListBox');
+      const symbolListEl = document.getElementById('symbolListText');
+      const symbolListCount = document.getElementById('symbolListCount');
+      if (uniqueInView.length > 0) {
+        symbolListBox.style.display = 'block';
+        symbolListCount.textContent = uniqueInView.length;
+        symbolListEl.textContent = uniqueInView.join(', ');
+      } else {
+        symbolListBox.style.display = 'none';
+        symbolListEl.textContent = '';
+        symbolListCount.textContent = '0';
+      }	  
+	  
+	  
       if (filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Tidak ada data.</td></tr>`;
         return;
