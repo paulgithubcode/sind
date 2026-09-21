@@ -106,7 +106,10 @@
     <div class="upload-box" id="uploadBox">
       <p style="margin-bottom:10px">Upload file <strong>GetStockSummary_YYYY-MM-DD.json</strong> (bisa banyak sekaligus)</p>
       <input type="file" id="fileInput" multiple accept=".json" style="margin-bottom:8px">
+      <p style="margin:12px 0 8px;color:#888;font-size:0.8rem">— atau ambil dari API berdasarkan From / To di bawah —</p>
+      <button type="button" class="secondary" id="btnFetchApi" onclick="fetchFromApi()" style="margin-bottom:8px">Fetch Data dari API (From → To)</button>
       <div id="uploadStatus" style="font-size:0.8rem;color:#aaa">Belum ada data di-upload</div>
+      <div class="progress-bar" id="apiProgressBar" style="display:none;margin-top:8px"><div class="progress-fill" id="apiProgressFill"></div></div>
     </div>
     <div class="controls">
       <label>Saham
@@ -177,7 +180,8 @@
         • Input <strong>Modal per Trade (Lot)</strong> = berapa lot yang ingin dipakai setiap sinyal.<br>
         • 1 Lot = 100 lembar.<br>
         • Total (Rp) = Lot × 100 × harga beli (sebelum fee).<br>
-        • From / To bisa diubah manual. From tidak boleh di bawah tanggal data upload. To tidak boleh lewat hari ini.<br>
+        • From / To bisa diubah manual. To tidak boleh lewat hari ini.<br>
+        • Klik <strong>Fetch Data dari API</strong> untuk ambil data online sesuai From → To (tanpa upload file).<br>
         • Klik "Gunakan Periode Ini" di Consistency Check untuk mengisi From / To otomatis.
       </p>
     </div>
@@ -319,40 +323,29 @@
       uploadBox.classList.remove('dragover');
       handleFiles({ target: { files: e.dataTransfer.files } });
     });
-    async function handleFiles(e) {
-      const files = Array.from(e.target.files).filter(f => f.name.endsWith('.json'));
-      if (files.length === 0) return alert('Pilih file JSON');
-      document.getElementById('uploadStatus').textContent = `Memproses ${files.length} file...`;
-      stockData = {};
-      let totalRecords = 0;
-      for (const file of files) {
-        try {
-          const text = await file.text();
-          const json = JSON.parse(text);
-          if (!json.data || !Array.isArray(json.data)) continue;
-          json.data.forEach(row => {
-            const code = row.StockCode;
-            if (!code) return;
-            let dateStr = row.Date ? row.Date.substring(0, 10) : null;
-            if (!dateStr) {
-              const match = file.name.match(/(\d{4}-\d{2}-\d{2})/);
-              if (match) dateStr = match[1];
-            }
-            if (!dateStr) return;
-            const time = Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 1000);
-            const open = +row.OpenPrice || +row.Previous || 0;
-            const high = +row.High || open;
-            const low = +row.Low || open;
-            const close = +row.Close || open;
-            const volume = +row.Volume || 0;
-            if (!stockData[code]) stockData[code] = [];
-            stockData[code].push({ time, open, high, low, close, volume });
-            totalRecords++;
-          });
-        } catch (err) {
-          console.warn('Gagal baca', file.name);
-        }
-      }
+    function ingestJsonData(json, fallbackDateStr) {
+      let count = 0;
+      if (!json || !json.data || !Array.isArray(json.data)) return 0;
+      json.data.forEach(row => {
+        const code = row.StockCode;
+        if (!code) return;
+        let dateStr = row.Date ? row.Date.substring(0, 10) : null;
+        if (!dateStr && fallbackDateStr) dateStr = fallbackDateStr;
+        if (!dateStr) return;
+        const time = Math.floor(new Date(dateStr + 'T00:00:00Z').getTime() / 1000);
+        const open = +row.OpenPrice || +row.Previous || 0;
+        const high = +row.High || open;
+        const low = +row.Low || open;
+        const close = +row.Close || open;
+        const volume = +row.Volume || 0;
+        if (!stockData[code]) stockData[code] = [];
+        stockData[code].push({ time, open, high, low, close, volume });
+        count++;
+      });
+      return count;
+    }
+
+    function finalizeStockData(totalRecords, sourceLabel) {
       stockList = Object.keys(stockData).sort();
       stockList.forEach(code => {
         const map = new Map();
@@ -372,7 +365,6 @@
       dataMaxDate = dateRange.to !== '-' ? dateRange.to : null;
       const todayStr = new Date().toISOString().slice(0, 10);
 
-      // Set min/max bounds on date inputs
       const fromEl = document.getElementById('fromDate');
       const toEl = document.getElementById('toDate');
       if (dataMinDate) {
@@ -381,8 +373,6 @@
       }
       fromEl.max = todayStr;
       toEl.max = todayStr;
-
-      // Default fill if empty
       if (!fromEl.value && dataMinDate) fromEl.value = dataMinDate;
       if (!toEl.value && dataMaxDate) toEl.value = dataMaxDate > todayStr ? todayStr : dataMaxDate;
 
@@ -390,9 +380,116 @@
         <span class="green">Berhasil load ${stockList.length} saham</span> · 
         ${totalRecords} baris data · 
         Periode: ${dateRange.from} → ${dateRange.to}
+        ${sourceLabel ? ' · ' + sourceLabel : ''}
       `;
       document.getElementById('statusMulti').textContent = `Data siap. ${stockList.length} saham tersedia.`;
       document.getElementById('statusCons').textContent = `Data siap. ${stockList.length} saham tersedia.`;
+    }
+
+    async function handleFiles(e) {
+      const files = Array.from(e.target.files).filter(f => f.name.endsWith('.json'));
+      if (files.length === 0) return alert('Pilih file JSON');
+      document.getElementById('uploadStatus').textContent = `Memproses ${files.length} file...`;
+      stockData = {};
+      let totalRecords = 0;
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const json = JSON.parse(text);
+          const match = file.name.match(/(\d{4}-\d{2}-\d{2})/);
+          totalRecords += ingestJsonData(json, match ? match[1] : null);
+        } catch (err) {
+          console.warn('Gagal baca', file.name);
+        }
+      }
+      finalizeStockData(totalRecords, 'dari upload file');
+    }
+
+    async function fetchFromApi() {
+      // Izinkan set From bebas sebelum fetch (hapus min sementara)
+      const fromEl = document.getElementById('fromDate');
+      const toEl = document.getElementById('toDate');
+      fromEl.removeAttribute('min');
+      toEl.removeAttribute('min');
+      dataMinDate = null;
+
+      const fromVal = fromEl.value;
+      const toVal = toEl.value;
+      if (!fromVal || !toVal) {
+        return alert('Isi tanggal From dan To terlebih dahulu.');
+      }
+      if (fromVal > toVal) {
+        return alert('From tidak boleh lebih besar dari To.');
+      }
+
+      const btn = document.getElementById('btnFetchApi');
+      const progressBar = document.getElementById('apiProgressBar');
+      const progressFill = document.getElementById('apiProgressFill');
+      btn.disabled = true;
+      progressBar.style.display = 'block';
+      progressFill.style.width = '0%';
+
+      // Generate list of dates (skip weekends optional — tetap fetch semua, file mungkin tidak ada)
+      const dates = [];
+      const d = new Date(fromVal + 'T00:00:00Z');
+      const end = new Date(toVal + 'T00:00:00Z');
+      while (d <= end) {
+        dates.push(d.toISOString().slice(0, 10));
+        d.setUTCDate(d.getUTCDate() + 1);
+      }
+
+      stockData = {};
+      let totalRecords = 0;
+      let okCount = 0;
+      let failCount = 0;
+      const baseUrl = 'https://raw.githubusercontent.com/paulgithubcode/sind/refs/heads/main/stocksummary/GetStockSummary_';
+
+      document.getElementById('uploadStatus').textContent = `Mengambil ${dates.length} file dari API...`;
+
+      // Batch concurrency to avoid too many parallel requests
+      const CONCURRENCY = 6;
+      let completed = 0;
+      const queue = [...dates];
+
+      async function worker() {
+        while (queue.length > 0) {
+          const dateStr = queue.shift();
+          const url = baseUrl + dateStr + '.json';
+          try {
+            const res = await fetch(url);
+            if (res.ok) {
+              const json = await res.json();
+              totalRecords += ingestJsonData(json, dateStr);
+              okCount++;
+            } else {
+              failCount++;
+            }
+          } catch (err) {
+            failCount++;
+          }
+          completed++;
+          progressFill.style.width = ((completed / dates.length) * 100).toFixed(1) + '%';
+          if (completed % 10 === 0 || completed === dates.length) {
+            document.getElementById('uploadStatus').textContent =
+              `API: ${completed}/${dates.length} · OK ${okCount} · gagal/skip ${failCount}`;
+          }
+        }
+      }
+
+      const workers = [];
+      for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
+      await Promise.all(workers);
+
+      progressFill.style.width = '100%';
+      if (okCount === 0) {
+        document.getElementById('uploadStatus').innerHTML =
+          `<span class="red">Tidak ada data yang berhasil di-fetch</span> (${failCount} gagal/tidak ada file)`;
+        btn.disabled = false;
+        return;
+      }
+      finalizeStockData(totalRecords, `dari API (${okCount} hari, skip ${failCount})`);
+      btn.disabled = false;
+      setTimeout(() => { progressBar.style.display = 'none'; }, 1500);
     }
     let dataMinDate = null; // earliest date in uploaded data
     let dataMaxDate = null; // latest date in uploaded data
