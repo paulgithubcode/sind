@@ -89,7 +89,6 @@
       padding: 20px; text-align: center; margin-bottom: 16px;
     }
     .upload-box.dragover { border-color: #2962ff; background: #1a2333; }
-    /* Group separator for consistency table */
     tr.group-start td { border-top: 2px solid #3a4050; }
     tr.group-start td:first-child { font-weight: 700; }
   </style>
@@ -301,9 +300,11 @@
             <th data-key="periode">Periode</th>
             <th data-key="dari">Dari</th>
             <th data-key="sampai">Sampai</th>
+            <th data-key="umurHari">Umur Data (Hari)</th>
             <th data-key="totalSignal">Total Sinyal</th>
             <th data-key="winrate">Winrate</th>
             <th data-key="profitFactor">Profit Factor</th>
+            <th data-key="avgPct">Rata-rata Profit %</th>
             <th data-key="totalPct">Total Profit %</th>
             <th data-key="status">Status</th>
             <th data-key="rekomendasi">Rekomendasi</th>
@@ -311,7 +312,7 @@
           </tr>
         </thead>
         <tbody id="tableBodyCons">
-          <tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Belum dijalankan</td></tr>
+          <tr><td colspan="13" style="text-align:center;color:#888;padding:30px">Belum dijalankan</td></tr>
         </tbody>
       </table>
     </div>
@@ -430,7 +431,6 @@
     }
 
     async function fetchFromApi() {
-      // Izinkan set From bebas sebelum fetch (hapus min sementara)
       const fromEl = document.getElementById('fromDate');
       const toEl = document.getElementById('toDate');
       const fromElMulti = document.getElementById('fromDateMulti');
@@ -457,7 +457,6 @@
       progressBar.style.display = 'block';
       progressFill.style.width = '0%';
 
-      // Generate list of dates (skip weekends optional — tetap fetch semua, file mungkin tidak ada)
       const dates = [];
       const d = new Date(fromVal + 'T00:00:00Z');
       const end = new Date(toVal + 'T00:00:00Z');
@@ -474,7 +473,6 @@
 
       document.getElementById('uploadStatus').textContent = `Mengambil ${dates.length} file dari API...`;
 
-      // Batch concurrency to avoid too many parallel requests
       const CONCURRENCY = 6;
       let completed = 0;
       const queue = [...dates];
@@ -519,8 +517,8 @@
       btn.disabled = false;
       setTimeout(() => { progressBar.style.display = 'none'; }, 1500);
     }
-    let dataMinDate = null; // earliest date in uploaded data
-    let dataMaxDate = null; // latest date in uploaded data
+    let dataMinDate = null;
+    let dataMaxDate = null;
 
     function getOverallDateRange() {
       let minT = Infinity, maxT = -Infinity;
@@ -541,7 +539,6 @@
       const toEl = document.getElementById('toDate');
       const todayStr = new Date().toISOString().slice(0, 10);
 
-      // From: tidak boleh di bawah tanggal data upload
       if (dataMinDate && fromEl.value && fromEl.value < dataMinDate) {
         fromEl.value = dataMinDate;
         fromEl.readOnly = true;
@@ -550,7 +547,6 @@
         fromEl.readOnly = false;
       }
 
-      // To: tidak boleh lebih dari hari ini
       if (toEl.value && toEl.value > todayStr) {
         toEl.value = todayStr;
         toEl.readOnly = true;
@@ -559,7 +555,6 @@
         toEl.readOnly = false;
       }
 
-      // From tidak boleh > To
       if (fromEl.value && toEl.value && fromEl.value > toEl.value) {
         if (which === 'from') toEl.value = fromEl.value;
         else fromEl.value = toEl.value;
@@ -675,7 +670,6 @@
       let data = stockData[code];
       if (data.length < 30) return alert('Data terlalu sedikit');
 
-      // Filter by From/To if set (from "Gunakan Periode Ini")
       const fromVal = document.getElementById('fromDate').value;
       const toVal = document.getElementById('toDate').value;
       if (fromVal && toVal) {
@@ -687,7 +681,6 @@
 
       currentData = data;
 
-      // Jangan overwrite From/To — biarkan nilai hasil upload / yang di-set user
       const firstDate = new Date(currentData[0].time * 1000).toISOString().slice(0, 10);
       const lastDate = new Date(currentData[currentData.length - 1].time * 1000).toISOString().slice(0, 10);
       const fromEl = document.getElementById('fromDate');
@@ -724,7 +717,6 @@
     function applyPeriod(from, to, symbol) {
       document.getElementById('fromDate').value = from;
       document.getElementById('toDate').value = to;
-      // Auto-select the symbol if provided
       if (symbol && stockData[symbol]) {
         document.getElementById('stockSelect').value = symbol;
         loadSelectedStock();
@@ -736,23 +728,20 @@
       }
       alert(`Tanggal berhasil diisi:\nFrom: ${from}\nTo: ${to}${symbol ? '\nSaham: ' + symbol : ''}\n\nSilakan pindah ke Tab Single Symbol untuk Generate Full Table.`);
     }
+
     // ==================== LOT CALCULATION ====================
-    // User input = jumlah lot
-	function calculateFromLot(entryPrice, exitPrice, lots, feeBuyPct, feeSellPct) {
-	  if (lots < 1) return { lots: 0, shares: 0, totalRp: 0, profit: 0 };
-	  const shares = lots * 100;
-	  const hargaKotor = shares * entryPrice;               // sebelum fee
-	  const feeBuy = feeBuyPct / 100;
-	  const feeSell = feeSellPct / 100;
-	  // Modal yang benar-benar dikeluarkan (sudah termasuk fee beli)
-	  const totalRp = hargaKotor * (1 + feeBuy);
-	  // Hasil penjualan setelah fee jual
-	  const sellProceeds = (shares * exitPrice) * (1 - feeSell);
-	  // Profit bersih
-	  const profit = sellProceeds - totalRp;
-	  return { lots, shares, totalRp, profit };
-	}
-	
+    function calculateFromLot(entryPrice, exitPrice, lots, feeBuyPct, feeSellPct) {
+      if (lots < 1) return { lots: 0, shares: 0, totalRp: 0, profit: 0 };
+      const shares = lots * 100;
+      const hargaKotor = shares * entryPrice;
+      const feeBuy = feeBuyPct / 100;
+      const feeSell = feeSellPct / 100;
+      const totalRp = hargaKotor * (1 + feeBuy);
+      const sellProceeds = (shares * exitPrice) * (1 - feeSell);
+      const profit = sellProceeds - totalRp;
+      return { lots, shares, totalRp, profit };
+    }
+
     // ==================== SIGNAL ====================
     function analyzeAtIndex(dataArr, idx) {
       const data = dataArr.slice(0, idx + 1);
@@ -812,9 +801,12 @@
         priceAction, phase, buy, cl, tp1, note, hasSignal, idx
       };
     }
+
     function runBacktestOnData(dataArr, lots, feeBuyPct, feeSellPct) {
       let totalSignal = 0, benar = 0, salah = 0, belum = 0;
       let totalModal = 0, totalProfit = 0, grossProfit = 0, grossLoss = 0;
+      let sumPct = 0;
+
       for (let i = 24; i < dataArr.length; i++) {
         const analysis = analyzeAtIndex(dataArr, i);
         if (!analysis || !analysis.hasSignal) continue;
@@ -827,8 +819,12 @@
         totalSignal++;
         const res = calculateFromLot(analysis.buy, exitPrice || analysis.buy, lots, feeBuyPct, feeSellPct);
         totalModal += res.totalRp;
+
+        const tradePct = res.totalRp > 0 ? (res.profit / res.totalRp) * 100 : 0;
+
         if (exitPrice !== null) {
           totalProfit += res.profit;
+          sumPct += tradePct;
           if (res.profit > 0) { benar++; grossProfit += res.profit; }
           else { salah++; grossLoss += Math.abs(res.profit); }
         } else {
@@ -837,9 +833,11 @@
       }
       const winrate = totalSignal > 0 ? (benar / totalSignal) * 100 : 0;
       const totalPct = totalModal > 0 ? (totalProfit / totalModal) * 100 : 0;
+      const avgPct = totalSignal > 0 ? (sumPct / totalSignal) : 0;
       const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 99 : 0);
-      return { totalSignal, benar, salah, belum, winrate, totalModal, totalProfit, totalPct, profitFactor };
+      return { totalSignal, benar, salah, belum, winrate, totalModal, totalProfit, totalPct, avgPct, profitFactor };
     }
+
     // ==================== SINGLE GENERATE ====================
     function generateFullTable() {
       if (currentData.length < 30) return alert('Load saham terlebih dahulu');
@@ -912,6 +910,7 @@
       `;
       document.getElementById('progress').textContent = `Selesai! ${totalSignal} sinyal.`;
     }
+
     // ==================== MULTI ====================
     async function runMultiBacktest() {
       if (stockList.length === 0) return alert('Upload data terlebih dahulu');
@@ -930,7 +929,6 @@
         const code = stockList[i];
         let data = stockData[code];
         if (data.length < 40) continue;
-        // Filter by From/To (logika sama dengan Single Symbol)
         if (fromVal && toVal) {
           const fromT = Math.floor(new Date(fromVal + 'T00:00:00Z').getTime() / 1000);
           const toT = Math.floor(new Date(toVal + 'T23:59:59Z').getTime() / 1000);
@@ -993,6 +991,7 @@
         renderMultiTable(multiResults);
       });
     });
+
     // ==================== CONSISTENCY ====================
     const periodeOrder = { '6 Bulan': 1, '12 Bulan': 2, '18 Bulan': 3, '24 Bulan': 4 };
 
@@ -1007,37 +1006,56 @@
       btn.disabled = true;
       consResults = [];
       progressFill.style.width = '0%';
+
       const periods = [
         { label: '6 Bulan', days: 180 },
         { label: '12 Bulan', days: 365 },
         { label: '18 Bulan', days: 547 },
         { label: '24 Bulan', days: 730 }
       ];
+
       for (let i = 0; i < stockList.length; i++) {
         const code = stockList[i];
         const fullData = stockData[code];
         if (fullData.length < 40) continue;
+
+        const firstTime = fullData[0].time;
         const lastTime = fullData[fullData.length - 1].time;
+        // Total umur data saham asli dalam hari
+        const totalAgeDays = Math.round((lastTime - firstTime) / 86400);
+
         for (const p of periods) {
-          const fromTime = lastTime - (p.days * 86400);
-          const periodData = fullData.filter(d => d.time >= fromTime);
+          // FILTER UTAMA: Jika umur data asli saham kurang dari target hari periode, skip!
+          if (totalAgeDays < p.days) continue;
+
+          let targetFromTime = lastTime - (p.days * 86400);
+          let actualFromTime = Math.max(targetFromTime, firstTime);
+
+          const periodData = fullData.filter(d => d.time >= actualFromTime);
           if (periodData.length < 40) continue;
+
+          const periodAgeDays = Math.round((lastTime - actualFromTime) / 86400);
+
           const res = runBacktestOnData(periodData, lots, feeBuyPct, feeSellPct);
           if (res.totalSignal === 0) continue;
+
           let statusText = 'Kurang Stabil', rekomendasi = 'Kurang Stabil', statusClass = 'red';
           if (res.winrate >= 50 && res.profitFactor >= 1.3) {
             statusText = 'Konsisten'; rekomendasi = 'Baik'; statusClass = 'green';
           } else if (res.winrate >= 45 && res.profitFactor >= 1.1) {
             statusText = 'Mendekati'; rekomendasi = 'Cukup'; statusClass = 'yellow';
           }
+
           consResults.push({
             symbol: code,
             periode: p.label,
-            dari: new Date(fromTime * 1000).toISOString().slice(0, 10),
+            dari: new Date(actualFromTime * 1000).toISOString().slice(0, 10),
             sampai: new Date(lastTime * 1000).toISOString().slice(0, 10),
+            umurHari: periodAgeDays,
             totalSignal: res.totalSignal,
             winrate: res.winrate,
             profitFactor: res.profitFactor,
+            avgPct: res.avgPct,
             totalPct: res.totalPct,
             status: statusText,
             statusClass,
@@ -1048,14 +1066,13 @@
         status.textContent = `Memproses ${i + 1}/${stockList.length} → ${code}`;
         if (i % 3 === 0) await new Promise(r => setTimeout(r, 0));
       }
-      // Default: group by symbol ASC, then periode ASC
+
       consResults.sort((a, b) => {
         const symCmp = a.symbol.localeCompare(b.symbol);
         if (symCmp !== 0) return symCmp;
         return (periodeOrder[a.periode] || 99) - (periodeOrder[b.periode] || 99);
       });
 
-      // Populate Filter Kode dengan kode-kode unik yang ada di hasil table
       const kodeSelect = document.getElementById('filterKodeCons');
       const uniqueKodes = [...new Set(consResults.map(r => r.symbol))].sort();
       kodeSelect.innerHTML = '<option value="">Semua Kode</option>';
@@ -1081,30 +1098,24 @@
 
       let filtered = data;
 
-      // 0. Filter by Kode (dropdown)
       if (kodeFilter) {
         filtered = filtered.filter(r => r.symbol === kodeFilter);
       }
 
-      // 1. Filter by search (symbol)
       if (search) {
         filtered = filtered.filter(r => r.symbol.toLowerCase().includes(search));
       }
 
-      // 2. Jika ada status filter + periode filter:
-      //    Hanya tampilkan symbol yang MEMENUHI status tsb di SEMUA periode yang dipilih
       if (statusFilter && periodeFilter) {
         const [st, rek] = statusFilter.split('|');
         const requiredPeriods = periodeFilter.split('|');
 
-        // Group by symbol
         const bySymbol = {};
         filtered.forEach(r => {
           if (!bySymbol[r.symbol]) bySymbol[r.symbol] = [];
           bySymbol[r.symbol].push(r);
         });
 
-        // Cari symbol yang punya status yang diminta di SETIAP periode yang dipilih
         const qualifyingSymbols = new Set();
         for (const [sym, rows] of Object.entries(bySymbol)) {
           const matchingPeriods = new Set(
@@ -1112,30 +1123,25 @@
               .filter(r => r.status === st && r.rekomendasi === rek)
               .map(r => r.periode)
           );
-          // Harus punya SEMUA requiredPeriods
           const hasAll = requiredPeriods.every(p => matchingPeriods.has(p));
           if (hasAll) qualifyingSymbols.add(sym);
         }
 
-        // Hanya ambil baris dari symbol yang lolos, dan hanya periode yang dipilih + status cocok
         filtered = filtered.filter(r =>
           qualifyingSymbols.has(r.symbol) &&
           requiredPeriods.includes(r.periode) &&
           r.status === st && r.rekomendasi === rek
         );
       }
-      // 3. Hanya status filter (tanpa periode) → filter baris biasa
       else if (statusFilter) {
         const [st, rek] = statusFilter.split('|');
         filtered = filtered.filter(r => r.status === st && r.rekomendasi === rek);
       }
-      // 4. Hanya periode filter (tanpa status) → tampilkan semua status di periode tsb
       else if (periodeFilter) {
         const allowed = periodeFilter.split('|');
         filtered = filtered.filter(r => allowed.includes(r.periode));
       }
 
-      // Always group by symbol ASC + periode ASC (unless user clicked a column sort)
       if (!consSort.active) {
         filtered = [...filtered].sort((a, b) => {
           const symCmp = a.symbol.localeCompare(b.symbol);
@@ -1146,7 +1152,6 @@
 
       document.getElementById('resultCountCons').textContent = filtered.length + ' baris';
 
-      // Tampilkan daftar kode unik (distinct) yang sedang tampil di tabel
       const uniqueInView = [...new Set(filtered.map(r => r.symbol))].sort();
       const kodeListBox = document.getElementById('kodeListBox');
       const kodeListEl = document.getElementById('kodeList');
@@ -1162,7 +1167,7 @@
       }
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Tidak ada data</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:#888;padding:30px">Tidak ada data</td></tr>`;
         return;
       }
 
@@ -1176,9 +1181,11 @@
           <td>${r.periode}</td>
           <td>${r.dari}</td>
           <td>${r.sampai}</td>
+          <td>${r.umurHari} hr</td>
           <td class="blue">${r.totalSignal}</td>
           <td class="${r.winrate >= 50 ? 'green' : 'red'}">${r.winrate.toFixed(1)}%</td>
           <td class="${r.profitFactor >= 1.3 ? 'green' : 'red'}">${r.profitFactor.toFixed(2)}</td>
+          <td class="${r.avgPct >= 0 ? 'green' : 'red'}">${r.avgPct >= 0 ? '+' : ''}${r.avgPct.toFixed(2)}%</td>
           <td class="${r.totalPct >= 0 ? 'green' : 'red'}">${r.totalPct >= 0 ? '+' : ''}${r.totalPct.toFixed(2)}%</td>
           <td class="${r.statusClass}">${r.status}</td>
           <td class="${r.statusClass}">${r.rekomendasi}</td>
@@ -1193,7 +1200,6 @@
     }
 
     function filterConsTable() {
-      // Reset custom sort when filtering so grouping is preserved
       consSort.active = false;
       document.querySelectorAll('#tableCons th').forEach(t => t.classList.remove('sorted-asc','sorted-desc'));
       renderConsTable(consResults);
@@ -1213,7 +1219,6 @@
         document.querySelectorAll('#tableCons th').forEach(t => t.classList.remove('sorted-asc','sorted-desc'));
         th.classList.add(consSort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
 
-        // Apply sort on full data, then re-render (filter will still apply)
         consResults.sort((a, b) => {
           let va = a[key], vb = b[key];
           if (key === 'periode') {
@@ -1226,6 +1231,7 @@
         renderConsTable(consResults);
       });
     });
+
     // ==================== INIT ====================
     initChart();
   </script>

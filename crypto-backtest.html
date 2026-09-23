@@ -91,7 +91,6 @@
     .table-tools { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
     .table-tools input { width: 220px; }
     .table-tools select { min-width: 200px; }
-    /* Sorting style */
     #tableMulti th, #tableCons th {
       cursor: pointer;
       user-select: none;
@@ -120,6 +119,7 @@
     <button class="tab-btn" onclick="switchTab('multi')">Multi Symbol</button>
     <button class="tab-btn" onclick="switchTab('cons')">Consistency Check</button>
   </div>
+  
   <!-- ==================== TAB 1: SINGLE ==================== -->
   <div id="tab-single" class="tab-content active">
     <div class="controls">
@@ -180,6 +180,7 @@
       </div>
     </div>
   </div>
+
   <!-- ==================== TAB 2: MULTI ==================== -->
   <div id="tab-multi" class="tab-content">
     <div class="controls">
@@ -219,6 +220,7 @@
       </table>
     </div>
   </div>
+
   <!-- ==================== TAB 3: CONSISTENCY ==================== -->
   <div id="tab-cons" class="tab-content">
     <div class="controls">
@@ -301,6 +303,7 @@
       • Tombol "Gunakan Periode Ini" mengisi tanggal di Tab Single & Multi
     </p>
   </div>
+
   <script>
     // ==================== TAB SWITCH ====================
     function switchTab(tab) {
@@ -309,6 +312,7 @@
       document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
       document.getElementById('tab-' + tab).classList.add('active');
     }
+
     // ==================== SHARED ====================
     let pairsList = [];
     function setDefaultDates() {
@@ -341,6 +345,7 @@
       d.setDate(d.getDate() - n);
       return d.toISOString().slice(0, 10);
     }
+
     // ==================== PAIR LOADER ====================
     async function loadPairs() {
       try {
@@ -392,6 +397,7 @@
         if (!e.target.closest('.symbol-wrapper')) list.style.display = 'none';
       });
     });
+
     // ==================== SINGLE SYMBOL ====================
     let chart, candleSeries, volumeSeries, maSeries, emaSeries;
     let macdChart, macdLineSeries, macdSignalSeries, macdHistSeries;
@@ -629,6 +635,7 @@
           <div class="sub">${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(2)}%</div></div>
       `;
     }
+
     // ==================== SHARED BACKTEST ENGINE ====================
     function runBacktestFull(dataArr, modalRp, feeBuyPct, feeSellPct) {
       let totalSignal = 0, benar = 0, salah = 0, belum = 0;
@@ -707,6 +714,7 @@
         return null;
       }
     }
+
     // ==================== MULTI SYMBOL ====================
     const CONCURRENCY = 3;
     const DELAY_AFTER_REQUEST = 300;
@@ -796,7 +804,8 @@
       status.textContent = `Selesai! ${allResults.length} symbol berhasil dianalisa.`;
       btn.disabled = false;
     }
-    // ==================== CONSISTENCY CHECK ====================
+
+    // ==================== CONSISTENCY CHECK (UPDATED FILTER) ====================
     let consResults = [];
     let consSort = { key: 'profitFactor', dir: 'desc', active: false };
     const periodeOrder = { '6 Bulan': 1, '12 Bulan': 2, '18 Bulan': 3, '24 Bulan': 4 };
@@ -817,12 +826,16 @@
       document.getElementById('searchCons').value = '';
       document.getElementById('filterStatusCons').value = '';
       document.getElementById('filterPeriodeCons').value = '';
+      
+      // Mengatur syarat jumlah candle minimum (setara ~80% dari total hari) 
+      // untuk memastikan koin benar-benar memiliki histori berumur lama
       const periods = [
-        { label: '6 Bulan', days: 180 },
-        { label: '12 Bulan', days: 365 },
-        { label: '18 Bulan', days: 547 },
-        { label: '24 Bulan', days: 730 }
+        { label: '6 Bulan', days: 180, minCandles: 140 },
+        { label: '12 Bulan', days: 365, minCandles: 300 },
+        { label: '18 Bulan', days: 547, minCandles: 450 },
+        { label: '24 Bulan', days: 730, minCandles: 600 }
       ];
+      
       const today = new Date().toISOString().slice(0, 10);
       const totalTasks = pairsList.length;
       let completed = 0;
@@ -839,11 +852,23 @@
             fullData = await fetchSymbolData(symbol, from24, to);
             await new Promise(r => setTimeout(r, DELAY_AFTER_REQUEST));
           } catch (e) {}
+
           if (fullData && fullData.length >= 40) {
+            // Hitung umur asli data candle koin dalam hitungan hari
+            const oldestTime = fullData[0].time;
+            const latestTime = fullData[fullData.length - 1].time;
+            const dataAgeDays = (latestTime - oldestTime) / 86400;
+
             for (const p of periods) {
+              // Jika umur data koin kurang dari periode yang diminta (dengan toleransi kecil), lewati
+              if (dataAgeDays < (p.days - 30)) continue;
+
               const fromTime = dateToUnix(daysAgo(p.days));
               const periodData = fullData.filter(d => d.time >= fromTime);
-              if (periodData.length < 40) continue;
+
+              // Cek apakah jumlah candle mencukupi syarat minimum per periode
+              if (periodData.length < p.minCandles) continue;
+
               const res = runBacktestFull(periodData, modalRp, feeBuyPct, feeSellPct);
               let statusText = 'Kurang Stabil';
               let rekomendasi = 'Kurang Stabil';
@@ -879,7 +904,7 @@
       }
       for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
       await Promise.all(workers);
-      // Default: group by symbol ASC + periode ASC
+
       consSort = { key: 'symbol', dir: 'asc', active: false };
       consResults.sort((a, b) => {
         const symCmp = a.symbol.localeCompare(b.symbol);
@@ -903,25 +928,20 @@
 
       let filtered = data;
 
-      // 1. Filter by search (symbol)
       if (search) {
         filtered = filtered.filter(r => r.symbol.toLowerCase().includes(search));
       }
 
-      // 2. Jika ada status filter + periode filter:
-      //    Hanya tampilkan symbol yang MEMENUHI status tsb di SEMUA periode yang dipilih
       if (statusFilter && periodeFilter) {
         const [st, rek] = statusFilter.split('|');
         const requiredPeriods = periodeFilter.split('|');
 
-        // Group by symbol
         const bySymbol = {};
         filtered.forEach(r => {
           if (!bySymbol[r.symbol]) bySymbol[r.symbol] = [];
           bySymbol[r.symbol].push(r);
         });
 
-        // Cari symbol yang punya status yang diminta di SETIAP periode yang dipilih
         const qualifyingSymbols = new Set();
         for (const [sym, rows] of Object.entries(bySymbol)) {
           const matchingPeriods = new Set(
@@ -929,30 +949,25 @@
               .filter(r => r.status === st && r.rekomendasi === rek)
               .map(r => r.periode)
           );
-          // Harus punya SEMUA requiredPeriods
           const hasAll = requiredPeriods.every(p => matchingPeriods.has(p));
           if (hasAll) qualifyingSymbols.add(sym);
         }
 
-        // Hanya ambil baris dari symbol yang lolos, dan hanya periode yang dipilih + status cocok
         filtered = filtered.filter(r =>
           qualifyingSymbols.has(r.symbol) &&
           requiredPeriods.includes(r.periode) &&
           r.status === st && r.rekomendasi === rek
         );
       }
-      // 3. Hanya status filter (tanpa periode) → filter baris biasa
       else if (statusFilter) {
         const [st, rek] = statusFilter.split('|');
         filtered = filtered.filter(r => r.status === st && r.rekomendasi === rek);
       }
-      // 4. Hanya periode filter (tanpa status) → tampilkan semua status di periode tsb
       else if (periodeFilter) {
         const allowed = periodeFilter.split('|');
         filtered = filtered.filter(r => allowed.includes(r.periode));
       }
 
-      // Always group by symbol ASC + periode ASC (unless user clicked a column sort)
       if (!consSort.active) {
         filtered = [...filtered].sort((a, b) => {
           const symCmp = a.symbol.localeCompare(b.symbol);
@@ -963,21 +978,28 @@
 
       document.getElementById('resultCountCons').textContent = filtered.length + ' baris';
 
-      // Tampilkan daftar symbol unik (distinct) yang sedang tampil di tabel
-      const uniqueInView = [...new Set(filtered.map(r => r.symbol))].sort();
-      const symbolListBox = document.getElementById('symbolListBox');
-      const symbolListEl = document.getElementById('symbolListText');
-      const symbolListCount = document.getElementById('symbolListCount');
-      if (uniqueInView.length > 0) {
-        symbolListBox.style.display = 'block';
-        symbolListCount.textContent = uniqueInView.length;
-        symbolListEl.textContent = uniqueInView.join(', ');
-      } else {
-        symbolListBox.style.display = 'none';
-        symbolListEl.textContent = '';
-        symbolListCount.textContent = '0';
-      }	  
-	  
+	// KODE BARU:
+	const uniqueInView = [...new Set(filtered.map(r => r.symbol))].sort();
+	const symbolListBox = document.getElementById('symbolListBox');
+	const symbolListEl = document.getElementById('symbolListText');
+	const symbolListCount = document.getElementById('symbolListCount');
+
+	if (uniqueInView.length > 0) {
+	  const symbolWithAvgProfit = uniqueInView.map(sym => {
+		const symRows = filtered.filter(r => r.symbol === sym);
+		const avgPct = symRows.reduce((sum, r) => sum + r.totalPct, 0) / symRows.length;
+		const sign = avgPct > 0 ? '+' : '';
+		return `${sym}(${sign}${avgPct.toFixed(1)}%)`;
+	  });
+
+	  symbolListBox.style.display = 'block';
+	  symbolListCount.textContent = uniqueInView.length;
+	  symbolListEl.textContent = symbolWithAvgProfit.join(', ');
+	} else {
+	  symbolListBox.style.display = 'none';
+	  symbolListEl.textContent = '';
+	  symbolListCount.textContent = '0';
+	}
 	  
       if (filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#888;padding:30px">Tidak ada data.</td></tr>`;
@@ -1011,7 +1033,6 @@
     }
 
     function filterConsTable() {
-      // Reset custom sort when filtering so grouping is preserved
       consSort.active = false;
       document.querySelectorAll('#tableCons th').forEach(t => t.classList.remove('sorted-asc','sorted-desc'));
       renderConsTable(consResults);
@@ -1046,7 +1067,6 @@
       });
       renderConsTable(consResults);
     }
-    // Pasang event click header Consistency
     document.querySelectorAll('#tableCons th[data-key]').forEach(th => {
       th.addEventListener('click', () => sortConsData(th.dataset.key));
     });
@@ -1057,6 +1077,7 @@
       document.getElementById('toDateMulti').value = to;
       alert(`Tanggal berhasil diisi:\nFrom: ${from}\nTo: ${to}\n\nSilakan pindah ke Tab Single atau Multi.`);
     }
+
     // ==================== INIT ====================
     setDefaultDates();
     initChart();
