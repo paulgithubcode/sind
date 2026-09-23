@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matriks Perubahan Harga Saham</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1115;
+      color: #e0e0e0;
+      padding: 16px;
+      font-size: 13px;
+    }
+    h1 { font-size: 1.3rem; margin-bottom: 16px; color: #fff; }
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+      background: #1a1d24; padding: 14px; border-radius: 8px; align-items: flex-end;
+    }
+    .controls label { font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; color: #aaa; }
+    input, select, button {
+      padding: 8px 12px; border-radius: 6px; border: 1px solid #333;
+      background: #252830; color: #fff; font-size: 0.85rem;
+    }
+    button { cursor: pointer; background: #2962ff; border: none; font-weight: 600; }
+    button:hover { background: #1e4fd6; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    .status { font-size: 0.85rem; color: #aaa; margin-bottom: 12px; }
+    .progress-bar {
+      height: 6px; background: #252830; border-radius: 4px; overflow: hidden; margin-bottom: 16px; display: none;
+    }
+    .progress-fill { height: 100%; background: #2962ff; width: 0%; transition: width 0.2s; }
+    .table-wrapper {
+      overflow: auto; max-height: 75vh; border: 1px solid #333; border-radius: 8px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.78rem; text-align: center; }
+    th, td { padding: 8px 10px; border: 1px solid #2a2e38; white-space: nowrap; }
+    th {
+      background: #252830; position: sticky; top: 0; z-index: 10; color: #90caf9; font-weight: 600;
+      cursor: pointer; user-select: none;
+    }
+    th:hover { background: #323745; }
+    th.sticky-col, td.sticky-col {
+      position: sticky; left: 0; background: #1a1d24; z-index: 11; font-weight: bold; text-align: left;
+    }
+    th.sticky-col { z-index: 12; background: #252830; }
+    tr:hover { background: #1e222d; }
+    .green { color: #26a69a; font-weight: 600; }
+    .red { color: #ef5350; font-weight: 600; }
+    .neutral { color: #888; }
+    .sort-icon { font-size: 0.7rem; margin-left: 4px; color: #ffb74d; }
+  </style>
+</head>
+<body>
+
+  <h1>Matriks Perubahan Harga Saham (%)</h1>
+
+  <div class="controls">
+    <label>From
+      <input type="date" id="fromDate" value="2026-08-01">
+    </label>
+    <label>To
+      <input type="date" id="toDate" value="2026-09-23">
+    </label>
+    <label>Tampilan Periode
+      <select id="timeframeSelect">
+        <option value="daily">Harian</option>
+        <option value="weekly">Mingguan</option>
+        <option value="monthly">Bulanan</option>
+        <option value="yearly">Tahunan</option>
+      </select>
+    </label>
+    <label>Cari Saham
+      <input type="text" id="searchStock" placeholder="Contoh: CDIA, BBCA" oninput="renderTable()">
+    </label>
+    <button id="btnFetch" onclick="fetchAndProcessData()">Fetch Data & Tampilkan</button>
+  </div>
+
+  <div class="status" id="statusText">Tentukan rentang tanggal lalu klik <strong>Fetch Data & Tampilkan</strong>.</div>
+  <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+
+  <div class="table-wrapper">
+    <table id="matrixTable">
+      <thead>
+        <tr id="tableHeader">
+          <th class="sticky-col" onclick="setSort('code')">Kode Saham <span id="sort-code" class="sort-icon"></span></th>
+          <th>Silakan Fetch Data</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr>
+          <td colspan="2" style="padding: 30px; color: #888;">Belum ada data yang dimuat.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    let rawStockData = {}; 
+    let periodColumns = []; 
+    let processedMatrix = {}; 
+
+    // Variable State untuk Sorting
+    let sortColumn = 'code'; // 'code' atau nama kolom periode (misal '2026-09-01')
+    let sortDirection = 'asc'; // 'asc' atau 'desc'
+
+    const baseUrl = 'https://raw.githubusercontent.com/paulgithubcode/sind/refs/heads/main/stocksummary/GetStockSummary_';
+
+    async function fetchAndProcessData() {
+      const fromVal = document.getElementById('fromDate').value;
+      const toVal = document.getElementById('toDate').value;
+
+      if (!fromVal || !toVal) return alert('Isi rentang tanggal From dan To!');
+      if (fromVal > toVal) return alert('Tanggal From tidak boleh lebih besar dari To!');
+
+      const btn = document.getElementById('btnFetch');
+      const statusText = document.getElementById('statusText');
+      const progressBar = document.getElementById('progressBar');
+      const progressFill = document.getElementById('progressFill');
+
+      btn.disabled = true;
+      progressBar.style.display = 'block';
+      progressFill.style.width = '0%';
+
+      const dates = [];
+      let d = new Date(fromVal + 'T00:00:00Z');
+      const end = new Date(toVal + 'T00:00:00Z');
+      while (d <= end) {
+        dates.push(d.toISOString().slice(0, 10));
+        d.setUTCDate(d.getUTCDate() + 1);
+      }
+
+      rawStockData = {};
+      let okCount = 0, failCount = 0, completed = 0;
+      const CONCURRENCY = 6;
+      const queue = [...dates];
+
+      statusText.textContent = `Mengambil data ${dates.length} hari...`;
+
+      async function worker() {
+        while (queue.length > 0) {
+          const dateStr = queue.shift();
+          try {
+            const res = await fetch(baseUrl + dateStr + '.json');
+            if (res.ok) {
+              const json = await res.json();
+              if (json && Array.isArray(json.data)) {
+                json.data.forEach(row => {
+                  const code = row.StockCode;
+                  if (!code) return;
+                  const close = +row.Close || 0;
+                  const open = +row.OpenPrice || +row.Previous || close;
+                  if (close === 0) return;
+
+                  if (!rawStockData[code]) rawStockData[code] = [];
+                  rawStockData[code].push({ dateStr, open, close });
+                });
+              }
+              okCount++;
+            } else {
+              failCount++;
+            }
+          } catch (e) {
+            failCount++;
+          }
+          completed++;
+          progressFill.style.width = ((completed / dates.length) * 100).toFixed(1) + '%';
+        }
+      }
+
+      const workers = Array(CONCURRENCY).fill(0).map(() => worker());
+      await Promise.all(workers);
+
+      Object.keys(rawStockData).forEach(code => {
+        rawStockData[code].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+      });
+
+      statusText.textContent = `Selesai! Berhasil memuat ${okCount} hari data (${Object.keys(rawStockData).length} saham).`;
+      btn.disabled = false;
+      setTimeout(() => { progressBar.style.display = 'none'; }, 1000);
+
+      processMatrixData();
+    }
+
+    function getWeekKey(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return `${d.getUTCFullYear()}-W${weekNo < 10 ? '0' : ''}${weekNo}`;
+    }
+
+    function processMatrixData() {
+      const timeframe = document.getElementById('timeframeSelect').value;
+      const periodSet = new Set();
+      processedMatrix = {};
+
+      Object.keys(rawStockData).forEach(code => {
+        const rows = rawStockData[code];
+        if (rows.length === 0) return;
+
+        processedMatrix[code] = {};
+
+        if (timeframe === 'daily') {
+          rows.forEach(r => {
+            periodSet.add(r.dateStr);
+            processedMatrix[code][r.dateStr] = ((r.close - r.open) / r.open) * 100;
+          });
+        } else {
+          const groups = {};
+          rows.forEach(r => {
+            let key = r.dateStr;
+            if (timeframe === 'weekly') key = getWeekKey(r.dateStr);
+            else if (timeframe === 'monthly') key = r.dateStr.slice(0, 7);
+            else if (timeframe === 'yearly') key = r.dateStr.slice(0, 4);
+
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(r);
+          });
+
+          Object.keys(groups).forEach(key => {
+            periodSet.add(key);
+            const g = groups[key];
+            const firstOpen = g[0].open;
+            const lastClose = g[g.length - 1].close;
+            processedMatrix[code][key] = ((lastClose - firstOpen) / firstOpen) * 100;
+          });
+        }
+      });
+
+      periodColumns = Array.from(periodSet).sort();
+      
+      // Kembalikan sort default jika kolom sort sebelumnya hilang
+      if (sortColumn !== 'code' && !periodColumns.includes(sortColumn)) {
+        sortColumn = 'code';
+        sortDirection = 'asc';
+      }
+
+      renderTable();
+    }
+
+    // Fungsi Pengatur Sorting ketika Header Kolom Diklik
+    function setSort(col) {
+      if (sortColumn === col) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortColumn = col;
+        sortDirection = col === 'code' ? 'asc' : 'desc'; // Untuk persentase, default klik pertama = terbesar (desc)
+      }
+      renderTable();
+    }
+
+    function renderTable() {
+      const headerRow = document.getElementById('tableHeader');
+      const tbody = document.getElementById('tableBody');
+      const search = document.getElementById('searchStock').value.toUpperCase().trim();
+
+      if (periodColumns.length === 0) {
+        headerRow.innerHTML = `<th class="sticky-col">Kode Saham</th><th>-</th>`;
+        tbody.innerHTML = `<tr><td colspan="2" style="padding: 30px; color: #888;">Tidak ada data pada periode ini.</td></tr>`;
+        return;
+      }
+
+      // Render Header dengan penanda Sort Icon
+      let headerHTML = `<th class="sticky-col" onclick="setSort('code')">Kode Saham ${getSortIcon('code')}</th>`;
+      periodColumns.forEach(p => {
+        headerHTML += `<th onclick="setSort('${p}')">${p} ${getSortIcon(p)}</th>`;
+      });
+      headerRow.innerHTML = headerHTML;
+
+      // Filter Saham berdasarkan Search Input
+      let stocks = Object.keys(processedMatrix);
+      if (search) {
+        stocks = stocks.filter(s => s.includes(search));
+      }
+
+      // Proses Sorting Data
+      stocks.sort((a, b) => {
+        if (sortColumn === 'code') {
+          return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+        } else {
+          const valA = processedMatrix[a][sortColumn] ?? -999999;
+          const valB = processedMatrix[b][sortColumn] ?? -999999;
+          return sortDirection === 'asc' ? valA - valB : valB - valA;
+        }
+      });
+
+      if (stocks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${periodColumns.length + 1}" style="padding:20px; color:#888;">Saham "${search}" tidak ditemukan.</td></tr>`;
+        return;
+      }
+
+      // Render Baris
+      let bodyHTML = '';
+      stocks.forEach(code => {
+        bodyHTML += `<tr><td class="sticky-col">${code}</td>`;
+        periodColumns.forEach(p => {
+          const val = processedMatrix[code][p];
+          if (val === undefined) {
+            bodyHTML += `<td class="neutral">-</td>`;
+          } else {
+            const cls = val > 0 ? 'green' : val < 0 ? 'red' : 'neutral';
+            const sign = val > 0 ? '+' : '';
+            bodyHTML += `<td class="${cls}">${sign}${val.toFixed(2)}%</td>`;
+          }
+        });
+        bodyHTML += `</tr>`;
+      });
+
+      tbody.innerHTML = bodyHTML;
+    }
+
+    function getSortIcon(col) {
+      if (sortColumn !== col) return '';
+      return sortDirection === 'asc' ? '▲' : '▼';
+    }
+
+    document.getElementById('timeframeSelect').addEventListener('change', () => {
+      if (Object.keys(rawStockData).length > 0) {
+        processMatrixData();
+      }
+    });
+  </script>
+</body>
+</html>
