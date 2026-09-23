@@ -101,9 +101,8 @@
     let periodColumns = []; 
     let processedMatrix = {}; 
 
-    // Variable State untuk Sorting
-    let sortColumn = 'code'; // 'code' atau nama kolom periode (misal '2026-09-01')
-    let sortDirection = 'asc'; // 'asc' atau 'desc'
+    let sortColumn = 'code'; 
+    let sortDirection = 'asc'; 
 
     const baseUrl = 'https://raw.githubusercontent.com/paulgithubcode/sind/refs/heads/main/stocksummary/GetStockSummary_';
 
@@ -230,9 +229,9 @@
         }
       });
 
-      periodColumns = Array.from(periodSet).sort();
+      // Dibalik (.reverse()) agar tanggal terbaru ada di paling kiri (dekat 'To')
+      periodColumns = Array.from(periodSet).sort().reverse(); 
       
-      // Kembalikan sort default jika kolom sort sebelumnya hilang
       if (sortColumn !== 'code' && !periodColumns.includes(sortColumn)) {
         sortColumn = 'code';
         sortDirection = 'asc';
@@ -241,13 +240,12 @@
       renderTable();
     }
 
-    // Fungsi Pengatur Sorting ketika Header Kolom Diklik
     function setSort(col) {
       if (sortColumn === col) {
         sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
       } else {
         sortColumn = col;
-        sortDirection = col === 'code' ? 'asc' : 'desc'; // Untuk persentase, default klik pertama = terbesar (desc)
+        sortDirection = col === 'code' ? 'asc' : 'desc';
       }
       renderTable();
     }
@@ -263,20 +261,17 @@
         return;
       }
 
-      // Render Header dengan penanda Sort Icon
       let headerHTML = `<th class="sticky-col" onclick="setSort('code')">Kode Saham ${getSortIcon('code')}</th>`;
       periodColumns.forEach(p => {
         headerHTML += `<th onclick="setSort('${p}')">${p} ${getSortIcon(p)}</th>`;
       });
       headerRow.innerHTML = headerHTML;
 
-      // Filter Saham berdasarkan Search Input
       let stocks = Object.keys(processedMatrix);
       if (search) {
         stocks = stocks.filter(s => s.includes(search));
       }
 
-      // Proses Sorting Data
       stocks.sort((a, b) => {
         if (sortColumn === 'code') {
           return sortDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
@@ -292,7 +287,6 @@
         return;
       }
 
-      // Render Baris
       let bodyHTML = '';
       stocks.forEach(code => {
         bodyHTML += `<tr><td class="sticky-col">${code}</td>`;
