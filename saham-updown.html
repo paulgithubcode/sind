@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Matriks Perubahan Harga Saham</title>
+  <!-- Library SheetJS untuk Export Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -26,6 +28,14 @@
     button { cursor: pointer; background: #2962ff; border: none; font-weight: 600; }
     button:hover { background: #1e4fd6; }
     button:disabled { background: #444; cursor: not-allowed; }
+    
+    .btn-export {
+      background: #2e7d32;
+    }
+    .btn-export:hover {
+      background: #1b5e20;
+    }
+
     .status { font-size: 0.85rem; color: #aaa; margin-bottom: 12px; }
     .progress-bar {
       height: 6px; background: #252830; border-radius: 4px; overflow: hidden; margin-bottom: 16px; display: none;
@@ -58,7 +68,7 @@
 
   <div class="controls">
     <label>From
-      <input type="date" id="fromDate" value="2026-08-01">
+      <input type="date" id="fromDate" value="2026-01-01">
     </label>
     <label>To
       <input type="date" id="toDate" value="2026-09-23">
@@ -66,7 +76,7 @@
     <label>Tampilan Periode
       <select id="timeframeSelect">
         <option value="daily">Harian</option>
-        <option value="weekly">Mingguan</option>
+        <option value="weekly" selected>Mingguan</option>
         <option value="monthly">Bulanan</option>
         <option value="yearly">Tahunan</option>
       </select>
@@ -75,6 +85,7 @@
       <input type="text" id="searchStock" placeholder="Contoh: CDIA, BBCA" oninput="renderTable()">
     </label>
     <button id="btnFetch" onclick="fetchAndProcessData()">Fetch Data & Tampilkan</button>
+    <button id="btnExport" class="btn-export" onclick="exportToExcel()">Export ke XLS</button>
   </div>
 
   <div class="status" id="statusText">Tentukan rentang tanggal lalu klik <strong>Fetch Data & Tampilkan</strong>.</div>
@@ -191,7 +202,7 @@
       return `${d.getUTCFullYear()}-W${weekNo < 10 ? '0' : ''}${weekNo}`;
     }
 
-	function processMatrixData() {
+    function processMatrixData() {
       const timeframe = document.getElementById('timeframeSelect').value;
       const periodSet = new Set();
       processedMatrix = {};
@@ -229,7 +240,7 @@
         }
       });
 
-      // PERBAIKAN DI SINI: Gunakan localeCompare descendant secara eksplisit
+      // Mengurutkan tanggal/periode dari yang terbaru ke terlama (kanan = terlama)
       periodColumns = Array.from(periodSet).sort((a, b) => b.localeCompare(a));
       
       if (sortColumn !== 'code' && !periodColumns.includes(sortColumn)) {
@@ -309,6 +320,27 @@
     function getSortIcon(col) {
       if (sortColumn !== col) return '';
       return sortDirection === 'asc' ? '▲' : '▼';
+    }
+
+    // FUNGSI EXPORT KE EXCEL (XLS/XLSX)
+    function exportToExcel() {
+      if (periodColumns.length === 0 || Object.keys(processedMatrix).length === 0) {
+        return alert('Tidak ada data untuk diexport. Silakan Fetch Data terlebih dahulu.');
+      }
+
+      const timeframe = document.getElementById('timeframeSelect').value;
+      const fromVal = document.getElementById('fromDate').value;
+      const toVal = document.getElementById('toDate').value;
+
+      // Ambil elemen tabel
+      const table = document.getElementById('matrixTable');
+      
+      // Convert tabel HTML langsung ke worksheet Excel
+      const wb = XLSX.utils.table_to_book(table, { sheet: "Perubahan Harga" });
+      
+      // Simpan file dengan nama acuan timeframe dan tanggal
+      const fileName = `Saham_Updown_${timeframe}_${fromVal}_to_${toVal}.xlsx`;
+      XLSX.writeFile(wb, fileName);
     }
 
     document.getElementById('timeframeSelect').addEventListener('change', () => {
