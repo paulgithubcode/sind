@@ -191,7 +191,7 @@
       return `${d.getUTCFullYear()}-W${weekNo < 10 ? '0' : ''}${weekNo}`;
     }
 
-    function processMatrixData() {
+	function processMatrixData() {
       const timeframe = document.getElementById('timeframeSelect').value;
       const periodSet = new Set();
       processedMatrix = {};
@@ -229,8 +229,8 @@
         }
       });
 
-      // Dibalik (.reverse()) agar tanggal terbaru ada di paling kiri (dekat 'To')
-      periodColumns = Array.from(periodSet).sort().reverse(); 
+      // PERBAIKAN DI SINI: Gunakan localeCompare descendant secara eksplisit
+      periodColumns = Array.from(periodSet).sort((a, b) => b.localeCompare(a));
       
       if (sortColumn !== 'code' && !periodColumns.includes(sortColumn)) {
         sortColumn = 'code';
