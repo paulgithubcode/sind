@@ -332,6 +332,15 @@
       gap: 8px;
       flex-wrap: wrap;
     }
+	.matrix-table a {
+	  color: var(--text);
+	  text-decoration: none;
+	  font-weight: 600;
+	}
+	.matrix-table a:hover {
+	  color: var(--blue);
+	  text-decoration: underline;
+	}
     .matrix-info .signal-label { color: var(--text); font-weight: 500; }
     #statsNormalControls, #statsMatrixControls { display: none; }
     #statsNormalControls.show, #statsMatrixControls.show { display: block; }
@@ -957,11 +966,13 @@
 			  </tr>
 			</thead>
 			<tbody>`;
-	  stocks.forEach(code => {
-		const count = dates.filter(d => matrix[code][d]).length;
-		table += `<tr>
-		  <td>${code}</td>
-		  <td style="font-weight:600;color:var(--blue)">${count}</td>`;
+		stocks.forEach(code => {
+		  const count = dates.filter(d => matrix[code][d]).length;
+		  table += `<tr>
+			<td>
+			  <a href="https://pluang.com/asset/indo-stock/${code}" target="_blank" rel="noopener noreferrer">${code}</a>
+			</td>
+			<td style="font-weight:600;color:var(--blue)">${count}</td>`;
 		dates.forEach(d => {
 		  const has = matrix[code][d];
 		  table += `<td class="${has ? "check" : "no-check"}">${has ? "✓" : "·"}</td>`;
