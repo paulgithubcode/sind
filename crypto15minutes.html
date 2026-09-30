@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indodax 15m Matrix — Harga & Volume</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+      line-height: 1.4;
+    }
+    h1 { font-size: 1.35rem; margin-bottom: 6px; color: #f8fafc; }
+    .meta { color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px; }
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .tab-btn {
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .tab-btn.active {
+      background: #3b82f6;
+      color: #fff;
+      border-color: #3b82f6;
+    }
+    .tab-btn:hover:not(.active) { background: #334155; color: #e2e8f0; }
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-bottom: 14px; align-items: center;
+    }
+    select, button, input[type="text"] {
+      padding: 9px 14px; border-radius: 8px;
+      border: 1px solid #334155; background: #1e293b;
+      color: #e2e8f0; font-size: 0.9rem;
+    }
+    input[type="text"] { min-width: 240px; }
+    input[type="text"]::placeholder { color: #64748b; }
+    button {
+      background: #3b82f6; border: none; cursor: pointer; font-weight: 500;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+    .status {
+      margin-bottom: 12px; padding: 10px 14px;
+      border-radius: 8px; font-size: 0.88rem;
+    }
+    .status.loading { background: #1e293b; color: #94a3b8; }
+    .status.error { background: #7f1d1d; color: #fecaca; }
+    .status.success { background: #14532d; color: #bbf7d0; }
+    .progress { font-size: 0.82rem; color: #94a3b8; margin-bottom: 10px; }
+    .table-wrapper {
+      overflow: auto;
+      max-height: 75vh;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+    table {
+      border-collapse: collapse;
+      font-size: 0.72rem;
+      min-width: 100%;
+    }
+    th, td {
+      padding: 5px 6px;
+      text-align: center;
+      white-space: nowrap;
+      border-bottom: 1px solid #1e293b;
+    }
+    th {
+      background: #1e293b;
+      color: #f1f5f9;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      cursor: pointer;
+      user-select: none;
+    }
+    th:hover { background: #334155; }
+    th:first-child, td:first-child {
+      text-align: left;
+      position: sticky;
+      left: 0;
+      background: #1e293b;
+      z-index: 3;
+      min-width: 95px;
+    }
+    /* sticky Total % */
+    th:nth-child(2), td:nth-child(2) {
+      position: sticky;
+      left: 95px;
+      background: #1e293b;
+      z-index: 3;
+      min-width: 62px;
+    }
+    /* sticky Avg % (hanya di mode price) */
+    th.sticky-avg, td.sticky-avg {
+      position: sticky;
+      left: 157px;
+      background: #1e293b;
+      z-index: 3;
+      min-width: 58px;
+    }
+    tr:nth-child(even) td { background: #0f172a; }
+    tr:nth-child(odd) td { background: #111827; }
+    tr:hover td { background: #1e293b !important; }
+    .pct-up { color: #4ade80; font-weight: 600; }
+    .pct-down { color: #f87171; font-weight: 600; }
+    .pct-flat { color: #64748b; }
+    .vol-high { color: #fbbf24; font-weight: 600; }
+    .vol-mid { color: #93c5fd; }
+    .vol-low { color: #64748b; }
+    .jml { font-weight: 600; color: #93c5fd; }
+    .sort-asc::after { content: " ▲"; font-size: 0.65rem; }
+    .sort-desc::after { content: " ▼"; font-size: 0.65rem; }
+    .hint {
+      font-size: 0.8rem;
+      color: #64748b;
+      width: 100%;
+    }
+    .search-wrapper { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Indodax 15m Matrix — Harga & Volume</h1>
+  <p class="meta">Candle 15 menit · Klik header untuk sort · Tab Harga = % harga · Tab Volume = volume sebagai % dari total periode</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabPrice" onclick="switchTab('price')">Harga %</button>
+    <button class="tab-btn" id="tabVolume" onclick="switchTab('volume')">Volume %</button>
+  </div>
+
+  <div class="controls">
+    <select id="periodSelect">
+      <option value="1" selected>Lookback: 24 jam (1 hari) — Rekomendasi</option>
+      <option value="2">Lookback: 2 hari</option>
+      <option value="3">Lookback: 3 hari</option>
+      <option value="5">Lookback: 5 hari</option>
+      <option value="7">Lookback: 7 hari</option>
+    </select>
+    <button id="scanBtn" onclick="startScan()">Tampilkan</button>
+    <div class="hint" id="hintText">
+      Harga %: (Close − Open) / Open × 100 per candle · Total % = open pertama → close terakhir · Avg % = rata-rata % tiap candle
+    </div>
+  </div>
+
+  <div class="search-wrapper">
+    <input type="text" id="searchInput" placeholder="Cari pair... (contoh: BTC, ETH, PEPE)" oninput="filterTable()">
+  </div>
+
+  <div id="status" class="status" style="display:none;"></div>
+  <div class="progress" id="progress"></div>
+  <div class="table-wrapper">
+    <div id="tableContainer"></div>
+  </div>
+
+  <script>
+    const PAIRS_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json";
+    const HISTORY_BASE = "https://indodax.com/tradingview/history_v2";
+    const CONCURRENCY = 4;
+    const DELAY_AFTER_REQUEST = 250;
+    const RETRY_DELAY = 1500;
+    const TF = "15";
+
+    let allPairs = [];
+    let isScanning = false;
+    let currentMode = "price";
+    let currentResults = [];
+    let currentDates = [];
+    let sortState = { key: "totalPct", asc: false };
+
+    function switchTab(mode) {
+      currentMode = mode;
+      document.getElementById("tabPrice").classList.toggle("active", mode === "price");
+      document.getElementById("tabVolume").classList.toggle("active", mode === "volume");
+
+      const hint = document.getElementById("hintText");
+      if (mode === "price") {
+        hint.textContent = "Harga %: (Close − Open) / Open × 100 per candle · Total % = open pertama → close terakhir · Avg % = rata-rata % tiap candle";
+        sortState = { key: "totalPct", asc: false };
+      } else {
+        hint.textContent = "Volume %: volume candle / total volume periode × 100 · Total Vol = jumlah volume seluruh candle (satuan koin)";
+        sortState = { key: "totalVol", asc: false };
+      }
+
+      if (currentResults.length > 0) {
+        if (mode === "price") {
+          currentResults.sort((a, b) => b.totalPct - a.totalPct);
+        } else {
+          currentResults.sort((a, b) => b.totalVol - a.totalVol);
+        }
+        renderMatrix();
+      }
+    }
+
+    function showStatus(msg, type) {
+      const el = document.getElementById("status");
+      el.style.display = "block";
+      el.className = `status ${type}`;
+      el.textContent = msg;
+    }
+
+    function getUnixTime(daysAgo = 0) {
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      return Math.floor(d.getTime() / 1000);
+    }
+
+    function formatKey(ts) {
+      const d = new Date(ts * 1000);
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const hour = String(d.getHours()).padStart(2, "0");
+      const minute = String(d.getMinutes()).padStart(2, "0");
+      return `${day}/${month} ${hour}:${minute}`;
+    }
+
+    function parseKeyToDate(key) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const [datePart, timePart] = key.split(" ");
+      const [day, month] = datePart.split("/").map(Number);
+      const [hour, minute = 0] = timePart.split(":").map(Number);
+      return new Date(year, month - 1, day, hour, minute);
+    }
+
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    async function loadPairs() {
+      const res = await fetch(PAIRS_URL);
+      if (!res.ok) throw new Error("Gagal load pairs.json");
+      const data = await res.json();
+      allPairs = data.filter(p =>
+        p.id.endsWith("idr") &&
+        p.is_maintenance === 0 &&
+        p.is_market_suspended === 0
+      );
+      return allPairs;
+    }
+
+    async function fetchHistory(symbol, from, to, isRetry = false) {
+      const url = `${HISTORY_BASE}?from=${from}&to=${to}&symbol=${symbol}&tf=${TF}`;
+      const res = await fetch(url);
+      if (res.status === 429) {
+        if (!isRetry) {
+          await sleep(RETRY_DELAY);
+          return fetchHistory(symbol, from, to, true);
+        }
+        throw new Error("429 Too Many Requests");
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    function analyzeCandles(candles) {
+      if (!candles || candles.length < 1) return null;
+      candles.sort((a, b) => a.Time - b.Time);
+
+      const pctMap = {};
+      const volMap = {};
+      let firstOpen = null;
+      let lastClose = null;
+      let totalVol = 0;
+      let sumPct = 0;
+      let countPct = 0;
+
+      candles.forEach(c => {
+        const key = formatKey(c.Time);
+        const open = Number(c.Open);
+        const close = Number(c.Close);
+        const vol = Number(c.Volume) || 0;
+
+        let pct = 0;
+        if (open > 0) {
+          pct = Math.round(((close - open) / open) * 10000) / 100;
+        }
+        pctMap[key] = pct;
+        sumPct += pct;
+        countPct++;
+
+        volMap[key] = vol;
+        totalVol += vol;
+
+        if (firstOpen === null) firstOpen = open;
+        lastClose = close;
+      });
+
+      const volPctMap = {};
+      Object.keys(volMap).forEach(k => {
+        volPctMap[k] = totalVol > 0
+          ? Math.round((volMap[k] / totalVol) * 10000) / 100
+          : 0;
+      });
+
+      let totalPct = 0;
+      if (firstOpen && firstOpen > 0 && lastClose != null) {
+        totalPct = Math.round(((lastClose - firstOpen) / firstOpen) * 10000) / 100;
+      }
+
+      const avgPct = countPct > 0
+        ? Math.round((sumPct / countPct) * 10000) / 100
+        : 0;
+
+      return {
+        symbol: null,
+        pctMap,
+        volPctMap,
+        totalPct,
+        avgPct,
+        totalVol,
+        candlesCount: candles.length,
+        dates: candles.map(c => formatKey(c.Time))
+      };
+    }
+
+    async function runWithConcurrency(items, concurrency, worker) {
+      const results = [];
+      let index = 0;
+      let active = 0;
+      let completed = 0;
+
+      return new Promise((resolve) => {
+        const next = () => {
+          while (active < concurrency && index < items.length) {
+            const i = index++;
+            active++;
+            worker(items[i], i)
+              .then(res => { results[i] = res; })
+              .catch(err => { results[i] = { error: err }; })
+              .finally(async () => {
+                active--;
+                completed++;
+                document.getElementById("progress").textContent =
+                  `Progress: ${completed}/${items.length}`;
+                await sleep(DELAY_AFTER_REQUEST);
+                if (completed === items.length) resolve(results);
+                else next();
+              });
+          }
+        };
+        next();
+      });
+    }
+
+    function sortResults(key) {
+      if (sortState.key === key) {
+        sortState.asc = !sortState.asc;
+      } else {
+        sortState.key = key;
+        sortState.asc = (key === "symbol");
+      }
+
+      currentResults.sort((a, b) => {
+        let valA, valB;
+        if (key === "symbol") {
+          valA = a.symbol;
+          valB = b.symbol;
+          return sortState.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        if (key === "totalPct") {
+          valA = a.totalPct;
+          valB = b.totalPct;
+          return sortState.asc ? valA - valB : valB - valA;
+        }
+        if (key === "avgPct") {
+          valA = a.avgPct;
+          valB = b.avgPct;
+          return sortState.asc ? valA - valB : valB - valA;
+        }
+        if (key === "totalVol") {
+          valA = a.totalVol;
+          valB = b.totalVol;
+          return sortState.asc ? valA - valB : valB - valA;
+        }
+        if (currentMode === "price") {
+          valA = a.pctMap[key] ?? -9999;
+          valB = b.pctMap[key] ?? -9999;
+        } else {
+          valA = a.volPctMap[key] ?? -9999;
+          valB = b.volPctMap[key] ?? -9999;
+        }
+        return sortState.asc ? valA - valB : valB - valA;
+      });
+      renderMatrix();
+    }
+
+    function getFilteredResults() {
+      const q = document.getElementById("searchInput").value.trim().toLowerCase();
+      if (!q) return currentResults;
+      return currentResults.filter(r => r.symbol.toLowerCase().includes(q));
+    }
+
+    function filterTable() {
+      renderMatrix();
+    }
+
+    function formatPct(v) {
+      if (v == null || isNaN(v)) return `<span class="pct-flat">·</span>`;
+      const cls = v > 0 ? "pct-up" : (v < 0 ? "pct-down" : "pct-flat");
+      const sign = v > 0 ? "+" : "";
+      return `<span class="${cls}">${sign}${v.toFixed(2)}%</span>`;
+    }
+
+    function formatVolPct(v) {
+      if (v == null || isNaN(v)) return `<span class="vol-low">·</span>`;
+      let cls = "vol-low";
+      if (v >= 5) cls = "vol-high";
+      else if (v >= 1.5) cls = "vol-mid";
+      return `<span class="${cls}">${v.toFixed(2)}%</span>`;
+    }
+
+    function formatTotalVol(v) {
+      if (v == null || isNaN(v) || v === 0) return `<span class="pct-flat">0</span>`;
+      if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
+      if (v >= 1e3) return (v / 1e3).toFixed(1) + "K";
+      return v.toFixed(2);
+    }
+
+    function renderMatrix() {
+      const container = document.getElementById("tableContainer");
+      const filtered = getFilteredResults();
+
+      if (currentResults.length === 0) {
+        container.innerHTML = `<p style="padding:16px;color:#64748b;">Tidak ada data. Klik "Tampilkan" dulu.</p>`;
+        return;
+      }
+      if (filtered.length === 0) {
+        container.innerHTML = `<p style="padding:16px;color:#64748b;">Tidak ada pair yang cocok.</p>`;
+        return;
+      }
+
+      const getSortClass = (key) => {
+        if (sortState.key !== key) return "";
+        return sortState.asc ? "sort-asc" : "sort-desc";
+      };
+
+      let headerExtra = "";
+      if (currentMode === "price") {
+        headerExtra = `
+          <th class="${getSortClass("totalPct")}" onclick="sortResults('totalPct')">Total %</th>
+          <th class="sticky-avg ${getSortClass("avgPct")}" onclick="sortResults('avgPct')">Avg %</th>
+        `;
+      } else {
+        headerExtra = `
+          <th class="${getSortClass("totalVol")}" onclick="sortResults('totalVol')">Total Vol</th>
+        `;
+      }
+
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th class="${getSortClass("symbol")}" onclick="sortResults('symbol')">Pair</th>
+              ${headerExtra}
+              ${currentDates.map(d =>
+                `<th class="${getSortClass(d)}" onclick="sortResults('${d}')">${d}</th>`
+              ).join("")}
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      filtered.forEach(r => {
+        let extraCells = "";
+        if (currentMode === "price") {
+          extraCells = `
+            <td>${formatPct(r.totalPct)}</td>
+            <td class="sticky-avg">${formatPct(r.avgPct)}</td>
+          `;
+        } else {
+          extraCells = `<td><span class="jml">${formatTotalVol(r.totalVol)}</span></td>`;
+        }
+
+        html += `
+          <tr>
+            <td><strong>${r.symbol}</strong></td>
+            ${extraCells}
+            ${currentDates.map(d => {
+              if (currentMode === "price") {
+                return `<td>${formatPct(r.pctMap[d])}</td>`;
+              } else {
+                return `<td>${formatVolPct(r.volPctMap[d])}</td>`;
+              }
+            }).join("")}
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    async function startScan() {
+      if (isScanning) return;
+      isScanning = true;
+      const btn = document.getElementById("scanBtn");
+      btn.disabled = true;
+      document.getElementById("tableContainer").innerHTML = "";
+      document.getElementById("searchInput").value = "";
+      document.getElementById("progress").textContent = "";
+
+      const startTime = performance.now();
+
+      try {
+        if (allPairs.length === 0) {
+          showStatus("Memuat daftar pairs...", "loading");
+          await loadPairs();
+        }
+
+        const periodDays = parseInt(document.getElementById("periodSelect").value, 10);
+        const to = getUnixTime(0);
+        const from = getUnixTime(periodDays);
+
+        showStatus(
+          `Scanning ${allPairs.length} pairs | TF: 15m | Lookback: ${periodDays} hari`,
+          "loading"
+        );
+
+        let success = 0;
+        let failed = 0;
+        const results = [];
+        const allDatesSet = new Set();
+
+        const worker = async (pair) => {
+          try {
+            const candles = await fetchHistory(pair.id, from, to);
+            const analysis = analyzeCandles(candles);
+            if (analysis) {
+              analysis.symbol = pair.symbol || pair.id.toUpperCase();
+              results.push(analysis);
+              analysis.dates.forEach(d => allDatesSet.add(d));
+              success++;
+            }
+          } catch (err) {
+            failed++;
+            console.warn(`Gagal ${pair.id}:`, err.message);
+          }
+        };
+
+        await runWithConcurrency(allPairs, CONCURRENCY, worker);
+
+        currentDates = Array.from(allDatesSet).sort((a, b) => {
+          return parseKeyToDate(b) - parseKeyToDate(a);
+        });
+
+        currentResults = results;
+
+        if (currentMode === "price") {
+          sortState = { key: "totalPct", asc: false };
+          currentResults.sort((a, b) => b.totalPct - a.totalPct);
+        } else {
+          sortState = { key: "totalVol", asc: false };
+          currentResults.sort((a, b) => b.totalVol - a.totalVol);
+        }
+
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+        showStatus(
+          `Selesai ${elapsed}s · Berhasil: ${success} | Gagal: ${failed} | Kolom waktu: ${currentDates.length}`,
+          "success"
+        );
+        document.getElementById("progress").textContent = "";
+        renderMatrix();
+      } catch (err) {
+        console.error(err);
+        showStatus("Error: " + err.message, "error");
+      } finally {
+        isScanning = false;
+        btn.disabled = false;
+      }
+    }
+
+    loadPairs().then(pairs => {
+      showStatus(`Siap. ${pairs.length} pair IDR aktif. Klik "Tampilkan".`, "success");
+    }).catch(err => {
+      showStatus("Gagal memuat pairs: " + err.message, "error");
+    });
+  </script>
+</body>
+</html>
