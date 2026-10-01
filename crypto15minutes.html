@@ -168,9 +168,10 @@
   <script>
     const PAIRS_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json";
     const HISTORY_BASE = "https://indodax.com/tradingview/history_v2";
-    const CONCURRENCY = 4;
-    const DELAY_AFTER_REQUEST = 250;
-    const RETRY_DELAY = 1500;
+    // Pengaturan lebih aman
+    const CONCURRENCY = 3;
+    const DELAY_AFTER_REQUEST = 300; // ms
+    const RETRY_DELAY = 1600;
     const TF = "15";
 
     let allPairs = [];
