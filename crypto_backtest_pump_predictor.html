@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indodax Breakout & Pump Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #0d1117; color: #c9d1d9; font-family: system-ui, -apple-system, sans-serif; }
+    .glass { background: rgba(22, 27, 34, 0.85); backdrop-filter: blur(8px); border: 1px solid #30363d; }
+    .table-hover tbody tr:hover { background-color: rgba(56, 139, 253, 0.1); }
+  </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 glass p-4 rounded-xl">
+      <div>
+        <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+          ⚡ Indodax Breakout Monitor
+          <span class="text-xs bg-blue-600/30 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30">Auto Loop</span>
+        </h1>
+        <p class="text-xs text-gray-400 mt-1">Deteksi Kenaikan (Pump) 15M setelah Sideway 30M</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btnScan" onclick="toggleScanning()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-lg shadow-emerald-900/40">
+          ▶ Start Auto Scan
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="glass p-4 rounded-xl">
+        <div class="text-xs text-gray-400">Total Koin</div>
+        <div id="statTotal" class="text-2xl font-bold text-white mt-1">0</div>
+      </div>
+      <div class="glass p-4 rounded-xl border-l-4 border-emerald-500">
+        <div class="text-xs text-emerald-400 font-semibold">Breakout / Pump</div>
+        <div id="statPump" class="text-2xl font-bold text-emerald-400 mt-1">0</div>
+      </div>
+      <div class="glass p-4 rounded-xl border-l-4 border-yellow-500">
+        <div class="text-xs text-yellow-400 font-semibold">Sideway (30m)</div>
+        <div id="statSideways" class="text-2xl font-bold text-yellow-400 mt-1">0</div>
+      </div>
+      <div class="glass p-4 rounded-xl">
+        <div class="text-xs text-gray-400">Progress Scan</div>
+        <div id="statProgress" class="text-xl font-bold text-blue-400 mt-1">0 / 0</div>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+      <div id="progressBar" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div class="flex flex-col md:flex-row gap-3 justify-between items-center">
+      <input type="text" id="searchInput" oninput="filterAndRenderTable()" placeholder="🔍 Cari koin (misal: BTC, ETH, IDR)..." 
+        class="w-full md:w-80 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+      
+      <div class="flex gap-2 w-full md:w-auto">
+        <button onclick="setFilter('ALL')" id="filterAll" class="filter-btn px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white">Semua</button>
+        <button onclick="setFilter('PUMP')" id="filterPump" class="filter-btn px-4 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 text-gray-300 hover:bg-gray-700">🚀 Pump Only</button>
+        <button onclick="setFilter('SIDEWAYS')" id="filterSideways" class="filter-btn px-4 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 text-gray-300 hover:bg-gray-700">↔️ Sideway Only</button>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="glass rounded-xl overflow-x-auto">
+      <table class="w-full text-left border-collapse table-hover">
+        <thead>
+          <tr class="border-b border-gray-800 text-xs text-gray-400 uppercase bg-gray-900/50">
+            <th class="p-3 cursor-pointer select-none" onclick="sortTable('symbol')">Koin Pair <span id="sort_symbol">↕</span></th>
+            <th class="p-3 cursor-pointer select-none text-right" onclick="sortTable('lastPrice')">Harga Terakhir <span id="sort_lastPrice">↕</span></th>
+            <th class="p-3 cursor-pointer select-none text-right" onclick="sortTable('sidewaysRangePct')">30M Range % <span id="sort_sidewaysRangePct">↕</span></th>
+            <th class="p-3 cursor-pointer select-none text-right" onclick="sortTable('gainPct')">15M Change % <span id="sort_gainPct">↕</span></th>
+            <th class="p-3 text-center">Status Signal</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody" class="divide-y divide-gray-800 text-sm">
+          <tr>
+            <td colspan="5" class="text-center py-8 text-gray-500">Klik "Start Auto Scan" untuk memulai pemindaian otomatis data Indodax.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Konfigurasi Pembatasan Rate Limit
+    const CONCURRENCY = 2;
+    const DELAY_AFTER_REQUEST = 300; // ms
+    const RETRY_DELAY = 1600;        // ms
+    const PAUSE_BETWEEN_SCANS = 3000; // Jeda 3 detik sebelum mengulang scan
+    const TF = "15";
+
+    // Criteria Thresholds
+    const SIDEWAYS_MAX_PCT = 0.8;  // Range 30m <= 0.8% dianggap sideway
+    const PUMP_MIN_GAIN_PCT = 0.8;  // Kenaikan 15m >= 0.8%
+
+    // Daftar Pasangan Koin Indodax (Internal Fallback Lengkap untuk menghindari error CORS)
+    const INDODAX_PAIRS = [
+      "btcidr", "ethidr", "solidr", "xrpidr", "adaidr", "dogeidr", "bnbidr", "maticidr", 
+      "pepeidr", "shibidr", "ltcidr", "dotidr", "avaxidr", "nearidr", "ftmidr", "linkidr", 
+      "uniidr", "xlmidr", "trxidr", "bchidr", "etcidr", "filidr", "aptidr", "suiidr", 
+      "renderidr", "injidr", "fetidr", "agixidr", "galaidr", "sandidr", "manaidr", "chzidr",
+      "flokiidr", "bonkidr", "wifidr", "satsidr", "ordiidr", "kasidr", "tiaidr", "seiidr"
+    ];
+
+    // State Variables
+    let allPairs = [];
+    let scannedData = [];
+    let activeFilter = 'ALL';
+    let sortColumn = 'gainPct';
+    let sortAscending = false;
+    let autoScanActive = false;
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // Load Pairs
+    async function loadPairs() {
+      try {
+        // Coba ambil via jsDelivr CDN untuk menghindari batasan CORS raw.githubusercontent.com
+        const res = await fetch("https://cdn.jsdelivr.net/gh/paulgithubcode/sind@main/pairs.json");
+        if (res.ok) {
+          const data = await res.json();
+          allPairs = Array.isArray(data) ? data.map(p => typeof p === 'string' ? p.toLowerCase() : p.symbol.toLowerCase()) : [];
+        } else {
+          throw new Error("Gagal mengambil dari CDN");
+        }
+      } catch (err) {
+        console.warn("Menggunakan daftar internal Indodax karena error CORS/Network:", err);
+        allPairs = INDODAX_PAIRS;
+      }
+      document.getElementById("statTotal").innerText = allPairs.length;
+    }
+
+    // Direct Fetch ke Indodax API
+    async function fetchCandlesWithRetry(symbol) {
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const fromUnix = nowUnix - (12 * 3600); // Rentang 12 jam ke belakang
+
+      const url = `https://indodax.com/tradingview/history_v2?from=${fromUnix}&to=${nowUnix}&symbol=${symbol}&tf=${TF}`;
+
+      while (true) {
+        if (!autoScanActive) return null;
+
+        try {
+          const res = await fetch(url);
+
+          if (res.status === 429) {
+            await sleep(RETRY_DELAY);
+            continue;
+          }
+
+          if (!res.ok) return null;
+
+          const data = await res.json();
+          return parseIndodaxCandles(data);
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+
+    // Parsing struktur response Indodax
+    function parseIndodaxCandles(data) {
+      if (!data) return null;
+
+      if (Array.isArray(data) && data.length >= 3) {
+        return data.map(c => ({
+          o: parseFloat(c.Open || c.open || c.o),
+          h: parseFloat(c.High || c.high || c.h),
+          l: parseFloat(c.Low || c.low || c.l),
+          c: parseFloat(c.Close || c.close || c.c)
+        }));
+      }
+
+      if ((data.s === "ok" || data.status === "ok") && data.c && data.c.length >= 3) {
+        const candles = [];
+        for (let i = 0; i < data.c.length; i++) {
+          candles.push({
+            o: parseFloat(data.o[i]),
+            h: parseFloat(data.h[i]),
+            l: parseFloat(data.l[i]),
+            c: parseFloat(data.c[i])
+          });
+        }
+        return candles;
+      }
+
+      return null;
+    }
+
+    // Analisa Strategi Candle
+    function analyzeCandles(symbol, candles) {
+      const len = candles.length;
+      
+      const cCurrent = candles[len - 1]; // Candle 15m Terbaru (T)
+      const cPrev1   = candles[len - 2]; // Candle 15m Sebelumnya (T-1)
+      const cPrev2   = candles[len - 3]; // Candle 15m Sebelum-sebelumnya (T-2)
+
+      // 1. Sideway 30m (Cek T-2 & T-1)
+      const high30m = Math.max(cPrev1.h, cPrev2.h);
+      const low30m = Math.min(cPrev1.l, cPrev2.l);
+      const sidewaysRangePct = low30m > 0 ? ((high30m - low30m) / low30m) * 100 : 0;
+      const isSideways = sidewaysRangePct <= SIDEWAYS_MAX_PCT;
+
+      // 2. Kenaikan 15m (Candle T)
+      const gainPct = cCurrent.o > 0 ? ((cCurrent.c - cCurrent.o) / cCurrent.o) * 100 : 0;
+      const isBreakout = cCurrent.c > high30m;
+      const isPump = isSideways && isBreakout && (gainPct >= PUMP_MIN_GAIN_PCT);
+
+      let status = "NORMAL";
+      if (isPump) status = "PUMP";
+      else if (isSideways) status = "SIDEWAYS";
+
+      return {
+        symbol: symbol.toUpperCase(),
+        lastPrice: cCurrent.c,
+        sidewaysRangePct: parseFloat(sidewaysRangePct.toFixed(2)),
+        gainPct: parseFloat(gainPct.toFixed(2)),
+        status: status
+      };
+    }
+
+    // Toggle Start / Stop Scan
+    function toggleScanning() {
+      if (autoScanActive) {
+        autoScanActive = false;
+        document.getElementById("btnScan").innerText = "▶ Start Auto Scan";
+        document.getElementById("btnScan").className = "bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-lg shadow-emerald-900/40";
+      } else {
+        autoScanActive = true;
+        document.getElementById("btnScan").innerText = "⏹ Stop Auto Scan";
+        document.getElementById("btnScan").className = "bg-rose-600 hover:bg-rose-500 text-white px-5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-lg shadow-rose-900/40";
+        startScanningLoop();
+      }
+    }
+
+    // Loop Otomatis
+    async function startScanningLoop() {
+      if (allPairs.length === 0) await loadPairs();
+
+      while (autoScanActive) {
+        scannedData = [];
+
+        let processedCount = 0;
+        let pumpCount = 0;
+        let sidewaysCount = 0;
+
+        for (let i = 0; i < allPairs.length; i += CONCURRENCY) {
+          if (!autoScanActive) break;
+
+          const chunk = allPairs.slice(i, i + CONCURRENCY);
+
+          const promises = chunk.map(async (symbol) => {
+            const candles = await fetchCandlesWithRetry(symbol);
+            if (candles) {
+              const parsed = analyzeCandles(symbol, candles);
+              
+              const existingIdx = scannedData.findIndex(item => item.symbol === parsed.symbol);
+              if (existingIdx !== -1) scannedData.splice(existingIdx, 1);
+
+              scannedData.push(parsed);
+
+              if (parsed.status === "PUMP") pumpCount++;
+              if (parsed.status === "SIDEWAYS") sidewaysCount++;
+            }
+          });
+
+          await Promise.all(promises);
+          processedCount += chunk.length;
+
+          // Update UI Progress
+          document.getElementById("statProgress").innerText = `${processedCount} / ${allPairs.length}`;
+          document.getElementById("statPump").innerText = pumpCount;
+          document.getElementById("statSideways").innerText = sidewaysCount;
+          document.getElementById("progressBar").style.width = `${(processedCount / allPairs.length) * 100}%`;
+
+          filterAndRenderTable();
+          await sleep(DELAY_AFTER_REQUEST);
+        }
+
+        if (autoScanActive) {
+          await sleep(PAUSE_BETWEEN_SCANS);
+        }
+      }
+    }
+
+    // Filter & Render
+    function filterAndRenderTable() {
+      const search = document.getElementById("searchInput").value.toLowerCase();
+      
+      let filtered = scannedData.filter(item => {
+        const matchesSearch = item.symbol.toLowerCase().includes(search);
+        if (activeFilter === 'PUMP') return matchesSearch && item.status === 'PUMP';
+        if (activeFilter === 'SIDEWAYS') return matchesSearch && item.status === 'SIDEWAYS';
+        return matchesSearch;
+      });
+
+      filtered.sort((a, b) => {
+        let valA = a[sortColumn];
+        let valB = b[sortColumn];
+        return sortAscending ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+      });
+
+      renderTable(filtered);
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById("tableBody");
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-gray-500">Tidak ada data koin yang cocok.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.map(item => {
+        let badgeHtml = '<span class="px-2 py-1 rounded text-xs bg-gray-800 text-gray-400">NORMAL</span>';
+        if (item.status === 'PUMP') {
+          badgeHtml = '<span class="px-2.5 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-bold animate-pulse">🚀 BREAKOUT / PUMP</span>';
+        } else if (item.status === 'SIDEWAYS') {
+          badgeHtml = '<span class="px-2.5 py-1 rounded text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-medium">↔ SIDEWAYS</span>';
+        }
+
+        return `
+          <tr class="border-b border-gray-800/50">
+            <td class="p-3 font-semibold text-white">${item.symbol}</td>
+            <td class="p-3 text-right font-mono">${item.lastPrice.toLocaleString('id-ID')}</td>
+            <td class="p-3 text-right font-mono text-yellow-400">${item.sidewaysRangePct}%</td>
+            <td class="p-3 text-right font-mono ${item.gainPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+              ${item.gainPct >= 0 ? '+' : ''}${item.gainPct}%
+            </td>
+            <td class="p-3 text-center">${badgeHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function setFilter(type) {
+      activeFilter = type;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('bg-gray-800', 'text-gray-300');
+      });
+      if (type === 'ALL') document.getElementById('filterAll').className = "filter-btn px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white";
+      if (type === 'PUMP') document.getElementById('filterPump').className = "filter-btn px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white";
+      if (type === 'SIDEWAYS') document.getElementById('filterSideways').className = "filter-btn px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white";
+      filterAndRenderTable();
+    }
+
+    function sortTable(col) {
+      if (sortColumn === col) {
+        sortAscending = !sortAscending;
+      } else {
+        sortColumn = col;
+        sortAscending = false;
+      }
+      filterAndRenderTable();
+    }
+
+    // Inisialisasi
+    loadPairs();
+  </script>
+</body>
+</html>
