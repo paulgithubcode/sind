@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indodax Coin Analyzer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 { margin-bottom: 8px; font-size: 1.8rem; }
+    .subtitle { color: #94a3b8; margin-bottom: 24px; font-size: 0.95rem; }
+    
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    input, select, button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+    }
+    input:focus, select:focus { outline: none; border-color: #3b82f6; }
+    button {
+      background: #3b82f6;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+    
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
+    .stats span { background: #1e293b; padding: 6px 12px; border-radius: 6px; }
+    
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid #1e293b;
+    }
+    th {
+      background: #1e293b;
+      position: sticky;
+      top: 0;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    th:hover { background: #334155; }
+    tr:hover { background: #1e293b; }
+    
+    .positive { color: #22c55e; }
+    .negative { color: #ef4444; }
+    .neutral { color: #94a3b8; }
+    
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-rebound { background: #166534; color: #86efac; }
+    .badge-strong { background: #1e3a8a; color: #93c5fd; }
+    .badge-weak { background: #7f1d1d; color: #fca5a5; }
+    
+    .loading { text-align: center; padding: 40px; color: #94a3b8; }
+    .error { background: #7f1d1d; color: #fecaca; padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+    
+    .note {
+      margin-top: 20px;
+      padding: 12px;
+      background: #1e293b;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Indodax Coin Analyzer</h1>
+    <p class="subtitle">Analisa momentum berdasarkan data 24 jam & 7 hari dari API Indodax</p>
+
+    <div class="controls">
+      <input type="text" id="search" placeholder="Cari koin (btc, eth, ...)" style="min-width:180px">
+      
+      <select id="filterType">
+        <option value="all">Semua Koin</option>
+        <option value="rebound">Rebound (↓7d ↑24h)</option>
+        <option value="strong">Momentum Kuat (↑24h ↑7d)</option>
+        <option value="gainer24">Top Gainer 24h</option>
+        <option value="volume">Volume Tinggi</option>
+      </select>
+
+      <select id="minVolume">
+        <option value="0">Min Volume: Semua</option>
+        <option value="100000000">Min Volume: 100jt+</option>
+        <option value="500000000">Min Volume: 500jt+</option>
+        <option value="1000000000">Min Volume: 1M+</option>
+        <option value="5000000000">Min Volume: 5M+</option>
+      </select>
+
+	<button id="refreshBtn" onclick="loadData()">Refresh Data</button>
+	<button id="downloadBtn" onclick="downloadJSON()" style="background:#10b981;">Download JSON</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;">
+        <input type="checkbox" id="autoRefresh"> Auto-refresh (30s)
+      </label>
+    </div>
+
+    <div class="stats" id="stats"></div>
+    <div id="error" class="error" style="display:none;"></div>
+    <div id="loading" class="loading">Memuat data dari Indodax...</div>
+
+    <div class="table-wrapper">
+      <table id="coinTable" style="display:none;">
+        <thead>
+          <tr>
+            <th data-sort="pair">Pair</th>
+            <th data-sort="name">Nama</th>
+            <th data-sort="last">Harga</th>
+            <th data-sort="change24">24h %</th>
+            <th data-sort="change7">7d %</th>
+            <th data-sort="volume">Volume 24h (IDR)</th>
+            <th data-sort="score">Skor</th>
+            <th>Sinyal</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>Catatan:</strong> 
+      Skor dihitung dari kombinasi %24h, %7d, dan volume (bukan prediksi). 
+      Data diambil dari <code>/api/summaries</code>. 
+      Gunakan sebagai screening awal, bukan saran investasi.
+      WebSocket bisa ditambahkan nanti untuk data real-time lebih dalam (orderbook & trade activity).
+    </div>
+  </div>
+
+  <script>
+    let allCoins = [];
+    let sortKey = 'score';
+    let sortAsc = false;
+    let autoRefreshInterval = null;
+
+    // Format angka
+    function formatNumber(num, decimals = 0) {
+      if (num >= 1e9) return (num / 1e9).toFixed(2) + 'M';
+      if (num >= 1e6) return (num / 1e6).toFixed(2) + 'jt';
+      if (num >= 1e3) return (num / 1e3).toFixed(1) + 'rb';
+      return Number(num).toLocaleString('id-ID', { maximumFractionDigits: decimals });
+    }
+
+    function formatPrice(price) {
+      price = Number(price);
+      if (price >= 1000) return price.toLocaleString('id-ID');
+      if (price >= 1) return price.toFixed(2);
+      return price.toFixed(6);
+    }
+
+    function calcChange(current, previous) {
+      if (!previous || previous == 0) return 0;
+      return ((current - previous) / previous) * 100;
+    }
+
+    // Hitung skor sederhana
+    function calculateScore(change24, change7, volumeIdr) {
+      // Bobot: 24h lebih penting untuk short-term, volume sebagai filter
+      let score = (change24 * 1.5) + (change7 * 0.7);
+      
+      // Bonus volume (log scale supaya tidak didominasi koin besar)
+      if (volumeIdr > 0) {
+        score += Math.log10(volumeIdr) * 0.8;
+      }
+      
+      // Bonus khusus untuk rebound
+      if (change24 > 0 && change7 < 0) {
+        score += 8;
+      }
+      
+      return score;
+    }
+
+    function getSignal(change24, change7) {
+      if (change24 > 0 && change7 < 0) return { text: 'Rebound', class: 'badge-rebound' };
+      if (change24 > 3 && change7 > 5) return { text: 'Strong', class: 'badge-strong' };
+      if (change24 < -5 && change7 < -10) return { text: 'Weak', class: 'badge-weak' };
+      return { text: '-', class: '' };
+    }
+
+    async function loadData() {
+      const btn = document.getElementById('refreshBtn');
+      const loading = document.getElementById('loading');
+      const errorDiv = document.getElementById('error');
+      const table = document.getElementById('coinTable');
+
+      btn.disabled = true;
+      loading.style.display = 'block';
+      errorDiv.style.display = 'none';
+      table.style.display = 'none';
+
+      try {
+//        const res = await fetch('https://indodax.com/api/summaries');
+        const res = await fetch('https://floral-bar-ca90.paul-inboxmail.workers.dev/');
+        if (!res.ok) throw new Error('Gagal mengambil data');
+
+        const data = await res.json();
+        const tickers = data.tickers || {};
+        const prices24h = data.prices_24h || {};
+        const prices7d = data.prices_7d || {};
+
+        allCoins = [];
+
+        for (const [pair, ticker] of Object.entries(tickers)) {
+          // pair format: btc_idr → key di prices_24h biasanya btcidr
+          const key24 = pair.replace('_', '');
+          const last = Number(ticker.last) || 0;
+          const price24 = Number(prices24h[key24]) || 0;
+          const price7 = Number(prices7d[key24]) || 0;
+          
+          // Volume IDR
+          let volumeIdr = 0;
+          for (const key of Object.keys(ticker)) {
+            if (key.startsWith('vol_') && key !== 'vol_idr' && key.includes('idr') === false) {
+              // skip
+            }
+            if (key === 'vol_idr') {
+              volumeIdr = Number(ticker[key]) || 0;
+            }
+          }
+          // Fallback kalau nama field beda
+          if (!volumeIdr) {
+            const volKey = Object.keys(ticker).find(k => k.startsWith('vol_') && k !== 'vol_idr');
+            // tetap prioritaskan vol_idr
+            volumeIdr = Number(ticker.vol_idr) || 0;
+          }
+
+          const change24 = calcChange(last, price24);
+          const change7 = calcChange(last, price7);
+          const score = calculateScore(change24, change7, volumeIdr);
+          const signal = getSignal(change24, change7);
+
+          allCoins.push({
+            pair: pair.toUpperCase().replace('_', '/'),
+            pairRaw: pair,
+            name: ticker.name || pair.split('_')[0].toUpperCase(),
+            last,
+            change24,
+            change7,
+            volume: volumeIdr,
+            score,
+            signal
+          });
+        }
+
+        // Default sort by score descending
+        sortKey = 'score';
+        sortAsc = false;
+        renderTable();
+
+        // Stats
+        document.getElementById('stats').innerHTML = `
+          <span>Total Koin: <strong>${allCoins.length}</strong></span>
+          <span>Update: ${new Date().toLocaleTimeString('id-ID')}</span>
+        `;
+
+        loading.style.display = 'none';
+        table.style.display = 'table';
+      } catch (err) {
+        console.error(err);
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = 'Gagal memuat data: ' + err.message + '. Coba refresh atau cek koneksi.';
+        loading.style.display = 'none';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function renderTable() {
+      const search = document.getElementById('search').value.toLowerCase();
+      const filterType = document.getElementById('filterType').value;
+      const minVol = Number(document.getElementById('minVolume').value);
+
+      let filtered = allCoins.filter(c => {
+        if (search && !c.pair.toLowerCase().includes(search) && !c.name.toLowerCase().includes(search)) return false;
+        if (c.volume < minVol) return false;
+
+        if (filterType === 'rebound') return c.change24 > 0 && c.change7 < 0;
+        if (filterType === 'strong') return c.change24 > 0 && c.change7 > 0;
+        if (filterType === 'gainer24') return c.change24 > 2;
+        if (filterType === 'volume') return c.volume > 1e9;
+        return true;
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        let valA = a[sortKey];
+        let valB = b[sortKey];
+        if (typeof valA === 'string') {
+          return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        return sortAsc ? valA - valB : valB - valA;
+      });
+
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = filtered.map(c => `
+        <tr>
+          <td><strong>${c.pair}</strong></td>
+          <td>${c.name}</td>
+          <td>${formatPrice(c.last)}</td>
+          <td class="${c.change24 > 0 ? 'positive' : c.change24 < 0 ? 'negative' : 'neutral'}">
+            ${c.change24 > 0 ? '+' : ''}${c.change24.toFixed(2)}%
+          </td>
+          <td class="${c.change7 > 0 ? 'positive' : c.change7 < 0 ? 'negative' : 'neutral'}">
+            ${c.change7 > 0 ? '+' : ''}${c.change7.toFixed(2)}%
+          </td>
+          <td>${formatNumber(c.volume)}</td>
+          <td>${c.score.toFixed(1)}</td>
+          <td>${c.signal.text !== '-' ? `<span class="badge ${c.signal.class}">${c.signal.text}</span>` : '-'}</td>
+        </tr>
+      `).join('');
+    }
+	
+function downloadJSON() {
+  if (allCoins.length === 0) {
+    alert('Belum ada data untuk di-download');
+    return;
+  }
+
+  // Ambil data yang sedang ditampilkan (setelah filter)
+  const search = document.getElementById('search').value.toLowerCase();
+  const filterType = document.getElementById('filterType').value;
+  const minVol = Number(document.getElementById('minVolume').value);
+
+  let filtered = allCoins.filter(c => {
+    if (search && !c.pair.toLowerCase().includes(search) && !c.name.toLowerCase().includes(search)) return false;
+    if (c.volume < minVol) return false;
+    if (filterType === 'rebound') return c.change24 > 0 && c.change7 < 0;
+    if (filterType === 'strong') return c.change24 > 0 && c.change7 > 0;
+    if (filterType === 'gainer24') return c.change24 > 2;
+    if (filterType === 'volume') return c.volume > 1e9;
+    return true;
+  });
+
+  // Sort sesuai urutan tabel saat ini
+  filtered.sort((a, b) => {
+    let valA = a[sortKey];
+    let valB = b[sortKey];
+    if (typeof valA === 'string') {
+      return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    }
+    return sortAsc ? valA - valB : valB - valA;
+  });
+
+  // Buat object yang lebih rapi
+  const exportData = {
+    generated_at: new Date().toISOString(),
+    total: filtered.length,
+    filter: {
+      search: search || null,
+      type: filterType,
+      min_volume: minVol
+    },
+    coins: filtered.map(c => ({
+      pair: c.pair,
+      name: c.name,
+      last: c.last,
+      change_24h: Number(c.change24.toFixed(2)),
+      change_7d: Number(c.change7.toFixed(2)),
+      volume_idr: c.volume,
+      score: Number(c.score.toFixed(1)),
+      signal: c.signal.text
+    }))
+  };
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `indodax-analyzer-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}	
+
+    // Event listeners
+    document.getElementById('search').addEventListener('input', renderTable);
+    document.getElementById('filterType').addEventListener('change', renderTable);
+    document.getElementById('minVolume').addEventListener('change', renderTable);
+
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (sortKey === key) {
+          sortAsc = !sortAsc;
+        } else {
+          sortKey = key;
+          sortAsc = false;
+        }
+        renderTable();
+      });
+    });
+
+    document.getElementById('autoRefresh').addEventListener('change', (e) => {
+      if (e.target.checked) {
+        autoRefreshInterval = setInterval(loadData, 30000);
+      } else {
+        clearInterval(autoRefreshInterval);
+      }
+    });
+
+    // Load pertama kali
+    loadData();
+  </script>
+</body>
+</html>

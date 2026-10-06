@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indodax Scalper Screener + WS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+      line-height: 1.5;
+    }
+    h1, h2 { margin-bottom: 12px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #334155;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #64748b; cursor: not-allowed; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+    th { background: #0f172a; position: sticky; top: 0; }
+    tr:hover { background: #334155; }
+    .positive { color: #22c55e; }
+    .negative { color: #ef4444; }
+    .mono { font-family: ui-monospace, monospace; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .log {
+      background: #0f172a;
+      padding: 12px;
+      border-radius: 8px;
+      height: 220px;
+      overflow-y: auto;
+      font-size: 13px;
+      font-family: ui-monospace, monospace;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-green { background: #166534; color: #bbf7d0; }
+    .badge-red { background: #7f1d1d; color: #fecaca; }
+    .badge-blue { background: #1e3a8a; color: #bfdbfe; }
+    input, select {
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: #e2e8f0;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Indodax Scalper — Screener + WebSocket</h1>
+    <p style="margin-bottom:20px;color:#94a3b8">
+      Screening pakai ticker_all → pilih pair → real-time Orderbook + Trade Activity
+    </p>
+
+    <!-- SCREENING -->
+    <div class="card">
+      <h2>1. Screening (ticker_all)</h2>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <button id="btnScreen">Refresh Screening</button>
+        <label>
+          Min Volume IDR:
+          <input type="number" id="minVol" value="50000000" style="width:140px">
+        </label>
+        <label>
+          Max Spread %:
+          <input type="number" id="maxSpread" value="0.3" step="0.05" style="width:80px">
+        </label>
+        <span id="screenStatus" style="color:#94a3b8"></span>
+      </div>
+
+      <div style="max-height:320px;overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Last</th>
+              <th>Bid</th>
+              <th>Ask</th>
+              <th>Spread %</th>
+              <th>Vol IDR</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="screenTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REALTIME -->
+    <div class="card">
+      <h2>2. Real-time WebSocket</h2>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <span>Pair aktif: <strong id="activePair">-</strong></span>
+        <button id="btnDisconnect" disabled>Disconnect</button>
+        <span id="wsStatus" class="badge badge-blue">Disconnected</span>
+      </div>
+
+      <div class="grid">
+        <!-- ORDERBOOK -->
+        <div>
+          <h3 style="margin-bottom:8px">Order Book</h3>
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <div style="color:#22c55e;font-weight:600;margin-bottom:4px">BID</div>
+              <div id="bids" class="mono" style="font-size:13px"></div>
+            </div>
+            <div>
+              <div style="color:#ef4444;font-weight:600;margin-bottom:4px">ASK</div>
+              <div id="asks" class="mono" style="font-size:13px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SIGNAL -->
+        <div>
+          <h3 style="margin-bottom:8px">Saran Entry / SL / TP</h3>
+          <div id="signalBox" style="background:#0f172a;padding:12px;border-radius:8px">
+            <p style="color:#94a3b8">Pilih pair dulu dari screening</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <h3 style="margin-bottom:8px">Trade Activity (real-time)</h3>
+        <div id="tradeLog" class="log"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ====================== CONFIG ======================
+const WS_URL = "wss://ws3.indodax.com/ws/";
+const STATIC_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE5NDY2MTg0MTV9.UR1lBM6Eqh0yWz-PVirw1uPCxe60FdchR8eNVdsskeo";
+
+// ====================== STATE ======================
+let ws = null;
+let currentPair = null;          // contoh: btcidr
+let lastBids = [];
+let lastAsks = [];
+let recentTrades = [];
+let authDone = false;
+
+// ====================== DOM ======================
+const screenTable = document.getElementById("screenTable");
+const screenStatus = document.getElementById("screenStatus");
+const activePairEl = document.getElementById("activePair");
+const wsStatus = document.getElementById("wsStatus");
+const bidsEl = document.getElementById("bids");
+const asksEl = document.getElementById("asks");
+const signalBox = document.getElementById("signalBox");
+const tradeLog = document.getElementById("tradeLog");
+const btnDisconnect = document.getElementById("btnDisconnect");
+
+// ====================== SCREENING ======================
+document.getElementById("btnScreen").onclick = doScreening;
+
+async function doScreening() {
+  screenStatus.textContent = "Loading...";
+  screenTable.innerHTML = "";
+
+  try {
+    const res = await fetch("https://indodax.com/api/ticker_all");
+    const data = await res.json();
+    const tickers = data.tickers || {};
+
+    const minVol = Number(document.getElementById("minVol").value) || 0;
+    const maxSpread = Number(document.getElementById("maxSpread").value) || 999;
+
+    const rows = [];
+
+    for (const [key, t] of Object.entries(tickers)) {
+      // key contoh: btc_idr
+      const pair = key.replace("_", "");          // btcidr
+      const last = Number(t.last);
+      const buy  = Number(t.buy);
+      const sell = Number(t.sell);
+      if (!last || !buy || !sell) continue;
+
+      const spreadPct = ((sell - buy) / buy) * 100;
+      const volIdr = Number(t.vol_idr) || 0;
+
+      if (volIdr < minVol) continue;
+      if (spreadPct > maxSpread) continue;
+
+      rows.push({ pair, key, last, buy, sell, spreadPct, volIdr });
+    }
+
+    // sort by volume terbesar
+    rows.sort((a, b) => b.volIdr - a.volIdr);
+
+    rows.slice(0, 40).forEach(r => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">${r.pair.toUpperCase()}</td>
+        <td class="mono">${fmt(r.last)}</td>
+        <td class="mono positive">${fmt(r.buy)}</td>
+        <td class="mono negative">${fmt(r.sell)}</td>
+        <td>${r.spreadPct.toFixed(3)}%</td>
+        <td>${fmtVol(r.volIdr)}</td>
+        <td><button onclick="connectPair('${r.pair}')">Connect WS</button></td>
+      `;
+      screenTable.appendChild(tr);
+    });
+
+    screenStatus.textContent = `Ditemukan ${rows.length} pair (tampil 40 teratas)`;
+  } catch (err) {
+    screenStatus.textContent = "Error: " + err.message;
+  }
+}
+
+// ====================== WEBSOCKET ======================
+function connectPair(pair) {
+  if (ws) {
+    try { ws.close(); } catch(e){}
+  }
+
+  currentPair = pair;
+  activePairEl.textContent = pair.toUpperCase();
+  authDone = false;
+  lastBids = [];
+  lastAsks = [];
+  recentTrades = [];
+  tradeLog.innerHTML = "";
+  bidsEl.innerHTML = "";
+  asksEl.innerHTML = "";
+  signalBox.innerHTML = "<p style='color:#94a3b8'>Connecting...</p>";
+
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    setStatus("Connecting...", "blue");
+    // 1. Authenticate
+    ws.send(JSON.stringify({
+      params: { token: STATIC_TOKEN },
+      id: 1
+    }));
+  };
+
+	ws.onmessage = (evt) => {
+	  let msg;
+	  try { msg = JSON.parse(evt.data); } catch(e) { return; }
+
+	  // Auth response
+	  if (msg.id === 1 && msg.result) {
+		authDone = true;
+		setStatus('Authenticated', 'green');
+		subscribeChannels();
+		return;
+	  }
+
+	  // Streaming data
+	  if (msg.result && msg.result.channel) {
+		const ch = msg.result.channel;
+		const data = msg.result.data;   // ← ini yang dikirim ke handler
+
+		if (ch.startsWith('market:order-book-')) {
+		  handleOrderbook(data);
+		} else if (ch.startsWith('market:trade-activity-')) {
+		  handleTrade(data);
+		}
+	  }
+	};
+
+  ws.onclose = () => {
+    setStatus("Disconnected", "red");
+    btnDisconnect.disabled = true;
+  };
+
+  ws.onerror = (err) => {
+    console.error(err);
+    setStatus("Error", "red");
+  };
+
+  btnDisconnect.disabled = false;
+}
+
+btnDisconnect.onclick = () => {
+  if (ws) ws.close();
+};
+
+function subscribeChannels() {
+  if (!currentPair) return;
+
+  // Orderbook
+  ws.send(JSON.stringify({
+    method: 1,
+    params: { channel: `market:order-book-${currentPair}` },
+    id: 10
+  }));
+
+  // Trade Activity
+  ws.send(JSON.stringify({
+    method: 1,
+    params: { channel: `market:trade-activity-${currentPair}` },
+    id: 11
+  }));
+
+  setStatus("Subscribed", "green");
+}
+
+// ====================== HANDLERS ======================
+function handleOrderbook(payload) {
+  // payload = msg.result.data
+  // payload.data = { pair, ask, bid }
+  const book = payload?.data;
+  if (!book || !book.bid || !book.ask) return;
+
+  lastBids = (book.bid || []).slice(0, 10);
+  lastAsks = (book.ask || []).slice(0, 10);
+
+  // Render BID
+  bidsEl.innerHTML = lastBids.map(b => {
+    const vol = b.btc_volume || b.usdt_volume || b.idr_volume || 
+                Object.values(b).find(v => typeof v === 'string' && v.includes('.')) || '0';
+    return `<div>${fmt(b.price)} <span style="color:#94a3b8">× ${Number(vol).toFixed(4)}</span></div>`;
+  }).join('');
+
+  // Render ASK
+  asksEl.innerHTML = lastAsks.map(a => {
+    const vol = a.btc_volume || a.usdt_volume || a.idr_volume || 
+                Object.values(a).find(v => typeof v === 'string' && v.includes('.')) || '0';
+    return `<div>${fmt(a.price)} <span style="color:#94a3b8">× ${Number(vol).toFixed(4)}</span></div>`;
+  }).join('');
+
+  calculateSignal();
+}
+
+function handleTrade(payload) {
+  // payload = msg.result.data
+  const trades = payload?.data || [];
+  if (!Array.isArray(trades)) return;
+
+  trades.forEach(t => {
+    // format: [pair, timestamp, seq, side, price, idr_vol, coin_vol]
+    const side  = t[3];
+    const price = Number(t[4]);
+    const vol   = t[6] || t[5];
+
+    recentTrades.unshift({ side, price, vol, time: new Date().toLocaleTimeString() });
+    if (recentTrades.length > 40) recentTrades.pop();
+
+    const color = side === 'buy' ? '#22c55e' : '#ef4444';
+    const line = document.createElement('div');
+    line.innerHTML = `<span style="color:${color}">${side.toUpperCase()}</span> ${fmt(price)} vol:${vol} <span style="color:#64748b">${new Date().toLocaleTimeString()}</span>`;
+    tradeLog.prepend(line);
+  });
+
+  calculateSignal();
+}
+
+// ====================== SIGNAL LOGIC (sederhana) ======================
+function calculateSignal() {
+  if (!lastBids.length || !lastAsks.length) return;
+
+  const bestBid = Number(lastBids[0].price);
+  const bestAsk = Number(lastAsks[0].price);
+  const mid = (bestBid + bestAsk) / 2;
+  const spreadPct = ((bestAsk - bestBid) / bestBid) * 100;
+
+  // Hitung pressure bid vs ask (volume di 3 level teratas)
+  let bidVol = 0, askVol = 0;
+  lastBids.slice(0,3).forEach(b => bidVol += Number(b.btc_volume || b.idr_volume || 0));
+  lastAsks.slice(0,3).forEach(a => askVol += Number(a.btc_volume || a.idr_volume || 0));
+
+  const pressure = bidVol > askVol * 1.3 ? "BUY pressure" :
+                   askVol > bidVol * 1.3 ? "SELL pressure" : "Netral";
+
+  // Recent trades bias
+  const last10 = recentTrades.slice(0, 10);
+  const buyCount = last10.filter(t => t.side === "buy").length;
+  const sellCount = last10.length - buyCount;
+  const tradeBias = buyCount > sellCount + 2 ? "Bullish" :
+                    sellCount > buyCount + 2 ? "Bearish" : "Sideways";
+
+  // Saran Entry / SL / TP (sangat sederhana - hanya contoh)
+  let entry = "-", sl = "-", tp = "-", note = "";
+
+  if (pressure === "BUY pressure" && tradeBias === "Bullish" && spreadPct < 0.25) {
+    entry = bestAsk;                          // entry di ask (market buy)
+    sl    = bestBid * 0.997;                  // SL ~0.3% di bawah bid
+    tp    = bestAsk * 1.006;                  // TP ~0.6%
+    note  = "Kondisi mendukung long scalping";
+  } else if (pressure === "SELL pressure" && tradeBias === "Bearish" && spreadPct < 0.25) {
+    entry = bestBid;                          // entry di bid (market sell / short)
+    sl    = bestAsk * 1.003;
+    tp    = bestBid * 0.994;
+    note  = "Kondisi mendukung short scalping";
+  } else {
+    note = "Belum ada setup yang jelas. Tunggu pressure + trade bias sejalan.";
+  }
+
+  signalBox.innerHTML = `
+    <div style="margin-bottom:8px">
+      <span class="badge ${pressure.includes('BUY') ? 'badge-green' : pressure.includes('SELL') ? 'badge-red' : 'badge-blue'}">${pressure}</span>
+      <span class="badge ${tradeBias==='Bullish'?'badge-green':tradeBias==='Bearish'?'badge-red':'badge-blue'}" style="margin-left:6px">${tradeBias}</span>
+    </div>
+    <div class="mono" style="font-size:14px;line-height:1.7">
+      Best Bid : <span class="positive">${fmt(bestBid)}</span><br>
+      Best Ask : <span class="negative">${fmt(bestAsk)}</span><br>
+      Spread   : ${spreadPct.toFixed(3)}%<br>
+      Mid      : ${fmt(mid)}
+    </div>
+    <hr style="border-color:#334155;margin:10px 0">
+    <div class="mono">
+      <strong>Entry</strong> : ${entry === "-" ? "-" : fmt(entry)}<br>
+      <strong>SL</strong>    : ${sl === "-" ? "-" : fmt(sl)}<br>
+      <strong>TP</strong>    : ${tp === "-" ? "-" : fmt(tp)}
+    </div>
+    <p style="margin-top:8px;color:#94a3b8;font-size:13px">${note}</p>
+    <p style="margin-top:6px;color:#64748b;font-size:12px">
+      * Ini hanya contoh logika sederhana. Jangan pakai langsung untuk real trading tanpa riset lebih lanjut.
+    </p>
+  `;
+}
+
+// ====================== HELPERS ======================
+function setStatus(text, color) {
+  wsStatus.textContent = text;
+  wsStatus.className = "badge badge-" + color;
+}
+
+function fmt(n) {
+  n = Number(n);
+  if (n >= 1000) return n.toLocaleString("id-ID");
+  return n.toString();
+}
+
+function fmtVol(n) {
+  if (n >= 1e9) return (n/1e9).toFixed(2) + "B";
+  if (n >= 1e6) return (n/1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n/1e3).toFixed(0) + "K";
+  return n.toString();
+}
+
+// Auto screening pertama kali
+doScreening();
+</script>
+</body>
+</html>
