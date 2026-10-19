@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Crypto Breakout High Matrix</title>
+  <title>Crypto Breakout & Rebound Matrix</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -127,13 +127,14 @@
   </style>
 </head>
 <body>
-  <h1>Crypto Breakout High Matrix</h1>
+  <h1>Crypto Breakout & Rebound Matrix</h1>
   <p class="meta">Klik header kolom untuk mengurutkan · Concurrent optimized (tanpa cache)</p>
 
   <!-- Tabs -->
   <div class="tabs">
     <button class="tab-btn active" id="tabSwing" onclick="switchTab('swing')">Swing Trade</button>
     <button class="tab-btn" id="tabScalping" onclick="switchTab('scalping')">Scalping</button>
+    <button class="tab-btn" id="tabRebound" onclick="switchTab('rebound')">Rebound / Support</button>
   </div>
 
   <!-- Controls Swing -->
@@ -170,6 +171,28 @@
     </div>
   </div>
 
+<!-- Controls Rebound -->
+  <div class="controls" id="controlsRebound" style="display:none;">
+    <select id="reboundTfSelect">
+      <option value="1d" selected>TF: 1D (Harian)</option>
+      <option value="1w">TF: 1W (Mingguan)</option>
+      <option value="240">TF: 4 Jam</option>
+      <option value="60">TF: 1 Jam</option>
+    </select>
+    <select id="reboundPeriodSelect">
+      <option value="7">Rebound Period: 1W (7 hari)</option>
+      <option value="14">Rebound Period: 2W (14 hari)</option>
+      <option value="30" selected>Rebound Period: 1M (30 hari) — Rekomendasi</option>
+      <option value="90">Rebound Period: 3M (90 hari)</option>
+      <option value="180">Rebound Period: 6M (180 hari)</option>
+      <option value="365">Rebound Period: 1Y (365 hari)</option>
+    </select>
+    <button id="scanBtnRebound" onclick="startScan()">Tampilkan</button>
+    <div class="hint">
+      Mendeteksi candle pantulan (rebound) dari titik terendah berdasarkan periode waktu yang dipilih.
+    </div>
+  </div>
+    
   <!-- Search -->
   <div class="search-wrapper">
     <input type="text" id="searchInput" placeholder="Cari pair... (contoh: BTC, ETH, PEPE)" oninput="filterTable()">
@@ -185,7 +208,6 @@
     const PAIRS_URL = "https://raw.githubusercontent.com/paulgithubcode/sind/main/pairs.json";
     const HISTORY_BASE = "https://indodax.com/tradingview/history_v2";
 
-    // Pengaturan lebih aman
     const CONCURRENCY = 3;
     const DELAY_AFTER_REQUEST = 300; // ms
     const RETRY_DELAY = 1600;
@@ -202,8 +224,11 @@
       currentMode = mode;
       document.getElementById("tabSwing").classList.toggle("active", mode === "swing");
       document.getElementById("tabScalping").classList.toggle("active", mode === "scalping");
+      document.getElementById("tabRebound").classList.toggle("active", mode === "rebound");
+      
       document.getElementById("controlsSwing").style.display = mode === "swing" ? "flex" : "none";
       document.getElementById("controlsScalping").style.display = mode === "scalping" ? "flex" : "none";
+      document.getElementById("controlsRebound").style.display = mode === "rebound" ? "flex" : "none";
 
       document.getElementById("searchInput").value = "";
       document.getElementById("tableContainer").innerHTML = "";
@@ -231,7 +256,7 @@
       const hour = String(d.getHours()).padStart(2, "0");
       const minute = String(d.getMinutes()).padStart(2, "0");
 
-      if (currentMode === "swing") {
+      if (currentMode === "swing" || (currentMode === "rebound" && (currentTf === "1d" || currentTf === "1w"))) {
         return `${day}/${month}`;
       }
       if (currentTf === "15" || currentTf === "30") {
@@ -300,6 +325,39 @@
         const key = formatKey(c.Time);
         if (c.High > runningHigh) {
           runningHigh = c.High;
+          breakoutMap[key] = true;
+          count++;
+        }
+      });
+
+      return {
+        symbol: null,
+        breakoutMap,
+        count,
+        dates: candles.map(c => formatKey(c.Time))
+      };
+    }
+
+    function findReboundDays(candles) {
+      if (!candles || candles.length < 3) return null;
+
+      candles.sort((a, b) => a.Time - b.Time);
+
+      const breakoutMap = {};
+      let runningLow = Infinity;
+      let count = 0;
+
+      candles.forEach((c, i) => {
+        const key = formatKey(c.Time);
+        
+        if (c.Low < runningLow) {
+          runningLow = c.Low;
+        }
+
+        const isGreen = c.Close > c.Open;
+        const nearSupport = c.Low <= runningLow * 1.015;
+
+        if (isGreen && nearSupport && i > 0) {
           breakoutMap[key] = true;
           count++;
         }
@@ -441,9 +499,10 @@
       if (isScanning) return;
       isScanning = true;
 
-      const btn = currentMode === "swing"
-        ? document.getElementById("scanBtn")
-        : document.getElementById("scanBtnScalp");
+      let btn;
+      if (currentMode === "swing") btn = document.getElementById("scanBtn");
+      else if (currentMode === "scalping") btn = document.getElementById("scanBtnScalp");
+      else btn = document.getElementById("scanBtnRebound");
 
       btn.disabled = true;
       document.getElementById("tableContainer").innerHTML = "";
@@ -463,9 +522,12 @@
         if (currentMode === "swing") {
           periodDays = parseInt(document.getElementById("periodSelect").value);
           tf = "1d";
-        } else {
+        } else if (currentMode === "scalping") {
           periodDays = parseInt(document.getElementById("lookbackSelect").value);
           tf = document.getElementById("tfSelect").value;
+        } else {
+          periodDays = parseInt(document.getElementById("reboundPeriodSelect").value);
+          tf = document.getElementById("reboundTfSelect").value;
         }
 
         currentTf = tf;
@@ -473,7 +535,7 @@
         const from = getUnixTime(periodDays + 1);
 
         showStatus(
-          `Scanning ${allPairs.length} pairs | Mode: ${currentMode.toUpperCase()} | TF: ${tf} | Lookback: ${periodDays} hari`,
+          `Scanning ${allPairs.length} pairs | Mode: ${currentMode.toUpperCase()} | TF: ${tf.toUpperCase()} | Lookback: ${periodDays} hari`,
           "loading"
         );
 
@@ -485,7 +547,13 @@
         const worker = async (pair) => {
           try {
             const candles = await fetchHistory(pair.id, from, to, tf);
-            const analysis = findBreakoutDays(candles);
+            let analysis = null;
+
+            if (currentMode === "rebound") {
+              analysis = findReboundDays(candles);
+            } else {
+              analysis = findBreakoutDays(candles);
+            }
 
             if (analysis && analysis.count > 0) {
               analysis.symbol = pair.symbol;
@@ -511,7 +579,7 @@
         const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
 
         showStatus(
-          `Selesai dalam ${elapsed} detik · Berhasil: ${success} | Gagal: ${failed} | Pair breakout: ${results.length}`,
+          `Selesai dalam ${elapsed} detik · Berhasil: ${success} | Gagal: ${failed} | Pair ${currentMode}: ${results.length}`,
           "success"
         );
         document.getElementById("progress").textContent = "";
@@ -526,7 +594,6 @@
       }
     }
 
-    // Load pairs saat buka
     loadPairs().then(pairs => {
       showStatus(`Siap. ${pairs.length} pair IDR aktif berhasil dimuat.`, "success");
     }).catch(err => {
